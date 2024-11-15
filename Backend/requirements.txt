@@ -1,0 +1,14 @@
+# Add project dependencies here
+pytest
+fastapi
+uvicorn
+sentence-transformers
+pypdf2
+requests
+torch
+aiohttp
+pdfplumber
+nltk 
+scikit-learn 
+pandas 
+numpy
