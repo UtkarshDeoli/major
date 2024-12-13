@@ -1,3 +1,10 @@
 env
 **/__pycache__/
 **/*.pyc
+**/*.next
+**/*out
+**/*.log
+**/*node_modules
+**/*package-lock.json
+**/*.venv
+backdate_commits.sh
