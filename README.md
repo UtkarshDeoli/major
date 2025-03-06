@@ -11,7 +11,7 @@ pip install -r requirements.txt
 ## Usage
 
 ```bash
-uvicorn src.main:app --reload
+cd src && python main.py
 ```
 
 ## Flow
