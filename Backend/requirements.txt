@@ -12,3 +12,9 @@ nltk
 scikit-learn 
 pandas 
 numpy
+# Dependencies for authentication
+motor
+pyjwt
+passlib[bcrypt]
+python-multipart
+email-validator

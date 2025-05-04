@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { 
   Book, FileText, FolderClosed, Plus, Search, Upload, X
 } from 'lucide-react'
@@ -9,7 +9,9 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { DocumentUploader } from '@/components/dashboard/documents/document-uploader'
 import { cn } from '@/lib/utils'
-import { Document } from '@/lib/data'
+import { Document, convertApiDocumentToDocument } from '@/lib/data'
+import { pdfAPI } from '@/lib/api'
+import { useToast } from '@/hooks/use-toast'
 
 interface SidebarProps {
   isOpen: boolean
@@ -32,20 +34,97 @@ export function Sidebar({
 }: SidebarProps) {
   const [searchTerm, setSearchTerm] = useState('')
   const [isUploaderOpen, setIsUploaderOpen] = useState(false)
-  const [activeFilter, setActiveFilter] = useState<string | null>(null)
+  const [activeFilters, setActiveFilters] = useState<string[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [userDocuments, setUserDocuments] = useState<Document[]>(documents)
+  const { toast } = useToast()
   
-  // Filter documents based on search term and active filter
-  const filteredDocuments = documents.filter(doc => {
+  // Fetch documents from API on component mount
+  useEffect(() => {
+    fetchDocuments();
+  }, []);
+  
+  // Fetch documents from the API
+  const fetchDocuments = async () => {
+    try {
+      setIsLoading(true);
+      const apiDocuments = await pdfAPI.listPDFs();
+      
+      // Convert API documents to our Document format
+      const convertedDocs = apiDocuments.map((doc: any) => {
+        // Handle tags - they might be a single string containing a JSON array
+        let docTags: string[] = [];
+        
+        if (doc.tags && Array.isArray(doc.tags)) {
+          if (doc.tags.length > 0) {
+            try {
+              // If the tags are stored as a JSON string inside an array
+              if (typeof doc.tags[0] === 'string' && doc.tags[0].startsWith('[')) {
+                // Parse the JSON string to get the actual array of tags
+                const parsedTags = JSON.parse(doc.tags[0]);
+                if (Array.isArray(parsedTags)) {
+                  docTags = parsedTags;
+                }
+              } else {
+                // Normal array of string tags
+                docTags = doc.tags;
+              }
+            } catch (error) {
+              console.error("Error parsing tags:", error);
+              docTags = doc.tags; // Use as is if parsing fails
+            }
+          }
+        } else if (!doc.tags) {
+          // Default tag if none exists
+          docTags = ['document'];
+        }
+        
+        return convertApiDocumentToDocument({
+          ...doc,
+          tags: docTags
+        });
+      });
+      
+      setUserDocuments(convertedDocs);
+      setIsLoading(false);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      toast({
+        title: "Failed to load documents",
+        description: "Could not retrieve your documents. Using default documents instead.",
+        variant: "destructive"
+      });
+      setIsLoading(false);
+    }
+  };
+  
+  // Filter documents based on search term and active filters
+  const filteredDocuments = userDocuments.filter(doc => {
     const matchesSearch = doc.title.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesFilter = !activeFilter || doc.tags.includes(activeFilter)
-    return matchesSearch && matchesFilter
+    
+    // If no filters are active, show all documents that match the search
+    if (activeFilters.length === 0) {
+      return matchesSearch;
+    }
+    
+    // Check if document has tags and if any of those tags are in activeFilters
+    const matchesFilters = doc.tags && doc.tags.some(tag => activeFilters.includes(tag));
+    
+    return matchesSearch && matchesFilters;
   })
   
-  const tags = Array.from(new Set(documents.flatMap(doc => doc.tags)))
+  // Extract unique tags from all documents
+  const tags = Array.from(
+    new Set(
+      userDocuments.flatMap(doc => doc.tags || [])
+    )
+  );
   
   const handleUpload = (doc: Document) => {
-    onUploadDocument(doc)
-    setIsUploaderOpen(false)
+    // Add the new document to the local state
+    setUserDocuments(prev => [...prev, doc]);
+    onUploadDocument(doc);
+    setIsUploaderOpen(false);
   }
   
   if (!isOpen) {
@@ -105,27 +184,37 @@ export function Sidebar({
             Upload Document
           </Button>
           
-          <div className="flex flex-wrap gap-2 mb-4">
-            {tags.map(tag => (
-              <Button
-                key={tag}
-                variant={activeFilter === tag ? "default" : "outline"}
-                size="sm"
-                onClick={() => setActiveFilter(activeFilter === tag ? null : tag)}
-                className={cn(
-                  "text-xs",
-                  activeFilter === tag && "bg-primary"
-                )}
-              >
-                {tag}
-              </Button>
-            ))}
-          </div>
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {tags.map(tag => (
+                <Button
+                  key={tag}
+                  variant={activeFilters.includes(tag) ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setActiveFilters(prev => 
+                    prev.includes(tag) 
+                      ? prev.filter(filter => filter !== tag) 
+                      : [...prev, tag]
+                  )}
+                  className={cn(
+                    "text-xs",
+                    activeFilters.includes(tag) && "bg-primary"
+                  )}
+                >
+                  {tag}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
         
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-2">
-            {filteredDocuments.length > 0 ? (
+            {isLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            ) : filteredDocuments.length > 0 ? (
               filteredDocuments.map(doc => (
                 <button
                   key={doc.id}
@@ -143,16 +232,18 @@ export function Sidebar({
                     <p className="text-xs text-muted-foreground">
                       {new Date(doc.uploadedAt).toLocaleDateString()}
                     </p>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {doc.tags.map(tag => (
-                        <span
-                          key={tag}
-                          className="inline-block text-[10px] px-1.5 py-0.5 bg-muted text-muted-foreground rounded-full"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
+                    {doc.tags && doc.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {doc.tags.map(tag => (
+                          <span
+                            key={tag}
+                            className="inline-block text-[10px] px-1.5 py-0.5 bg-muted text-muted-foreground rounded-full"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </button>
               ))

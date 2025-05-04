@@ -1,5 +1,6 @@
 import { ThemeProvider } from '@/components/providers/theme-provider'
 import { Toaster } from '@/components/ui/toaster'
+import AuthProtection from '@/components/auth/route-protection/auth-protection'
 
 export default function DashboardLayout({
   children,
@@ -7,9 +8,11 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen">
-      {children}
-      <Toaster />
-    </div>
+    <AuthProtection>
+      <div className="min-h-screen">
+        {children}
+        <Toaster />
+      </div>
+    </AuthProtection>
   )
 }

@@ -1,6 +1,12 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { Message, MessageGroup, MessageRole } from '@/lib/data';
+import { Message, MessageRole } from '@/lib/data';
+
+// Define MessageGroup type locally
+export type MessageGroup = {
+  role: MessageRole;
+  messages: Message[];
+};
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

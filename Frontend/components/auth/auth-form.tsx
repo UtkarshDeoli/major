@@ -25,16 +25,59 @@ export function AuthForm({ type }: AuthFormProps) {
     e.preventDefault()
     setIsLoading(true)
     
-    // Simulate auth process
-    setTimeout(() => {
-      setIsLoading(false)
+    try {
+      const endpoint = type === 'login' ? '/auth/login' : '/auth/signup'
+      
+      // For login, we need to use the format expected by OAuth2PasswordRequestForm
+      let body: FormData | string;
+      let headers: HeadersInit = {};
+      
+      if (type === 'login') {
+        const formData = new FormData();
+        formData.append('username', email); // OAuth2 uses 'username' for email
+        formData.append('password', password);
+        body = formData;
+      } else {
+        body = JSON.stringify({ email, password });
+        headers = {
+          'Content-Type': 'application/json'
+        };
+      }
+      
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'}${endpoint}`, {
+        method: 'POST',
+        headers,
+        body,
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.detail || 'Authentication failed');
+      }
+      
+      if (type === 'login') {
+        // Store token in localStorage
+        localStorage.setItem('token', data.access_token);
+      }
+      
       toast({
         title: type === 'login' ? 'Login successful!' : 'Account created!',
         description: "Welcome to Padhai Whallah.",
-      })
-      router.push('/dashboard')
-    }, 1500)
-  }
+      });
+      
+      router.push('/dashboard');
+    } catch (error) {
+      console.error('Authentication error:', error);
+      toast({
+        title: 'Authentication failed',
+        description: error instanceof Error ? error.message : 'Please try again',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   return (
     <form onSubmit={handleSubmit} className="space-y-4">

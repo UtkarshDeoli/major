@@ -6,76 +6,210 @@ import { Button } from '@/components/ui/button'
 import { ChatInput } from '@/components/dashboard/chat/chat-input'
 import { MessageList } from '@/components/dashboard/chat/message-list'
 import { SuggestedPrompts } from '@/components/dashboard/chat/suggested-prompts'
-import { createMessage, DEFAULT_MESSAGES, Message, MessageRole } from '@/lib/data'
-import { Document } from '@/lib/data'
+import { createMessage, MessageRole, Message, Document, ChatSession, convertApiSessionToSession } from '@/lib/data'
 import { useToast } from '@/hooks/use-toast'
-import { nanoid, cn } from '@/lib/utils'
+import { nanoid } from '@/lib/utils'
+import { chatAPI } from '@/lib/api'
 
 interface ChatInterfaceProps {
-  document: Document
+  document: Document | null
   initialMessages?: Message[]
+  initialChatId?: string
   className?: string
 }
 
-export function ChatInterface({ document, initialMessages = [], className }: ChatInterfaceProps) {
-  // Fix: Initialize with empty array and update in useEffect to avoid hydration mismatch
+export function ChatInterface({ document, initialMessages = [], initialChatId, className }: ChatInterfaceProps) {
+  // State for messages and chat session
   const [messages, setMessages] = useState<Message[]>([])
   const [isTyping, setIsTyping] = useState(false)
+  const [chatSession, setChatSession] = useState<ChatSession | null>(null)
+  const [context, setContext] = useState<string | null>(null)
+  
+  // Refs
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
   
   // Initialize messages on client-side only to avoid hydration mismatch
   useEffect(() => {
-    setMessages(initialMessages.length > 0 ? initialMessages : DEFAULT_MESSAGES);
+    setMessages(initialMessages);
   }, [initialMessages]);
+
+  // Fetch existing chat session if initialChatId is provided
+  useEffect(() => {
+    if (initialChatId) {
+      fetchChatSession(initialChatId);
+    }
+  }, [initialChatId]);
+
+  // Initialize a new chat session when document changes and no initialChatId
+  useEffect(() => {
+    if (document && !initialChatId && !chatSession) {
+      createNewChatSession();
+    }
+  }, [document, initialChatId, chatSession]);
   
   // Scroll to bottom when messages change
   useEffect(() => {
     if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
+      // Find the scrollable viewport element within ScrollArea
+      const viewport = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (viewport) {
+        viewport.scrollTop = viewport.scrollHeight;
+      }
     }
   }, [messages])
   
-  const handleSendMessage = (content: string, attachments: string[] = []) => {
-    // Add user message
+  // Fetch existing chat session
+  const fetchChatSession = async (sessionId: string) => {
+    console.log("session id:", sessionId);
+
+    try {
+      const sessionData = await chatAPI.getChatSession(sessionId);
+      const session = convertApiSessionToSession(sessionData);
+      setChatSession(session);
+      
+      if (session.messages && session.messages.length > 0) {
+        setMessages(session.messages);
+      }
+    } catch (error) {
+      console.error("Error fetching chat session:", error);
+      toast({
+        title: "Error loading chat",
+        description: "Could not load the chat history. Starting a new chat.",
+        variant: "destructive"
+      });
+      
+      if (document) {
+        createNewChatSession();
+      }
+    }
+  };
+  
+  // Create a new chat session
+  const createNewChatSession = async () => {
+    if (!document) return;
+    try {
+      const title = `Chat about ${document.title}`;
+      const sessionData = await chatAPI.createChatSession(title, document.id);
+      const session = convertApiSessionToSession(sessionData);
+      setChatSession(session);
+      
+      // Add system message
+      const systemMessage = createMessage({
+        id: nanoid(),
+        role: MessageRole.System,
+        content: `You're now chatting with an AI assistant about "${document.title}". Ask any questions about the document.`,
+        timestamp: new Date().toISOString()
+      });
+      
+      setMessages([systemMessage]);
+    } catch (error) {
+      console.error("Error creating chat session:", error);
+      toast({
+        title: "Error creating chat",
+        description: "Could not create a new chat session. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  
+  // Handle sending a message
+  const handleSendMessage = async (content: string, attachments: string[] = []) => {
+    // Don't allow sending messages if no document or chat session
+    if (!document || !chatSession) {
+      toast({
+        title: "Cannot send message",
+        description: "Please select a document first.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Add user message to UI immediately
     const userMessage: Message = createMessage({
       id: nanoid(),
       role: MessageRole.User,
       content,
       attachments,
       timestamp: new Date().toISOString(),
-    })
+    });
     
-    setMessages(prev => [...prev, userMessage])
+    setMessages(prev => [...prev, userMessage]);
+    setIsTyping(true);
     
-    // Simulate AI thinking
-    setIsTyping(true)
-    
-    // Simulate AI response after a delay
-    setTimeout(() => {
-      setIsTyping(false)
+    try {
+      let aiMessage: Message;
+      let responseContext: string | null = null;
       
-      // Generate AI response
-      const aiMessage: Message = createMessage({
-        id: nanoid(),
-        role: MessageRole.Assistant,
-        content: generateAIResponse(content, document),
-        timestamp: new Date().toISOString(),
-      })
+      if (chatSession.id) {
+        // Use the non-streaming API to add the message and get the response
+        const response = await chatAPI.addMessageToChat(chatSession.id, content);
+        
+        // Assuming the response contains the assistant's message and context
+        // Adjust based on the actual structure of the response from addMessageToChat
+        aiMessage = createMessage({
+          id: nanoid(), // Or use an ID from the response if available
+          role: MessageRole.Assistant,
+          content: response.answer || "Sorry, I couldn't get a response.", // Adjust property names as needed
+          timestamp: new Date().toISOString(), // Adjust property names as needed
+        });
+        
+        if (response.context) {
+          responseContext = response.context;
+        }
+        
+      } else {
+        // Fallback to non-streaming askQuestion if no chat session ID (should ideally not happen if session is created)
+        const response = await chatAPI.askQuestion(content, document.id);
+        
+        aiMessage = createMessage({
+          id: nanoid(),
+          role: MessageRole.Assistant,
+          content: response.answer,
+          timestamp: new Date().toISOString(),
+        });
+        
+        if (response.context) {
+          responseContext = response.context;
+        }
+      }
       
-      setMessages(prev => [...prev, aiMessage])
-    }, 1500 + Math.random() * 1000)
-  }
+      // Add the AI message to the state
+      setMessages(prev => [...prev, aiMessage]);
+      
+      // Update context if available
+      if (responseContext) {
+        setContext(responseContext);
+      }
+      
+    } catch (error) {
+      console.error("Error getting AI response:", error);
+      toast({
+        title: "Error",
+        description: "Failed to get a response. Please try again.",
+        variant: "destructive"
+      });
+      
+      // Optionally remove the user message if the API call failed
+      // setMessages(prev => prev.filter(msg => msg.id !== userMessage.id));
+      
+    } finally {
+      setIsTyping(false);
+    }
+  };
+  
+  // ...existing code...
   
   const handleUsePrompt = (prompt: string) => {
-    handleSendMessage(prompt)
-  }
+    handleSendMessage(prompt);
+  };
   
   const handleAddReaction = (messageId: string, reaction: string) => {
     setMessages(prev => 
       prev.map(msg => {
         if (msg.id === messageId) {
-          const existingReactions = msg.reactions || {}
+          const existingReactions = msg.reactions || {};
           return {
             ...msg,
             reactions: {
@@ -86,24 +220,24 @@ export function ChatInterface({ document, initialMessages = [], className }: Cha
         }
         return msg
       })
-    )
+    );
     
     toast({
       description: `You reacted with ${reaction}`
-    })
-  }
+    });
+  };
   
   return (
-    <div className={cn("flex flex-col h-full", className)}>
-      <div className="flex-1 flex flex-col">
-        <ScrollArea className="flex-1 p-3 sm:p-4" ref={scrollAreaRef}>
+    <div className={`flex flex-col h-full ${className}`}>
+      <div className="flex-1 flex flex-col overflow-auto">
+          <div className='p-2 flex-1'>
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-3 sm:p-4">
               <h3 className="text-base sm:text-lg font-semibold mb-2">Chat about this document</h3>
               <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6">
-                Ask questions, get summaries, or request explanations about {document.title}
+                Ask questions, get summaries, or request explanations about {document?.title || 'your document'}
               </p>
-              <SuggestedPrompts onSelectPrompt={handleUsePrompt} document={document} />
+              {document && <SuggestedPrompts onSelectPrompt={handleUsePrompt} document={document} />}
             </div>
           ) : (
             <MessageList 
@@ -112,27 +246,29 @@ export function ChatInterface({ document, initialMessages = [], className }: Cha
               onAddReaction={handleAddReaction}
             />
           )}
-        </ScrollArea>
+          </div>
+      
         
-        <div className="p-2 sm:p-4 border-t">
-          <ChatInput onSendMessage={handleSendMessage} isTyping={isTyping} />
+        {context && (
+          <div className="px-4 py-2 border-t bg-muted/30 text-xs text-muted-foreground">
+            <details>
+              <summary className="cursor-pointer font-medium">Context from document</summary>
+              <div className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap">
+                {context}
+              </div>
+            </details>
+          </div>
+        )}
+        
+        <div className="p-2 sm:p-4 border-t mt-auto">
+          
+          <ChatInput 
+            onSendMessage={handleSendMessage} 
+            isTyping={isTyping}
+            disabled={!document || !chatSession}
+          />
         </div>
       </div>
     </div>
   )
-}
-
-// Mock AI response generator
-function generateAIResponse(prompt: string, document: Document): string {
-  const responses = [
-    `Based on ${document.title}, I can tell you that the key concepts covered include study techniques, memory enhancement, and effective note-taking.`,
-    `The document discusses various exam preparation strategies, including spaced repetition and active recall.`,
-    `According to the material, the most effective study method involves breaking down complex topics into smaller, manageable chunks.`,
-    `The author recommends creating mind maps to visualize connections between different concepts.`,
-    `This document emphasizes the importance of understanding concepts rather than memorizing facts.`,
-    `I'd suggest focusing on the sections about time management and prioritization of topics based on their importance.`,
-    `The material covers both theoretical knowledge and practical applications with several examples and case studies.`
-  ]
-  
-  return responses[Math.floor(Math.random() * responses.length)]
 }

@@ -2,34 +2,73 @@ import json
 import torch
 import aiohttp
 import requests
-from typing import Dict, Any, AsyncGenerator
-from sentence_transformers import util
+from typing import Dict, Any, Optional, Tuple
 from fastapi import HTTPException
-from ..core.config import settings
-from ..core.data_store import data_store
+from src.services.pdf_service import get_relevant_context
 
-async def get_answer(question: str) -> Dict[str, Any]:
+async def ask_question(question: str, pdf_id: Optional[str] = None, stream: bool = False):
     """
-    Get answer for a question from the LLM
+    Ask a question to the LLM with or without PDF context
+    """
+    context = ""
     
-    Args:
-        question: User question
-        
-    Returns:
-        Dictionary containing answer and context
+    # Get context from PDF if pdf_id is provided
+    if pdf_id:
+        try:
+            context, _ = await get_relevant_context(pdf_id, question, top_k=3)
+        except Exception as e:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Error getting context from PDF: {str(e)}"
+            )
+    
+    # Generate the prompt with or without context
+    if context:
+        prompt = f"""You are an AI tutor. Answer the question strictly based on the provided textbook excerpts.  
+
+        - Provide a clear, concise, and well-structured answer.  
+        - Focus on key points that are important for exams.  
+        - Avoid unnecessary introductions—start directly with the answer.  
+        - If necessary, break down complex ideas into simpler explanations.  
+        - If the context does not contain relevant information, state that the question is not covered in the given context.  
+
+        **Context:** {context}  
+
+        **Question:** {question}  
+
+        **Exam-Focused Answer:**  
+
+        """
+    else:
+        prompt = f"""You are an AI tutor. 
+
+        - Provide a clear, concise, and well-structured answer.  
+        - Focus on key points that are important for exams.  
+        - Avoid unnecessary introductions—start directly with the answer.  
+        - If necessary, break down complex ideas into simpler explanations.  
+
+        **Question:** {question}  
+
+        **Exam-Focused Answer:**  
+
+        """
+    
+    # Handle streaming or non-streaming response
+    if stream:
+        return await stream_llm_response(prompt, context)
+    else:
+        return await get_llm_response(prompt, context)
+
+async def get_llm_response(prompt: str, context: str = ""):
+    """
+    Get a non-streaming response from the LLM
     """
     try:
-        # Get context for the question
-        context = get_relevant_context(question)
-        
-        # Create prompt
-        prompt = create_prompt(question, context)
-        
-        # Send request to LLM
+        # Send request to local LLM with stream=False
         response = requests.post(
-            settings.LLM_URL,
+            "http://ollama.utkarshdeoli.in/api/generate", 
             json={
-                "model": settings.LLM_MODEL,
+                "model": "llama3.2:1b",
                 "prompt": prompt,
                 "stream": False
             }
@@ -40,100 +79,44 @@ async def get_answer(question: str) -> Dict[str, Any]:
             return {"answer": result.get("response", "No response from LLM"), "context": context}
         else:
             raise HTTPException(
-                status_code=response.status_code,
+                status_code=response.status_code, 
                 detail=f"Error from LLM server: {response.text}"
             )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating response: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Error generating response: {str(e)}"
+        )
 
-async def stream_answer(question: str) -> AsyncGenerator[str, None]:
+async def stream_llm_response(prompt: str, context: str = ""):
     """
-    Stream answer for a question from the LLM
-    
-    Args:
-        question: User question
-        
-    Yields:
-        JSON strings for each chunk of the answer
+    Get a streaming response from the LLM
     """
-    try:
-        # Get context for the question
-        context = get_relevant_context(question)
-        
-        # Create prompt
-        prompt = create_prompt(question, context)
-        
+    async def stream_response():
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                settings.LLM_URL,
+                "http://ollama.utkarshdeoli.in/api/generate", 
                 json={
-                    "model": settings.LLM_MODEL,
+                    "model": "llama3.2:1b",
                     "prompt": prompt,
-                    "max_tokens": settings.MAX_TOKENS,
+                    "max_tokens": 500,
                     "stream": True
                 }
             ) as response:
+                # Add context as first chunk if available
+                if context:
+                    context_data = {"context": context}
+                    yield json.dumps(context_data) + "\n"
+                
+                # Read the streaming response line by line
                 async for line in response.content:
                     if line:
+                        # Parse the JSON response from each line
                         try:
                             data = json.loads(line)
+                            # Yield the token with proper JSON formatting
                             yield json.dumps(data) + "\n"
                         except json.JSONDecodeError:
                             yield '{"error": "Invalid JSON received from LLM"}\n'
-    except Exception as e:
-        yield json.dumps({"error": str(e)}) + "\n"
-
-def get_relevant_context(question: str) -> str:
-    """
-    Get relevant context for a question
     
-    Args:
-        question: User question
-        
-    Returns:
-        Relevant context from PDF paragraphs
-    """
-    from sentence_transformers import SentenceTransformer
-    model = SentenceTransformer(settings.EMBEDDING_MODEL)
-    
-    # Encode the question
-    question_embedding = model.encode(question, convert_to_tensor=True)
-    pdf_data = data_store.get_pdf_data()
-    
-    # Find most relevant paragraphs
-    similarities = util.pytorch_cos_sim(
-        question_embedding,
-        torch.tensor(pdf_data["embeddings"])
-    )[0]
-    
-    # Get top k most relevant paragraphs
-    top_indices = similarities.argsort(descending=True)[:settings.CONTEXT_SIZE]
-    context = "\n\n".join([pdf_data["paragraphs"][idx] for idx in top_indices.tolist()])
-    
-    return context
-
-def create_prompt(question: str, context: str) -> str:
-    """
-    Create a prompt for the LLM
-    
-    Args:
-        question: User question
-        context: Relevant context
-        
-    Returns:
-        Formatted prompt
-    """
-    return f"""You are an AI tutor. Answer the question strictly based on the provided textbook excerpts.  
-
-    - Provide a clear, concise, and well-structured answer.  
-    - Focus on key points that are important for exams.  
-    - Avoid unnecessary introductions—start directly with the answer.  
-    - If necessary, break down complex ideas into simpler explanations.  
-    - If the context does not contain relevant information, state that the question is not covered in the given context.  
-
-    **Context:** {context}  
-
-    **Question:** {question}  
-
-    **Exam-Focused Answer:**  
-    """
+    return stream_response

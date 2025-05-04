@@ -19,7 +19,7 @@ export function MessageList({ messages, isTyping, onAddReaction }: MessageListPr
     <div className="space-y-6">
       {messageGroups.map((group, groupIndex) => (
         <div key={groupIndex} className="space-y-2">
-          {group.messages.map((message, messageIndex) => (
+          {group.messages.map((message: Message, messageIndex: number) => (
             <MessageItem
               key={message.id}
               message={message}

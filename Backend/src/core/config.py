@@ -1,20 +1,32 @@
-from pydantic import BaseSettings
+import os
+from typing import Optional
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    APP_NAME: str = "PDF Question Answering API"
-    APP_DESCRIPTION: str = "API for processing PDFs and answering questions using LLM"
-    APP_VERSION: str = "0.1.0"
+    # MongoDB settings
+    MONGODB_URL: str = "mongodb://localhost:27017"
+    MONGODB_DB_NAME: str = "phadai"
+    MONGODB_CONNECT_TIMEOUT: int = 30000  # 30 seconds timeout
     
-    # LLM Settings
-    LLM_URL: str = "http://ollama.utkarshdeoli.in/api/generate"
-    LLM_MODEL: str = "llama3.2:1b"
+    # JWT settings
+    SECRET_KEY: str = "thisisasupersecretkeymadebyutkarsh"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
-    # Model settings
-    EMBEDDING_MODEL: str = "paraphrase-MiniLM-L6-v2"
-    MAX_TOKENS: int = 500
-    CONTEXT_SIZE: int = 3  # Number of paragraphs to retrieve
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+    )
 
-    class Config:
-        env_file = ".env"
-
+# Create settings instance
 settings = Settings()
+
+# Export settings variables
+MONGODB_URL = settings.MONGODB_URL
+MONGODB_DB_NAME = settings.MONGODB_DB_NAME
+MONGODB_CONNECT_TIMEOUT = settings.MONGODB_CONNECT_TIMEOUT
+SECRET_KEY = settings.SECRET_KEY
+ALGORITHM = settings.ALGORITHM
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES

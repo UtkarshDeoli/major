@@ -27,9 +27,10 @@ import { cn } from '@/lib/utils'
 interface ChatInputProps {
   onSendMessage: (content: string, attachments: string[]) => void
   isTyping: boolean
+  disabled?: boolean
 }
 
-export function ChatInput({ onSendMessage, isTyping }: ChatInputProps) {
+export function ChatInput({ onSendMessage, isTyping, disabled }: ChatInputProps) {
   const [message, setMessage] = useState('')
   const [attachments, setAttachments] = useState<string[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)

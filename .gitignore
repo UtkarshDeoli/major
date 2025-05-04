@@ -8,3 +8,5 @@ env
 **/*package-lock.json
 **/*.venv
 backdate_commits.sh
+**/*.env
+*.env

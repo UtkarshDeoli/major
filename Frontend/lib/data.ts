@@ -1,182 +1,182 @@
+import { nanoid } from './utils';
+
+// User
+export interface User {
+  email: string;
+}
+
+// Document Types
+export interface Document {
+  id: string;
+  title: string;
+  filename: string;
+  size: number;
+  uploadedAt: string;
+  file_path: string;
+  processed: boolean;
+  user_id: string;
+  tags?: string[];
+  page_count?: number;
+  description?: string;
+  vector_db_path?: string;
+}
+
+// Chat Message Types
 export enum MessageRole {
   User = 'user',
   Assistant = 'assistant',
-  System = 'system'
+  System = 'system',
 }
 
 export interface Message {
-  id: string
-  role: MessageRole
-  content: string
-  timestamp: string
-  attachments?: string[]
-  reactions?: Record<string, number>
-}
-
-export interface MessageGroup {
-  role: MessageRole
-  messages: Message[]
-}
-
-export interface Document {
-  id: string
-  title: string
-  fileName: string
-  url: string
-  type: 'pdf' | 'doc' | 'docx'
-  uploadedAt: string
-  tags: string[]
-}
-
-export interface ChatHistory {
   id: string;
-  documentId: string;
-  documentTitle: string;
-  messages: Message[];
-  lastUpdated: string;
-  title: string;
+  role: MessageRole;
+  content: string;
+  timestamp: string;
+  attachments?: string[];
+  reactions?: Record<string, number>;
 }
 
-// Sample documents
+// Create a new message
+export function createMessage(message: Message): Message {
+  return {
+    id: message.id || nanoid(),
+    role: message.role,
+    content: message.content,
+    timestamp: message.timestamp || new Date().toISOString(),
+    attachments: message.attachments || [],
+    reactions: message.reactions || {},
+  };
+}
+
+// Chat Session Types
+export interface ChatSession {
+  id: string;
+  title: string;
+  pdf_id?: string;
+  created_at: string;
+  updated_at: string;
+  messages: Message[];
+  user_id: string;
+  pdf_title?: string;
+}
+
+// Convert backend document to frontend document
+export function convertApiDocumentToDocument(apiDocument: any): Document {
+  return {
+    id: apiDocument.id,
+    title: apiDocument.title || apiDocument.filename,
+    filename: apiDocument.filename,
+    size: apiDocument.size,
+    uploadedAt: apiDocument.upload_date,
+    file_path: apiDocument.file_path,
+    processed: apiDocument.processed,
+    user_id: apiDocument.user_id,
+    tags: apiDocument.tags || [],
+    page_count: apiDocument.page_count,
+    description: apiDocument.description,
+    vector_db_path: apiDocument.vector_db_path,
+  };
+}
+
+// Convert backend chat session to frontend chat session
+export function convertApiSessionToSession(apiSession: any): ChatSession {
+  return {
+    id: apiSession.id,
+    title: apiSession.title,
+    pdf_id: apiSession.pdf_id,
+    created_at: apiSession.created_at,
+    updated_at: apiSession.updated_at,
+    user_id: apiSession.user_id,
+    messages: apiSession.messages ? apiSession.messages.map((msg: any) => ({
+      id: msg.id || nanoid(),
+      role: msg.role,
+      content: msg.content,
+      timestamp: msg.timestamp,
+    })) : [],
+  };
+}
+
+// Mock data for development - will be replaced with actual API calls
 export const DEFAULT_DOCUMENTS: Document[] = [
   {
-    id: 'doc1',
-    title: 'Mathematics: Calculus Basics',
-    fileName: 'calculus-basics.pdf',
-    url: '/documents/calculus-basics.pdf',
-    type: 'pdf',
-    uploadedAt: '2025-03-12T10:30:00Z',
-    tags: ['math', 'calculus']
+    id: '1',
+    title: 'Physics 101 Textbook',
+    filename: 'physics-101.pdf',
+    size: 2500000,
+    uploadedAt: '2023-01-15T12:30:00Z',
+    tags: ['physics', 'textbook'],
+    file_path: '/uploads/physics-101.pdf',
+    processed: true,
+    user_id: '123',
+    page_count: 120
   },
   {
-    id: 'doc2',
-    title: 'Physics: Laws of Motion',
-    fileName: 'laws-of-motion.pdf',
-    url: '/documents/laws-of-motion.pdf',
-    type: 'pdf',
-    uploadedAt: '2025-03-10T14:15:00Z',
-    tags: ['physics', 'mechanics']
+    id: '2',
+    title: 'Introduction to Machine Learning',
+    filename: 'intro-ml.pdf',
+    size: 3500000,
+    uploadedAt: '2023-02-10T15:45:00Z',
+    tags: ['machine learning', 'computer science'],
+    file_path: '/uploads/intro-ml.pdf',
+    processed: true,
+    user_id: '123',
+    page_count: 87
   },
   {
-    id: 'doc3',
-    title: 'Chemistry: Organic Compounds',
-    fileName: 'organic-chemistry.pdf',
-    url: '/documents/organic-chemistry.pdf',
-    type: 'pdf',
-    uploadedAt: '2025-03-05T09:45:00Z',
-    tags: ['chemistry', 'organic']
+    id: '3',
+    title: 'Organic Chemistry Notes',
+    filename: 'organic-chem-notes.pdf',
+    size: 1200000,
+    uploadedAt: '2023-03-05T09:15:00Z',
+    tags: ['chemistry', 'notes'],
+    file_path: '/uploads/organic-chem-notes.pdf',
+    processed: true,
+    user_id: '123',
+    page_count: 45
   }
 ];
 
-// Sample messages
 export const DEFAULT_MESSAGES: Message[] = [
-  {
-    id: 'msg1',
+  createMessage({
+    id: '1',
     role: MessageRole.System,
-    content: 'I am your personal learning assistant. How can I help you study today?',
-    timestamp: '2025-03-15T09:00:00Z'
-  },
-  {
-    id: 'msg2',
+    content: 'I am an AI tutor that can help you understand your course materials.',
+    timestamp: new Date(Date.now() - 3600000).toISOString(),
+  }),
+  createMessage({
+    id: '2',
     role: MessageRole.User,
-    content: 'Can you explain the concept of derivatives in calculus?',
-    timestamp: '2025-03-15T09:01:00Z'
-  },
-  {
-    id: 'msg3',
+    content: 'Can you explain the concept of force in physics?',
+    timestamp: new Date(Date.now() - 3500000).toISOString(),
+  }),
+  createMessage({
+    id: '3',
     role: MessageRole.Assistant,
-    content: "A derivative measures the rate at which a function's output changes with respect to its input. It's written as f'(x) or df/dx.\n\nThe concept comes from calculating the slope of a tangent line at any point on a curve. Here's a simple explanation:\n\n1. The derivative of a constant is always 0\n2. For a function f(x) = x^n, the derivative is n*x^(n-1)\n3. There are special rules for composite functions (chain rule), products, and quotients\n\nWould you like me to go deeper into any specific aspect of derivatives?",
-    timestamp: '2025-03-15T09:01:30Z',
-    reactions: { '👍': 1 }
-  },
-  {
-    id: 'msg4',
-    role: MessageRole.User,
-    content: 'Can you give me a few practice problems to solve?',
-    timestamp: '2025-03-15T09:02:15Z'
-  },
-  {
-    id: 'msg5',
-    role: MessageRole.Assistant,
-    content: "Here are some practice problems on derivatives:\n\n1. Find the derivative of f(x) = 3x² - 2x + 5\n2. Find f'(x) if f(x) = x³ + 7x - 9\n3. Calculate the derivative of g(x) = (2x + 1)(x - 3)\n4. Find the derivative of h(x) = sin(x) * cos(x)\n5. What is the derivative of j(x) = e^(2x) / x\n\nLet me know when you've tried them, and I'll provide the solutions!",
-    timestamp: '2025-03-15T09:03:00Z'
-  }
+    content: 'Force is a push or pull on an object that can cause it to accelerate. According to Newton\'s second law, force equals mass times acceleration (F = ma). This fundamental relationship explains how objects move when forces are applied to them.',
+    timestamp: new Date(Date.now() - 3400000).toISOString(),
+  }),
 ];
 
-export const createMessage = (props: Partial<Message> & Pick<Message, 'id' | 'role'>): Message => {
-  return {
-    id: props.id,
-    role: props.role,
-    content: props.content || '',
-    timestamp: props.timestamp || new Date().toISOString(),
-    attachments: props.attachments || [],
-    reactions: props.reactions || {}
-  };
-};
-
-// Mock chat history data
-export const DEFAULT_CHAT_HISTORY: ChatHistory[] = [
+export const DEFAULT_CHAT_HISTORY: ChatSession[] = [
   {
-    id: 'chat-1',
-    documentId: 'doc-1',
-    documentTitle: 'Advanced Mathematics Study Guide',
-    messages: [
-      createMessage({
-        id: 'msg-1',
-        role: MessageRole.User,
-        content: 'Can you explain the concept of derivatives?',
-        timestamp: '2025-05-01T10:30:00Z',
-      }),
-      createMessage({
-        id: 'msg-2',
-        role: MessageRole.Assistant,
-        content: 'In calculus, a derivative measures the sensitivity to change of a function\'s output with respect to its input. It helps us understand the rate at which a quantity changes with respect to another quantity. For example, the derivative of position with respect to time is velocity.',
-        timestamp: '2025-05-01T10:30:15Z',
-      }),
-    ],
-    lastUpdated: '2025-05-01T10:30:15Z',
-    title: 'Derivatives explanation',
+    id: '1',
+    title: 'Physics Force Concepts',
+    pdf_id: '1',
+    pdf_title: 'Physics 101 Textbook',
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    updated_at: new Date(Date.now() - 3400000).toISOString(),
+    messages: DEFAULT_MESSAGES,
+    user_id: '123'
   },
   {
-    id: 'chat-2',
-    documentId: 'doc-2',
-    documentTitle: 'Physics Fundamentals',
-    messages: [
-      createMessage({
-        id: 'msg-3',
-        role: MessageRole.User,
-        content: 'What are Newton\'s laws of motion?',
-        timestamp: '2025-05-02T14:20:00Z',
-      }),
-      createMessage({
-        id: 'msg-4',
-        role: MessageRole.Assistant,
-        content: 'Newton\'s three laws of motion are: 1) An object at rest stays at rest, and an object in motion stays in motion unless acted upon by an external force. 2) Force equals mass times acceleration (F=ma). 3) For every action, there is an equal and opposite reaction.',
-        timestamp: '2025-05-02T14:20:30Z',
-      }),
-    ],
-    lastUpdated: '2025-05-02T14:20:30Z',
-    title: 'Newton\'s laws of motion',
+    id: '2',
+    title: 'Machine Learning Algorithms',
+    pdf_id: '2',
+    pdf_title: 'Introduction to Machine Learning',
+    created_at: new Date(Date.now() - 172800000).toISOString(),
+    updated_at: new Date(Date.now() - 86400000).toISOString(),
+    messages: [],
+    user_id: '123'
   },
-  {
-    id: 'chat-3',
-    documentId: 'doc-3',
-    documentTitle: 'Chemistry Handbook',
-    messages: [
-      createMessage({
-        id: 'msg-5',
-        role: MessageRole.User,
-        content: 'Explain the periodic table organization',
-        timestamp: '2025-05-03T09:15:00Z',
-      }),
-      createMessage({
-        id: 'msg-6',
-        role: MessageRole.Assistant,
-        content: 'The periodic table is organized with elements in order of increasing atomic number. Elements are arranged in rows (periods) and columns (groups). Elements in the same group have similar chemical properties because they have the same number of valence electrons.',
-        timestamp: '2025-05-03T09:15:25Z',
-      }),
-    ],
-    lastUpdated: '2025-05-03T09:15:25Z',
-    title: 'Periodic table organization',
-  }
 ];

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from 'react'
-import { Bell, Book, Menu, Search, Settings, User } from 'lucide-react'
+import { Bell, Book, Menu, Search, Settings, User, TestTube } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ThemeToggle } from '@/components/theme-toggle'
@@ -27,6 +27,8 @@ export function DashboardHeader({ onToggleSidebar, onOpenSettings, isMobile = fa
   
   const handleSignOut = () => {
     // In a real app, you'd implement proper sign out logic
+    // delete the access token from local storage or cookies
+    localStorage.removeItem('token')
     router.push('/')
   }
   
@@ -62,6 +64,18 @@ export function DashboardHeader({ onToggleSidebar, onOpenSettings, isMobile = fa
           </div>
         ) : (
           <>
+
+            <Button
+              variant="default"
+              size="default"
+              onClick={() => router.push('/test')}
+              className="text-muted-foreground hover:text-foreground"
+              aria-label="Go to Test"
+              title="Go to Test Page"
+            >
+              <TestTube className="h-5 w-5" />
+              <div className=''>Tests</div>
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -72,16 +86,18 @@ export function DashboardHeader({ onToggleSidebar, onOpenSettings, isMobile = fa
               <Search className="h-5 w-5" />
             </Button>
             
-            <Button
+            {/* <Button
               variant="ghost"
               size="icon"
               className={`text-muted-foreground hover:text-foreground ${isMobile ? "hidden sm:flex" : ""}`}
               aria-label="Notifications"
             >
               <Bell className="h-5 w-5" />
-            </Button>
+            </Button> */}
             
             <ThemeToggle />
+            
+            
             
             <Button
               variant="ghost"

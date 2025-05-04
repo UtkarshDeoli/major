@@ -14,8 +14,9 @@ import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { File, X, Upload } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
-import { Document } from '@/lib/data'
+import { Document, convertApiDocumentToDocument } from '@/lib/data'
 import { nanoid } from '@/lib/utils'
+import { pdfAPI } from '@/lib/api'
 
 interface DocumentUploaderProps {
   onUpload: (doc: Document) => void
@@ -26,8 +27,10 @@ export function DocumentUploader({ onUpload, onCancel }: DocumentUploaderProps) 
   const [isUploading, setIsUploading] = useState(false)
   const [fileName, setFileName] = useState('')
   const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [currentTag, setCurrentTag] = useState('')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   
@@ -35,6 +38,7 @@ export function DocumentUploader({ onUpload, onCancel }: DocumentUploaderProps) 
     const file = e.target.files?.[0]
     if (file) {
       setFileName(file.name)
+      setSelectedFile(file)
       setTitle(file.name.replace(/\.[^/.]+$/, ""))
     }
   }
@@ -44,6 +48,7 @@ export function DocumentUploader({ onUpload, onCancel }: DocumentUploaderProps) 
     const file = e.dataTransfer.files?.[0]
     if (file) {
       setFileName(file.name)
+      setSelectedFile(file)
       setTitle(file.name.replace(/\.[^/.]+$/, ""))
     }
   }
@@ -70,8 +75,8 @@ export function DocumentUploader({ onUpload, onCancel }: DocumentUploaderProps) 
     }
   }
   
-  const handleUpload = () => {
-    if (!fileName) {
+  const handleUpload = async () => {
+    if (!selectedFile) {
       toast({
         title: "No file selected",
         description: "Please select a PDF file to upload.",
@@ -91,27 +96,34 @@ export function DocumentUploader({ onUpload, onCancel }: DocumentUploaderProps) 
     
     setIsUploading(true)
     
-    // Simulate upload process
-    setTimeout(() => {
-      setIsUploading(false)
+    try {
+      // Upload the PDF to the backend with tags
+      const response = await pdfAPI.uploadPDF(
+        selectedFile, 
+        title.trim(),
+        description.trim() || undefined,
+        tags.length > 0 ? tags : undefined
+      );
       
-      const newDocument: Document = {
-        id: nanoid(),
-        title: title.trim(),
-        fileName: fileName,
-        uploadedAt: new Date().toISOString(),
-        tags: tags,
-        url: `/documents/${fileName}`,
-        type: 'pdf'
-      }
+      // Convert the API response to our Document format
+      const newDocument = convertApiDocumentToDocument(response);
       
       toast({
         title: "Document uploaded",
         description: `${title} has been successfully uploaded.`
-      })
+      });
       
-      onUpload(newDocument)
-    }, 1500)
+      onUpload(newDocument);
+    } catch (error) {
+      console.error("Error uploading document:", error);
+      toast({
+        title: "Upload failed",
+        description: "There was an error uploading your document. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
+    }
   }
   
   return (
@@ -148,7 +160,7 @@ export function DocumentUploader({ onUpload, onCancel }: DocumentUploaderProps) 
                   Click to select or drag and drop
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Support for PDF, DOC, DOCX (max 10MB)
+                  Support for PDF files (max 10MB)
                 </p>
               </div>
             )}
@@ -156,7 +168,7 @@ export function DocumentUploader({ onUpload, onCancel }: DocumentUploaderProps) 
               ref={fileInputRef}
               type="file"
               className="hidden"
-              accept=".pdf,.doc,.docx"
+              accept=".pdf"
               onChange={handleFileChange}
             />
           </div>
@@ -168,6 +180,16 @@ export function DocumentUploader({ onUpload, onCancel }: DocumentUploaderProps) 
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Enter document title"
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="description">Description (Optional)</Label>
+            <Input
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Enter a brief description"
             />
           </div>
           

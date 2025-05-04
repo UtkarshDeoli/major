@@ -4,14 +4,16 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
-import { ChatHistory } from '@/lib/data'
+import { ChatSession, convertApiSessionToSession } from '@/lib/data'
 import { Search, MessageCircle, Clock, ChevronRight, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
+import { chatAPI } from '@/lib/api'
+import { useToast } from '@/hooks/use-toast'
 
 interface ChatHistoryViewerProps {
-  chatHistory: ChatHistory[]
-  onSelectChat: (chat: ChatHistory) => void
+  chatHistory: ChatSession[]
+  onSelectChat: (chat: ChatSession) => void
   onDeleteChat: (chatId: string) => void
   className?: string
 }
@@ -23,32 +25,70 @@ export function ChatHistoryViewer({
   className
 }: ChatHistoryViewerProps) {
   const [searchTerm, setSearchTerm] = useState('')
-  const [formattedChats, setFormattedChats] = useState<(ChatHistory & { formattedDate: string })[]>([])
+  const [formattedChats, setFormattedChats] = useState<(ChatSession & { formattedDate: string })[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const { toast } = useToast()
   
-  // Format dates on client-side only to avoid hydration mismatches
+  // Fetch chat sessions on mount
   useEffect(() => {
-    // Filter and format chat history based on search term
-    const filtered = chatHistory.filter(chat => 
-      chat.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      chat.documentTitle.toLowerCase().includes(searchTerm.toLowerCase())
+    fetchChatSessions();
+  }, []);
+
+  // Format and filter chat sessions
+  useEffect(() => {
+    formatChatSessions(chatHistory);
+  }, [chatHistory, searchTerm]);
+  
+  // Fetch chat sessions from API
+  const fetchChatSessions = async () => {
+    try {
+      setIsLoading(true);
+      
+      const apiSessions = await chatAPI.listChatSessions();
+      
+      // Convert API sessions to our format
+      const convertedSessions = apiSessions.map((session: any) => 
+        convertApiSessionToSession(session)
+      );
+      
+      formatChatSessions(convertedSessions);
+      setIsLoading(false);
+    } catch (error) {
+      console.error("Error fetching chat sessions:", error);
+      toast({
+        title: "Failed to load chat history",
+        description: "Could not retrieve your chat sessions. Using default data instead.",
+        variant: "destructive"
+      });
+      
+      formatChatSessions(chatHistory);
+      setIsLoading(false);
+    }
+  };
+
+  // Format chat sessions for display
+  const formatChatSessions = (sessions: ChatSession[]) => {
+    // Filter based on search term
+    const filtered = sessions.filter(chat => 
+      chat.title.toLowerCase().includes(searchTerm.toLowerCase())
     );
     
     // Sort by most recent first
     const sorted = [...filtered].sort((a, b) => 
-      new Date(b.lastUpdated).getTime() - new Date(a.lastUpdated).getTime()
+      new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
     );
     
     // Add formatted dates
     const formatted = sorted.map(chat => ({
       ...chat,
-      formattedDate: format(new Date(chat.lastUpdated), 'MMM d, yyyy')
+      formattedDate: format(new Date(chat.updated_at), 'MMM d, yyyy')
     }));
     
     setFormattedChats(formatted);
-  }, [chatHistory, searchTerm]);
+  };
   
   return (
-    <div className={cn("border-r flex flex-col h-full", className)}>
+    <div className={cn("border-r flex flex-col h-full bg-card", className)}>
       <div className="p-4 border-b">
         <h2 className="text-lg font-semibold mb-4">Chat History</h2>
         <div className="relative">
@@ -63,7 +103,11 @@ export function ChatHistoryViewer({
       </div>
       
       <ScrollArea className="flex-1">
-        {formattedChats.length > 0 ? (
+        {isLoading ? (
+          <div className="flex justify-center py-8">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        ) : formattedChats.length > 0 ? (
           <div className="p-2">
             {formattedChats.map((chat) => (
               <div
@@ -86,10 +130,12 @@ export function ChatHistoryViewer({
                   </Button>
                 </div>
                 
-                <div className="flex items-center text-xs text-muted-foreground mt-1">
+                {/* <div className="flex items-center text-xs text-muted-foreground mt-1">
                   <MessageCircle className="h-3 w-3 mr-1" />
-                  <span className="truncate">{chat.documentTitle}</span>
-                </div>
+                  <span className="truncate">
+                    {chat.messages ? `${chat.messages.length} messages` : '0 messages'}
+                  </span>
+                </div> */}
                 
                 <div className="flex justify-between items-center mt-2 text-xs text-muted-foreground">
                   <div className="flex items-center">
