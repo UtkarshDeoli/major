@@ -1,5 +1,4 @@
 import Container from "@/components/global/container";
-import Icons from "@/components/global/icons";
 
 const Companies = () => {
     return (
