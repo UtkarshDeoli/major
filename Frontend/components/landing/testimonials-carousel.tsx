@@ -17,35 +17,38 @@ interface TestimonialsCarouselProps {
 export function TestimonialsCarousel({ testimonials }: TestimonialsCarouselProps) {
   return (
     <div className="relative w-full overflow-hidden">
+      {/* Fade gradients on both edges */}
+      <div className="absolute left-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+      <div className="absolute right-0 top-0 bottom-0 w-16 md:w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+
       <div className="flex animate-scroll hover:pause">
         {testimonials.map((testimonial, index) => (
           <div
             key={`${testimonial.name}-${index}`}
             className="flex-shrink-0 w-[350px] md:w-[400px] px-4"
           >
-            <div className="relative p-6 rounded-2xl bg-[#192734] border border-blue-500/10 hover:border-blue-500/30 transition-all duration-300 h-full">
-              <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent" />
+            <div className="relative p-6 rounded-2xl bg-card border border-border/50 hover:border-border transition-all duration-300 h-full">
               <div className="relative z-10">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-1">
                     {Array.from({ length: testimonial.rating }).map((_, i) => (
-                      <Star key={i} className="h-4 w-4 fill-blue-400 text-blue-400" />
+                      <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
                     ))}
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-                    <Quote className="w-4 h-4 text-blue-400" />
+                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                    <Quote className="w-4 h-4 text-muted-foreground" />
                   </div>
                 </div>
-                <p className="text-gray-300 mb-6 leading-relaxed text-sm line-clamp-4">
+                <p className="text-muted-foreground mb-6 leading-relaxed text-sm line-clamp-4">
                   {testimonial.content}
                 </p>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500/30 to-cyan-500/20 flex items-center justify-center font-semibold text-blue-400">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center font-semibold text-primary">
                     {testimonial.avatar}
                   </div>
                   <div>
-                    <p className="font-semibold text-white">{testimonial.name}</p>
-                    <p className="text-sm text-blue-300/60">{testimonial.role}</p>
+                    <p className="font-semibold text-foreground">{testimonial.name}</p>
+                    <p className="text-sm text-muted-foreground">{testimonial.role}</p>
                   </div>
                 </div>
               </div>
@@ -57,29 +60,28 @@ export function TestimonialsCarousel({ testimonials }: TestimonialsCarouselProps
             key={`duplicate-${testimonial.name}-${index}`}
             className="flex-shrink-0 w-[350px] md:w-[400px] px-4"
           >
-            <div className="relative p-6 rounded-2xl bg-[#192734] border border-blue-500/10 hover:border-blue-500/30 transition-all duration-300 h-full">
-              <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-blue-500/20 to-transparent" />
+            <div className="relative p-6 rounded-2xl bg-card border border-border/50 hover:border-border transition-all duration-300 h-full">
               <div className="relative z-10">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-1">
                     {Array.from({ length: testimonial.rating }).map((_, i) => (
-                      <Star key={i} className="h-4 w-4 fill-blue-400 text-blue-400" />
+                      <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
                     ))}
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-                    <Quote className="w-4 h-4 text-blue-400" />
+                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                    <Quote className="w-4 h-4 text-muted-foreground" />
                   </div>
                 </div>
-                <p className="text-gray-300 mb-6 leading-relaxed text-sm line-clamp-4">
+                <p className="text-muted-foreground mb-6 leading-relaxed text-sm line-clamp-4">
                   {testimonial.content}
                 </p>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500/30 to-cyan-500/20 flex items-center justify-center font-semibold text-blue-400">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center font-semibold text-primary">
                     {testimonial.avatar}
                   </div>
                   <div>
-                    <p className="font-semibold text-white">{testimonial.name}</p>
-                    <p className="text-sm text-blue-300/60">{testimonial.role}</p>
+                    <p className="font-semibold text-foreground">{testimonial.name}</p>
+                    <p className="text-sm text-muted-foreground">{testimonial.role}</p>
                   </div>
                 </div>
               </div>

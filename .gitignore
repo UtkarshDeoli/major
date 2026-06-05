@@ -10,3 +10,12 @@ env
 backdate_commits.sh
 **/*.env
 *.env
+.claude/
+CLAUDE.md
+.agents/
+vercel/
+**/.DS_Store
+skills-lock.json
+skills.json
+DESIGN.md
+.mcp.*

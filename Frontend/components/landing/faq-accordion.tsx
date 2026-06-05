@@ -40,8 +40,8 @@ export function FAQAccordion({ items, isLoaded }: FAQAccordionProps) {
             "rounded-xl border transition-all duration-500 overflow-hidden",
             isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4",
             openIndex === index
-              ? "bg-[#192734] border-blue-500/20"
-              : "bg-[#15202B] border-white/5 hover:border-white/10"
+              ? "bg-card border-border"
+              : "bg-card/50 border-border/30 hover:border-border/60"
           )}
           style={{ transitionDelay: `${index * 50}ms` }}
         >
@@ -51,7 +51,7 @@ export function FAQAccordion({ items, isLoaded }: FAQAccordionProps) {
           >
             <span className={cn(
               "font-semibold text-lg transition-colors",
-              openIndex === index ? "text-white" : "text-gray-200"
+              openIndex === index ? "text-foreground" : "text-muted-foreground"
             )}>
               {item.question}
             </span>
@@ -59,8 +59,8 @@ export function FAQAccordion({ items, isLoaded }: FAQAccordionProps) {
               className={cn(
                 "h-5 w-5 transition-all duration-300",
                 openIndex === index
-                  ? "text-blue-400 rotate-180"
-                  : "text-gray-500"
+                  ? "text-primary rotate-180"
+                  : "text-muted-foreground"
               )}
             />
           </button>
@@ -70,7 +70,7 @@ export function FAQAccordion({ items, isLoaded }: FAQAccordionProps) {
               openIndex === index ? "max-h-48 opacity-100" : "max-h-0 opacity-0"
             )}
           >
-            <div className="px-6 pb-4 text-gray-400">
+            <div className="px-6 pb-4 text-muted-foreground">
               {item.answer}
             </div>
           </div>
