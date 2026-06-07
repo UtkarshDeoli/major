@@ -114,36 +114,59 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           "h-16 border-b flex items-center shrink-0",
           collapsed ? "justify-center px-2" : "justify-between px-4"
         )}>
-          <Link href="/dashboard" className={cn(
-            "flex items-center gap-2.5 overflow-hidden transition-all",
-            collapsed ? "justify-center w-full" : ""
-          )}>
-            <div className={cn("relative shrink-0", collapsed ? "h-9 w-9" : "h-8 w-8")}>
-              <Image
-                src="/logo.png"
-                alt="Orbit"
-                fill
-                className="object-contain"
-                priority
-              />
+          {collapsed ? (
+            /* Collapsed: logo is the expand button, hover reveals chevron */
+            <div className="group relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 rounded-xl p-0 hover:bg-muted/60 relative z-10"
+                onClick={() => setCollapsed(false)}
+                title="Expand sidebar"
+              >
+                <div className="relative h-8 w-8">
+                  <Image
+                    src="/logo.png"
+                    alt="Orbit"
+                    fill
+                    className="object-contain"
+                    priority
+                  />
+                </div>
+              </Button>
+              {/* Hover reveal expand icon */}
+              <div className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-primary text-primary-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity scale-75 group-hover:scale-100">
+                <ChevronRight className="h-2.5 w-2.5" />
+              </div>
             </div>
-            {!collapsed && (
-              <span className="font-bold text-lg tracking-tight whitespace-nowrap">
-                Orbit
-              </span>
-            )}
-          </Link>
+          ) : (
+            /* Expanded: logo + text left, collapse button right */
+            <>
+              <Link href="/dashboard" className="flex items-center gap-2.5 overflow-hidden">
+                <div className="relative h-8 w-8 shrink-0">
+                  <Image
+                    src="/logo.png"
+                    alt="Orbit"
+                    fill
+                    className="object-contain"
+                    priority
+                  />
+                </div>
+                <span className="font-bold text-lg tracking-tight whitespace-nowrap">
+                  Orbit
+                </span>
+              </Link>
 
-          {/* Desktop collapse toggle */}
-          {!isMobile && !collapsed && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 rounded-lg opacity-60 hover:opacity-100 transition-opacity"
-              onClick={() => setCollapsed(true)}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 rounded-lg opacity-60 hover:opacity-100 transition-opacity"
+                onClick={() => setCollapsed(true)}
+                title="Collapse sidebar"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+            </>
           )}
 
           {/* Mobile close */}
@@ -170,22 +193,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           "border-t p-2 shrink-0",
           collapsed && "flex flex-col items-center"
         )}>
-          {collapsed ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-lg opacity-60 hover:opacity-100 hover:bg-muted"
-              onClick={() => setCollapsed(false)}
-              title="Expand sidebar"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          ) : (
-            <div className="px-2 py-1.5 text-xs text-muted-foreground/60">
-              <BookOpen className="inline h-3 w-3 mr-1" />
-              Study smarter
-            </div>
-          )}
+          <div className="px-2 py-1.5 text-xs text-muted-foreground/60">
+            <BookOpen className="inline h-3 w-3 mr-1" />
+            Study smarter
+          </div>
         </div>
       </aside>
 
