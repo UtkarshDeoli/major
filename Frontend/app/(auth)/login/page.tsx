@@ -70,7 +70,7 @@ export default function LoginPage() {
             <img src="/logo.png" alt="Orbit Logo" className="w-32 h-32 mx-auto mb-8" />
             <h1 className="text-5xl font-bold text-white mb-6">Orbit</h1>
             <p className="text-xl text-gray-300 max-w-md mx-auto leading-relaxed">
-              Unlock your real potential by practicing with Orbit's mock test generator
+              Unlock your real potential by practicing with Orbit&apos;s mock test generator
             </p>
           </div>
         </div>

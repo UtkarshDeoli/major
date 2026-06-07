@@ -175,10 +175,11 @@ ChromaDB embedded mode (`chromadb.Client()` with `Settings(anonymized_telemetry=
   // Content (stored in ChromaDB too, but mirrored here for BM25)
   content: String,              // The actual text chunk (max ~2000 chars)
   
-  // Source metadata (for citations)
-  page: Number,                 // Page number (if extractable)
-  section: String,              // Heading: "4.2 Thermodynamics"
-  total_pages: Number,          // Total pages in source document
+  // Source metadata (for citations — format-specific)
+  page: Number,                 // Page number (PDFs only; null for txt/md/docx/images)
+  section: String,              // Heading/section name (universal)
+  locator: String,              // Format-specific position: "line 42" | "paragraph 5" | "page 3"
+  total_pages: Number,          // Total pages in source document (null for non-paginated)
   
   // Document metadata (for filtering)
   doc_type: String,             // "pdf" | "txt" | "md" | "docx" | "image" | "scanned_pdf"
@@ -522,6 +523,8 @@ async def vector_search(
     user_id: str, 
     question: str, 
     doc_ids: Optional[List[str]] = None,
+    subject: Optional[str] = None,
+    tags: Optional[List[str]] = None,
     top_k: int = 20
 ) -> List[SearchResult]:
     """Search user's ChromaDB collection for semantically similar chunks."""
@@ -530,7 +533,9 @@ async def vector_search(
     embedding = embedding_model.encode(question).tolist()
     
     # Build where clause for optional filtering
-    where_clause = {"user_id": user_id}  # mandatory tenant isolation
+    # Note: user_id is NOT stored in chunk metadata; tenant isolation is enforced
+    # by having separate ChromaDB collections per user. Only chunk-level filters here.
+    where_clause = {}
     if doc_ids:
         where_clause["doc_id"] = {"$in": doc_ids}
     if subject:
@@ -538,10 +543,13 @@ async def vector_search(
     if tags:
         where_clause["tags"] = {"$in": tags}
     
+    # If no filters, pass None (ChromaDB convention)
+    where_filter = where_clause if where_clause else None
+    
     results = collection.query(
         query_embeddings=[embedding],
         n_results=top_k,
-        where=where_clause,
+        where=where_filter,
         include=["metadatas", "documents", "distances"]
     )
     
@@ -610,8 +618,9 @@ class UserBM25Index:
         
         # Apply filters post-search by zeroing out excluded chunks
         for i, chroma_id in enumerate(self.chunk_maps[user_id].values()):
-            chunk = self.chunk_metadata.get(chroma_id)  # metadata map built alongside index
+            chunk = self.chunk_metadata[user_id].get(chroma_id)
             if not chunk:
+                scores[i] = 0
                 continue
             if doc_ids and chunk["doc_id"] not in doc_ids:
                 scores[i] = 0
@@ -717,8 +726,11 @@ async def query_documents(
         citation = f"[{i}] {chunk.doc_name}"
         if chunk.section:
             citation += f", {chunk.section}"
+        # Format-specific position info
         if chunk.page:
             citation += f", Page {chunk.page}"
+        elif chunk.locator:
+            citation += f", {chunk.locator}"
         
         context_parts.append(f"{citation}\n{chunk.content}")
         sources.append(Source(
@@ -726,6 +738,7 @@ async def query_documents(
             doc_name=chunk.doc_name,
             page=chunk.page,
             section=chunk.section,
+            locator=chunk.locator,
             chroma_id=chunk.chroma_id
         ))
     
