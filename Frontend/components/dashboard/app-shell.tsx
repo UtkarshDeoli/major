@@ -181,7 +181,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main area */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <header className="h-14 border-b bg-card/50 backdrop-blur-sm flex items-center px-4 gap-3 shrink-0">
+        <header className="h-16 border-b bg-card/50 backdrop-blur-sm flex items-center px-4 gap-3 shrink-0">
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(true)}>
             <Menu className="h-5 w-5" />
           </Button>
