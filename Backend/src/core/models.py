@@ -173,7 +173,7 @@ class User(BaseModel):
 
     id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
     email: str
-    name: str
+    name: Optional[str] = None
     password_hash: str
     role: Literal["student", "teacher"] = "student"
     institute: Optional[str] = None

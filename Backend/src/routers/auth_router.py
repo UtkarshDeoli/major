@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -32,7 +32,7 @@ class UserCreate(BaseModel):
 class UserResponse(BaseModel):
     email: str
     name: Optional[str] = None
-    role: str = "student"
+    role: Literal["student", "teacher"] = "student"
     institute: Optional[str] = None
     preferred_language: str = "en"
     onboarding_completed: bool = False
