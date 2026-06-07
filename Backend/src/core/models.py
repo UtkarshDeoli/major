@@ -182,3 +182,48 @@ class User(BaseModel):
     active_exam_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class Exam(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
+    user_id: str
+    name: str
+    description: Optional[str] = None
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    is_active: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class Subject(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
+    exam_id: str
+    name: str
+    icon: Optional[str] = None
+    progress: int = 0
+    last_studied_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class Collection(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
+    subject_id: str
+    name: str
+    description: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class Material(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
+    collection_id: str
+    name: str
+    type: str = "pdf"  # "pdf", "image", "text"
+    size: int = 0
+    url: str
+    uploaded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    rag_indexed: bool = False
