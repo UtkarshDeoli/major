@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException, Body, Path
 from fastapi.responses import StreamingResponse
 from typing import Dict, List, Optional
@@ -34,19 +35,21 @@ async def ask(
     question_data: QuestionRequest,
     user_id: str = Depends(get_current_user)
 ):
-    """
-    Ask a question with optional PDF context.
-    """
+    """Ask a question with optional document context."""
     try:
-        # Ask the question
         response = await ask_question(
             question=question_data.question,
-            pdf_id=question_data.pdf_id,
+            pdf_id=question_data.pdf_id,      # backward compat
+            doc_ids=question_data.doc_ids,    # new multi-doc
+            subject=question_data.subject,
+            tags=question_data.tags,
+            user_id=user_id,
             stream=False
         )
         
         return QuestionResponse(
             answer=response["answer"],
+            sources=response.get("sources"),  # NEW
             context=response.get("context")
         )
     except HTTPException:
@@ -66,14 +69,15 @@ async def ask_stream(
     question_data: QuestionRequest,
     user_id: str = Depends(get_current_user)
 ):
-    """
-    Ask a question with streaming response.
-    """
+    """Ask a question with streaming response."""
     try:
-        # Ask the question with streaming
         stream_generator = await ask_question(
             question=question_data.question,
             pdf_id=question_data.pdf_id,
+            doc_ids=question_data.doc_ids,
+            subject=question_data.subject,
+            tags=question_data.tags,
+            user_id=user_id,
             stream=True
         )
         
@@ -86,7 +90,7 @@ async def ask_stream(
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Error asking question with streaming: {str(e)}"
+            detail=f"Error streaming: {str(e)}"
         )
 
 # Chat session endpoints
@@ -98,24 +102,28 @@ async def ask_stream(
 )
 async def create_session(
     title: str = Body(..., embed=True),
-    pdf_id: Optional[str] = Body(None, embed=True),
+    pdf_id: Optional[str] = Body(None, embed=True),  # deprecated
+    doc_ids: Optional[List[str]] = Body(None, embed=True),  # new
     user_id: str = Depends(get_current_user)
 ):
-    """
-    Create a new chat session.
-    """
+    """Create a new chat session."""
     try:
-        # Create a new chat session
+        # Normalize
+        if pdf_id and not doc_ids:
+            doc_ids = [pdf_id]
+        
         session = await create_chat_session(
             user_id=user_id,
             title=title,
-            pdf_id=pdf_id
+            pdf_id=pdf_id,
+            doc_ids=doc_ids
         )
         
         return ChatSession(
             id=session["id"],
             user_id=session["user_id"],
             pdf_id=session.get("pdf_id"),
+            doc_ids=session.get("doc_ids"),
             title=session["title"],
             messages=[],
             created_at=session["created_at"],
@@ -124,7 +132,7 @@ async def create_session(
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Error creating chat session: {str(e)}"
+            detail=f"Error creating session: {str(e)}"
         )
 
 @router.get(
@@ -147,6 +155,7 @@ async def list_sessions(user_id: str = Depends(get_current_user)):
                     id=session["id"],
                     title=session["title"],
                     pdf_id=session.get("pdf_id"),
+                    doc_ids=session.get("doc_ids"),
                     created_at=session["created_at"],
                     updated_at=session["updated_at"],
                     message_count=session.get("message_count", 0)
@@ -218,49 +227,31 @@ async def add_message(
     message: ChatMessageRequest = Body(...),
     user_id: str = Depends(get_current_user)
 ):
-    """
-    Add a user message to a chat session and get an AI response.
-    """
+    """Add a message to a chat session."""
     try:
-        # Get the chat session
         session = await get_chat_session(session_id)
+        if not session or session["user_id"] != user_id:
+            raise HTTPException(status_code=404, detail="Session not found")
         
-        if not session:
-            raise HTTPException(
-                status_code=404, 
-                detail=f"Chat session with ID {session_id} not found"
-            )
+        # Resolve document scope
+        doc_ids = session.get("doc_ids")
+        if not doc_ids and session.get("pdf_id"):
+            doc_ids = [session["pdf_id"]]
         
-        # Check if the chat session belongs to the user
-        if session["user_id"] != user_id:
-            raise HTTPException(
-                status_code=403, 
-                detail="You don't have permission to access this chat session"
-            )
+        await add_message_to_chat(session_id, "user", message.content)
         
-        # Add the user message to the chat session
-        await add_message_to_chat(
-            session_id=session_id,
-            role="user",
-            content=message.content
-        )
-        
-        # Ask the question using the PDF context if available
         response = await ask_question(
             question=message.content,
-            pdf_id=session.get("pdf_id"),
+            doc_ids=doc_ids,
+            user_id=user_id,
             stream=False
         )
         
-        # Add the AI response to the chat session
-        await add_message_to_chat(
-            session_id=session_id,
-            role="assistant",
-            content=response["answer"]
-        )
+        await add_message_to_chat(session_id, "assistant", response["answer"])
         
         return QuestionResponse(
             answer=response["answer"],
+            sources=response.get("sources"),
             context=response.get("context")
         )
     except HTTPException:
@@ -268,7 +259,7 @@ async def add_message(
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Error adding message to chat session: {str(e)}"
+            detail=f"Error: {str(e)}"
         )
 
 @router.post(
@@ -281,51 +272,33 @@ async def add_message_stream(
     message: ChatMessageRequest = Body(...),
     user_id: str = Depends(get_current_user)
 ):
-    """
-    Add a user message to a chat session and get a streaming AI response.
-    """
+    """Add a message to a chat session with streaming response."""
     try:
-        # Get the chat session
         session = await get_chat_session(session_id)
+        if not session or session["user_id"] != user_id:
+            raise HTTPException(status_code=404, detail="Session not found")
         
-        if not session:
-            raise HTTPException(
-                status_code=404, 
-                detail=f"Chat session with ID {session_id} not found"
-            )
+        # Resolve document scope
+        doc_ids = session.get("doc_ids")
+        if not doc_ids and session.get("pdf_id"):
+            doc_ids = [session["pdf_id"]]
         
-        # Check if the chat session belongs to the user
-        if session["user_id"] != user_id:
-            raise HTTPException(
-                status_code=403, 
-                detail="You don't have permission to access this chat session"
-            )
+        await add_message_to_chat(session_id, "user", message.content)
         
-        # Add the user message to the chat session
-        await add_message_to_chat(
-            session_id=session_id,
-            role="user",
-            content=message.content
-        )
-        
-        # Prepare streaming response
         async def stream_with_save():
-            # Get streaming response
             stream_generator = await ask_question(
                 question=message.content,
-                pdf_id=session.get("pdf_id"),
+                doc_ids=doc_ids,
+                user_id=user_id,
                 stream=True
             )
             
-            # Create variables to collect full response
             full_response = ""
             context = None
             
-            # Stream the response
             async for chunk in stream_generator():
                 yield chunk
                 
-                # Try to parse the chunk to build full response
                 try:
                     data = json.loads(chunk)
                     if "context" in data:
@@ -335,12 +308,7 @@ async def add_message_stream(
                 except:
                     pass
             
-            # After streaming completes, save the full response to chat history
-            await add_message_to_chat(
-                session_id=session_id,
-                role="assistant",
-                content=full_response
-            )
+            await add_message_to_chat(session_id, "assistant", full_response)
         
         return StreamingResponse(
             stream_with_save(),
@@ -351,5 +319,5 @@ async def add_message_stream(
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Error adding message with streaming: {str(e)}"
+            detail=f"Error: {str(e)}"
         )

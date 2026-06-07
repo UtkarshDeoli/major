@@ -216,7 +216,7 @@ async def update_chunk_tags(doc_id: str, tags: List[str]):
     )
 
 # Chat history operations
-async def create_chat_session(user_id: str, title: str, pdf_id: Optional[str] = None):
+async def create_chat_session(user_id: str, title: str, pdf_id: Optional[str] = None, doc_ids: Optional[List[str]] = None):
     """Create a new chat session"""
     if chat_sessions_collection is None:
         raise Exception("Database connection not available")
@@ -225,6 +225,7 @@ async def create_chat_session(user_id: str, title: str, pdf_id: Optional[str] = 
     chat_data = {
         "user_id": user_id,
         "pdf_id": pdf_id,
+        "doc_ids": doc_ids,
         "title": title,
         "messages": [],
         "created_at": now,
