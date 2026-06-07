@@ -112,6 +112,12 @@
 }
 
 @layer utilities {
+  /*
+    DEPRECATED: Neomorphic shadow utilities
+    These are kept for backwards compatibility with existing components.
+    New components should use Tailwind's shadow utilities (shadow-lg, shadow-xl)
+    and the MagicCard component from the landing page.
+  */
   .neo-flat {
     background: hsl(var(--card));
     box-shadow: var(--neomorphic-shadow);
