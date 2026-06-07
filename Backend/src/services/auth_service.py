@@ -10,6 +10,7 @@ from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 
 # Import settings from config
 from src.core.config import MONGODB_URL, MONGODB_DB_NAME, MONGODB_CONNECT_TIMEOUT, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+from src.core.models import User
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -59,7 +60,7 @@ async def get_user_by_email(email: str):
         )
 
 
-async def create_user(email: str, password: str):
+async def create_user(email: str, password: str, name: Optional[str] = None):
     if users_collection is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -80,7 +81,14 @@ async def create_user(email: str, password: str):
         user = {
             "email": email,
             "password": hashed_password,
+            "name": name,
+            "role": "student",
+            "institute": None,
+            "preferred_language": "en",
+            "onboarding_completed": False,
+            "active_exam_id": None,
             "created_at": datetime.now(),
+            "updated_at": datetime.now(),
         }
         
         result = await users_collection.insert_one(user)
