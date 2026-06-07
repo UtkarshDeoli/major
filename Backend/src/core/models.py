@@ -203,9 +203,10 @@ class Subject(BaseModel):
     exam_id: str
     name: str
     icon: Optional[str] = None
-    progress: int = 0
+    progress: int = Field(default=0, ge=0, le=100)
     last_studied_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class Collection(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -215,6 +216,7 @@ class Collection(BaseModel):
     name: str
     description: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class Material(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -222,8 +224,9 @@ class Material(BaseModel):
     id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
     collection_id: str
     name: str
-    type: str = "pdf"  # "pdf", "image", "text"
+    type: Literal["pdf", "image", "text"] = "pdf"
     size: int = 0
     url: str
-    uploaded_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     rag_indexed: bool = False
