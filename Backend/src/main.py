@@ -1,5 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+
+from src.services.bm25_index import BM25IndexService
+from src.core.data_store import get_user_chunks_for_bm25, ensure_indexes
+from src.core.security import get_current_user
 
 # Import our routers
 from src.routers import auth_router, pdf_router, document_router, question_router, analysis_router, mock_test_router
@@ -32,6 +36,29 @@ app.include_router(subject_router)
 app.include_router(collection_router)
 app.include_router(material_router)
 app.include_router(onboarding_router)
+
+bm25_service = BM25IndexService()
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup."""
+    try:
+        # Ensure MongoDB indexes exist
+        await ensure_indexes()
+        
+        # Build BM25 indexes for all users
+        # Note: For production with many users, consider lazy loading
+        # For now, we build on first query to avoid startup delays
+        pass
+    except Exception as e:
+        print(f"Startup initialization warning: {e}")
+
+@app.post("/admin/rebuild-index")
+async def rebuild_index(user_id: str = Depends(get_current_user)):
+    """Rebuild BM25 index for the current user."""
+    chunks = await get_user_chunks_for_bm25(user_id)
+    bm25_service.build_index(user_id, chunks)
+    return {"status": "ok", "chunk_count": len(chunks)}
 
 @app.get("/")
 async def root():
