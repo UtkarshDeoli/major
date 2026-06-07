@@ -135,17 +135,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </Link>
 
           {/* Desktop collapse toggle */}
-          {!isMobile && (
+          {!isMobile && !collapsed && (
             <Button
               variant="ghost"
               size="icon"
-              className={cn(
-                "h-7 w-7 rounded-lg transition-opacity",
-                collapsed ? "absolute -right-3.5 bg-card border shadow-sm opacity-0 group-hover:opacity-100" : "opacity-60 hover:opacity-100"
-              )}
-              onClick={() => setCollapsed(!collapsed)}
+              className="h-7 w-7 rounded-lg opacity-60 hover:opacity-100 transition-opacity"
+              onClick={() => setCollapsed(true)}
             >
-              {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+              <ChevronLeft className="h-4 w-4" />
             </Button>
           )}
 
