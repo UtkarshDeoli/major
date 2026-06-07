@@ -50,6 +50,15 @@ export function formatRelativeTime(timestamp: string): string {
   return date.toLocaleDateString();
 }
 
+// Format file size in human-readable format
+export function formatFileSize(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+}
+
 // Group messages by role and time proximity
 export function formatMessageGroups(messages: Message[]): MessageGroup[] {
   const groups: MessageGroup[] = [];
