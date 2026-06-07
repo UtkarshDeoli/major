@@ -74,7 +74,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsedState] = useState(false)
+
+  // Load persisted state on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("orbit:sidebar-collapsed")
+    if (saved !== null) {
+      setCollapsedState(saved === "true")
+    }
+  }, [])
+
+  const setCollapsed = (value: boolean) => {
+    setCollapsedState(value)
+    localStorage.setItem("orbit:sidebar-collapsed", String(value))
+  }
 
   useEffect(() => {
     const check = () => {
