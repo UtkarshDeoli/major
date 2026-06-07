@@ -2,8 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 # Import our routers
-from src.routers import auth_router, pdf_router, question_router, analysis_router, mock_test_router
-from src.routers.document_router import router as document_router
+from src.routers import auth_router, pdf_router, document_router, question_router, analysis_router, mock_test_router
 from src.routers.exam_router import router as exam_router
 from src.routers.subject_router import router as subject_router
 from src.routers.collection_router import router as collection_router

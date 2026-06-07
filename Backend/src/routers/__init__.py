@@ -1,1 +1,7 @@
 # This file makes the routers directory a Python package
+from .auth_router import router as auth_router
+from .pdf_router import router as pdf_router
+from .document_router import router as document_router
+from .question_router import router as question_router
+from .analysis_router import router as analysis_router
+from .mock_test_router import router as mock_test_router
