@@ -1,6 +1,7 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from datetime import datetime
+from bson import ObjectId
 
 class QuestionRequest(BaseModel):
     question: str
@@ -166,3 +167,16 @@ class MockTestAnalysisResponse(BaseModel):
 
 class MockTestListResponse(BaseModel):
     tests: List[MockTestResponse]
+
+class User(BaseModel):
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
+    email: str
+    name: str
+    password_hash: str
+    role: str = "student"  # "student" or "teacher"
+    institute: Optional[str] = None
+    preferred_language: str = "en"
+    onboarding_completed: bool = False
+    active_exam_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
