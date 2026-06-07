@@ -60,15 +60,21 @@ class VectorStore:
         ids = [c["chroma_id"] for c in chunks]
         embeddings = [c["embedding"] for c in chunks]
         documents = [c["content"] for c in chunks]
-        metadatas = [{
-            "doc_id": c["doc_id"],
-            "doc_name": c["doc_name"],
-            "page": c.get("page"),
-            "section": c.get("section"),
-            "chunk_index": c["chunk_index"],
-            "subject": c.get("subject"),
-            "tags": c.get("tags", [])
-        } for c in chunks]
+        metadatas = []
+        for c in chunks:
+            meta = {
+                "doc_id": c["doc_id"],
+                "doc_name": c["doc_name"],
+                "chunk_index": c["chunk_index"],
+            }
+            for key in ("page", "section", "subject"):
+                val = c.get(key)
+                if val is not None:
+                    meta[key] = val
+            tags = c.get("tags")
+            if tags:
+                meta["tags"] = ",".join(tags)
+            metadatas.append(meta)
         
         collection.add(
             ids=ids,
