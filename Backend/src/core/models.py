@@ -66,6 +66,9 @@ class PDFMetadata(BaseModel):
     page_count: Optional[int] = None
     vector_db_path: Optional[str] = None
     tags: Optional[List[str]] = None
+    doc_type: Optional[str] = None
+    subject: Optional[str] = None
+    chunk_count: Optional[int] = None
 
 class PDFListResponse(BaseModel):
     pdfs: List[PDFMetadata]

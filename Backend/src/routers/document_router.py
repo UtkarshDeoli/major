@@ -4,7 +4,14 @@ from pydantic import BaseModel
 
 from src.core.models import DocumentUploadResponse, DocumentListResponse, PDFMetadata
 from src.core.security import get_current_user
-from src.core.data_store import store_pdf_metadata, update_pdf_metadata, get_user_pdfs, get_pdf_metadata
+from src.core.data_store import (
+    store_pdf_metadata,
+    update_pdf_metadata,
+    get_user_pdfs,
+    get_pdf_metadata,
+    store_document_chunks,
+    update_chunk_tags,
+)
 from src.services.vector_store import VectorStore
 from src.services.document_processor import detect_doc_type, extract_text_from_pdf, chunk_document
 import uuid
@@ -85,7 +92,6 @@ async def upload_document(
     vector_store.add_chunks(user_id, chroma_chunks)
     
     # Store in MongoDB
-    from src.core.data_store import store_document_chunks
     await store_document_chunks(chroma_chunks)
     
     # Update metadata
@@ -148,7 +154,6 @@ async def update_document_tags(
     await update_pdf_metadata(doc_id, {"tags": tags})
     
     # Update chunk tags
-    from src.core.data_store import update_chunk_tags
     await update_chunk_tags(doc_id, tags)
     
     return {"success": True}
