@@ -170,7 +170,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           "border-t p-2 shrink-0",
           collapsed && "flex flex-col items-center"
         )}>
-          {!collapsed && (
+          {collapsed ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-lg opacity-60 hover:opacity-100 hover:bg-muted"
+              onClick={() => setCollapsed(false)}
+              title="Expand sidebar"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          ) : (
             <div className="px-2 py-1.5 text-xs text-muted-foreground/60">
               <BookOpen className="inline h-3 w-3 mr-1" />
               Study smarter
