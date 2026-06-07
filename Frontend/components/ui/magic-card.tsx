@@ -1,7 +1,6 @@
 "use client";
 
-import { motion, useMotionTemplate, useMotionValue } from "framer-motion";
-import React, { useCallback, useEffect, useRef } from "react";
+import React from "react";
 import { cn } from "@/lib/utils";
 
 interface MagicCardProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -15,75 +14,33 @@ interface MagicCardProps extends React.HTMLAttributes<HTMLDivElement> {
 export function MagicCard({
     children,
     className,
-    gradientSize = 200,
-    gradientColor = "#262626",
-    gradientOpacity = 0.8,
+    gradientColor = "rgba(56, 189, 248, 0.15)",
     gradientFrom = "#38bdf8",
     gradientTo = "#3b82f6",
+    ...props
 }: MagicCardProps) {
-    const cardRef = useRef<HTMLDivElement>(null);
-    const mouseX = useMotionValue(-gradientSize);
-    const mouseY = useMotionValue(-gradientSize);
-
-    const handleMouseMove = useCallback(
-        (e: MouseEvent) => {
-            if (cardRef.current) {
-                const { left, top } = cardRef.current.getBoundingClientRect();
-                mouseX.set(e.clientX - left);
-                mouseY.set(e.clientY - top);
-            }
-        },
-        [mouseX, mouseY],
-    );
-
-    const handleMouseOut = useCallback(
-        (e: MouseEvent) => {
-            if (!e.relatedTarget) {
-                document.removeEventListener("mousemove", handleMouseMove);
-                mouseX.set(-gradientSize);
-                mouseY.set(-gradientSize);
-            }
-        },
-        [handleMouseMove, mouseX, gradientSize, mouseY],
-    );
-
-    const handleMouseEnter = useCallback(() => {
-        document.addEventListener("mousemove", handleMouseMove);
-        mouseX.set(-gradientSize);
-        mouseY.set(-gradientSize);
-    }, [handleMouseMove, mouseX, gradientSize, mouseY]);
-
-    useEffect(() => {
-        document.addEventListener("mousemove", handleMouseMove);
-        document.addEventListener("mouseout", handleMouseOut);
-        document.addEventListener("mouseenter", handleMouseEnter);
-        return () => {
-            document.removeEventListener("mousemove", handleMouseMove);
-            document.removeEventListener("mouseout", handleMouseOut);
-            document.removeEventListener("mouseenter", handleMouseEnter);
-        };
-    }, [handleMouseEnter, handleMouseMove, handleMouseOut]);
-
-    useEffect(() => {
-        mouseX.set(-gradientSize);
-        mouseY.set(-gradientSize);
-    }, [gradientSize, mouseX, mouseY]);
-
     return (
-        <div ref={cardRef} className={cn("group relative flex size-full rounded-xl", className)}>
+        <div className={cn("group relative flex size-full rounded-xl", className)} {...props}>
+            {/* Base card background */}
             <div className="absolute inset-px z-10 rounded-xl bg-card" />
+
+            {/* Content layer */}
             <div className="relative z-30 w-full">{children}</div>
-            <motion.div
-                className="pointer-events-none absolute inset-px z-10 rounded-xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+
+            {/* Full-card felt glow - illuminates entire interior on hover */}
+            <div
+                className="pointer-events-none absolute inset-px z-10 rounded-xl opacity-0 transition-opacity duration-500 group-hover:opacity-100"
                 style={{
-                    background: useMotionTemplate`radial-gradient(${gradientSize}px circle at ${mouseX}px ${mouseY}px, ${gradientColor}, transparent 100%)`,
-                    opacity: gradientOpacity,
+                    background: `radial-gradient(circle at 50% 50%, ${gradientColor}, transparent 70%)`,
                 }}
             />
-            <motion.div
-                className="pointer-events-none absolute inset-0 rounded-xl bg-border duration-300 group-hover:opacity-100"
+
+            {/* Border glow - static gradient behind card on hover */}
+            <div
+                className="pointer-events-none absolute -inset-0.5 rounded-xl opacity-0 transition-opacity duration-500 group-hover:opacity-100"
                 style={{
-                    background: useMotionTemplate`radial-gradient(${gradientSize}px circle at ${mouseX}px ${mouseY}px, ${gradientFrom}, ${gradientTo}, hsl(var(--border)) 100%)`,
+                    background: `linear-gradient(135deg, ${gradientFrom}, ${gradientTo})`,
+                    filter: "blur(4px)",
                 }}
             />
         </div>
