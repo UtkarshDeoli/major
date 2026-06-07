@@ -5,10 +5,6 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import {
-  LayoutDashboard,
-  MessageSquare,
-  FileBarChart,
-  Target,
   User,
   Menu,
   X,
@@ -16,7 +12,11 @@ import {
   ChevronLeft,
   ChevronRight,
   BookOpen,
+  FileBarChart,
 } from "lucide-react"
+import { DashboardIcon } from "@/components/icons/dashboard-icon"
+import { ChatIcon } from "@/components/icons/chat-icon"
+import { MockTestsIcon } from "@/components/icons/mock-tests-icon"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
 import {
@@ -30,10 +30,10 @@ import {
 import { cn } from "@/lib/utils"
 
 const nav = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/dashboard", label: "Dashboard", icon: DashboardIcon },
+  { href: "/chat", label: "Chat", icon: ChatIcon },
   { href: "/test?tab=analysis", label: "Exam Analysis", icon: FileBarChart },
-  { href: "/test?tab=mock", label: "Mock Tests", icon: Target },
+  { href: "/test?tab=mock", label: "Mock Tests", icon: MockTestsIcon },
   { href: "/settings", label: "Settings", icon: Settings },
 ]
 
