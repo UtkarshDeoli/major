@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import {
   LayoutDashboard,
@@ -11,8 +12,10 @@ import {
   User,
   Menu,
   X,
-  Book,
   Settings,
+  ChevronLeft,
+  ChevronRight,
+  BookOpen,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -34,7 +37,17 @@ const nav = [
   { href: "/settings", label: "Settings", icon: Settings },
 ]
 
-function NavItem({ item, isMobile, setMobileOpen }: { item: typeof nav[0]; isMobile: boolean; setMobileOpen: (v: boolean) => void }) {
+function NavItem({
+  item,
+  collapsed,
+  isMobile,
+  setMobileOpen,
+}: {
+  item: typeof nav[0]
+  collapsed: boolean
+  isMobile: boolean
+  setMobileOpen: (v: boolean) => void
+}) {
   const pathname = usePathname()
   const isActive = pathname === item.href.split("?")[0]
 
@@ -43,14 +56,16 @@ function NavItem({ item, isMobile, setMobileOpen }: { item: typeof nav[0]; isMob
       href={item.href}
       onClick={() => isMobile && setMobileOpen(false)}
       className={cn(
-        "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+        "flex items-center rounded-xl text-sm font-medium transition-all duration-200",
+        collapsed ? "justify-center px-2 py-3" : "gap-3 px-3 py-2.5",
         isActive
-          ? "bg-primary/10 text-primary"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          ? "bg-primary/10 text-primary shadow-[0_0_12px_rgba(56,189,248,0.15)]"
+          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
       )}
+      title={collapsed ? item.label : undefined}
     >
-      <item.icon className="h-4 w-4" />
-      {item.label}
+      <item.icon className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4")} />
+      {!collapsed && <span className="truncate">{item.label}</span>}
     </Link>
   )
 }
@@ -59,9 +74,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
 
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 1024)
+    const check = () => {
+      const mobile = window.innerWidth < 1024
+      setIsMobile(mobile)
+      if (mobile) setCollapsed(false)
+    }
     check()
     window.addEventListener("resize", check)
     return () => window.removeEventListener("resize", check)
@@ -71,6 +91,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("token")
     router.push("/")
   }
+
+  const sidebarWidth = collapsed ? "w-16" : "w-64"
 
   return (
     <div className="h-screen flex flex-col lg:flex-row overflow-hidden bg-background">
@@ -82,32 +104,87 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "lg:relative fixed inset-y-0 left-0 z-50 flex flex-col bg-card border-r w-64 transition-transform duration-300",
+          "fixed lg:relative inset-y-0 left-0 z-50 flex flex-col bg-card/50 backdrop-blur-xl border-r transition-all duration-300 ease-in-out",
+          sidebarWidth,
           isMobile && !mobileOpen ? "-translate-x-full" : "translate-x-0"
         )}
       >
-        <div className="h-14 border-b flex items-center justify-between px-4 shrink-0">
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <Book className="h-5 w-5 text-primary" />
-            <span className="font-bold text-lg tracking-tight">Padhai Whallah</span>
+        {/* Header */}
+        <div className={cn(
+          "h-16 border-b flex items-center shrink-0",
+          collapsed ? "justify-center px-2" : "justify-between px-4"
+        )}>
+          <Link href="/dashboard" className={cn(
+            "flex items-center gap-2.5 overflow-hidden transition-all",
+            collapsed ? "justify-center w-full" : ""
+          )}>
+            <div className="relative h-7 w-7 shrink-0">
+              <Image
+                src="/logo.png"
+                alt="Orbit"
+                fill
+                className="object-contain"
+                priority
+              />
+            </div>
+            {!collapsed && (
+              <span className="font-bold text-lg tracking-tight whitespace-nowrap">
+                Orbit
+              </span>
+            )}
           </Link>
+
+          {/* Desktop collapse toggle */}
+          {!isMobile && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-7 w-7 rounded-lg transition-opacity",
+                collapsed ? "absolute -right-3.5 bg-card border shadow-sm opacity-0 group-hover:opacity-100" : "opacity-60 hover:opacity-100"
+              )}
+              onClick={() => setCollapsed(!collapsed)}
+            >
+              {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            </Button>
+          )}
+
+          {/* Mobile close */}
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(false)}>
             <X className="h-5 w-5" />
           </Button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-          <div className="pb-2">
-            {nav.map((item) => (
-              <NavItem key={item.href} item={item} isMobile={isMobile} setMobileOpen={setMobileOpen} />
-            ))}
-          </div>
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto p-2 space-y-1">
+          {nav.map((item) => (
+            <NavItem
+              key={item.href}
+              item={item}
+              collapsed={collapsed}
+              isMobile={isMobile}
+              setMobileOpen={setMobileOpen}
+            />
+          ))}
         </nav>
+
+        {/* Footer */}
+        <div className={cn(
+          "border-t p-2 shrink-0",
+          collapsed && "flex flex-col items-center"
+        )}>
+          {!collapsed && (
+            <div className="px-2 py-1.5 text-xs text-muted-foreground/60">
+              <BookOpen className="inline h-3 w-3 mr-1" />
+              Study smarter
+            </div>
+          )}
+        </div>
       </aside>
 
       {/* Main area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-14 border-b bg-card flex items-center px-4 gap-3 shrink-0">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
+        <header className="h-14 border-b bg-card/50 backdrop-blur-sm flex items-center px-4 gap-3 shrink-0">
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setMobileOpen(true)}>
             <Menu className="h-5 w-5" />
           </Button>
