@@ -50,7 +50,7 @@ Orbit's RAG system processes one PDF at a time using:
 | **Metadata DB** | MongoDB (existing) | Store chunk metadata, document info, user indexes |
 
 ### Key Decision: ChromaDB over JSON
-ChromaDB embedded mode (`chromadb.Client()` with `Settings(anonymized_telemetry=False)`) stores vectors + metadata in a local SQLite-backed directory. Each user gets their own collection (`user_{user_id}`). This gives us:
+ChromaDB embedded mode (`chromadb.Client()` with `Settings(anonymized_telemetry=False)`) stores vectors + metadata in a local SQLite-backed directory. Each user gets their own collection (`user_{hashed_user_id}`). This gives us:
 - Native HNSW approximate nearest neighbor search
 - Metadata filtering (`where={"doc_id": "..."}`)
 - Incremental adds/deletes without rebuilding
@@ -91,7 +91,7 @@ ChromaDB embedded mode (`chromadb.Client()` with `Settings(anonymized_telemetry=
 │  │  │   ChromaDB      │  │    MongoDB      │   │                      │
 │  │  │  ─────────────   │  │  ─────────────   │   │                      │
 │  │  │  Collection:      │  │  Collection:    │   │                      │
-│  │  │  user_{user_id}  │  │  document_chunks│   │                      │
+│  │  │  user_{hash}  │  │  document_chunks│   │                      │
 │  │  │  ├── embedding   │  │  ├── user_id    │   │                      │
 │  │  │  ├── content     │  │  ├── doc_id     │   │                      │
 │  │  │  ├── metadata    │  │  ├── doc_name   │   │                      │
@@ -227,17 +227,17 @@ Add these fields to the existing `pdfs` collection:
   
   // Storage
   vector_db_path: String,       // DEPRECATED: remove in migration
-  chroma_collection: String      // "user_{user_id}"
+  chroma_collection: String      // "user_{hash}"
 }
 ```
 
 ### 4.3 ChromaDB Collection Schema
 
-Each user gets one collection: `user_{user_id}`
+Each user gets one collection: `user_{hashed_user_id}`
 
 ```python
 collection = chroma_client.get_or_create_collection(
-    name=f"user_{user_id}",
+    name=f"user_{{get_collection_suffix(user_id)}}",
     metadata={"user_id": user_id},
     embedding_function=embedding_function  # all-MiniLM-L6-v2
 )
@@ -252,7 +252,9 @@ collection.add(
         "doc_name": chunk.doc_name,
         "page": chunk.page,
         "section": chunk.section,
-        "chunk_index": chunk.chunk_index
+        "chunk_index": chunk.chunk_index,
+        "subject": chunk.subject,
+        "tags": chunk.tags
     } for chunk in chunks]
 )
 
@@ -571,9 +573,9 @@ class UserBM25Index:
     """Per-user BM25 index, rebuilt on startup, incrementally updated."""
     
     def __init__(self):
-        self.indexes: Dict[str, BM25Okapi] = {}  # user_id -> index
-        self.chunk_maps: Dict[str, Dict[int, str]] = {}  # user_id -> {index -> chroma_id}
-        self.chunk_metadata: Dict[str, Dict] = {}  # chroma_id -> {doc_id, subject, tags}
+        self.indexes: Dict[str, Optional[BM25Okapi]] = {}  # user_id -> index
+        self.chunk_maps: Dict[str, Dict[int, str]] = {}  # user_id -> {bm25_index -> chroma_id}
+        self.chunk_metadata: Dict[str, Dict[str, Dict]] = {}  # user_id -> {chroma_id -> {doc_id, subject, tags}}
     
     async def build_index(self, user_id: str):
         """Build BM25 index for a user from MongoDB chunks."""
@@ -837,7 +839,7 @@ async def upload_document(
     file: UploadFile = File(...),
     subject: Optional[str] = Form(None),
     tags: Optional[str] = Form(None),  # comma-separated
-    user = Depends(get_current_user)
+    user_id: str = Depends(get_current_user)
 ) -> DocumentUploadResponse:
     """
     Upload any document type (pdf, txt, md, docx, image).
@@ -875,7 +877,7 @@ async def upload_document(
 @router.post("/questions/ask")
 async def ask_question(
     request: QuestionRequest,
-    user = Depends(get_current_user)
+    user_id: str = Depends(get_current_user)
 ) -> QuestionResponse:
     """
     Ask a question across all documents (or filtered subset).
@@ -928,7 +930,7 @@ class QuestionResponse(BaseModel):
 async def list_documents(
     subject: Optional[str] = None,
     tags: Optional[List[str]] = None,
-    user = Depends(get_current_user)
+    user_id: str = Depends(get_current_user)
 ) -> DocumentListResponse:
     """List all documents with filtering by subject/tags."""
 ```
@@ -940,10 +942,63 @@ async def list_documents(
 async def update_document_tags(
     doc_id: str,
     tags: List[str],
-    user = Depends(get_current_user)
+    user_id: str = Depends(get_current_user)
 ):
     """Update tags for a document. Propagates to all chunks."""
 ```
+
+### 8.5 Backward Compatibility & Migration
+
+The current API uses `pdf_id` (singular string) for single-document queries. The new multi-document API uses `doc_ids` (list of strings).
+
+**Phase 1 (Deploy): Support both parameters**
+
+```python
+class QuestionRequest(BaseModel):
+    question: str
+    pdf_id: Optional[str] = None        # DEPRECATED: old single-document field
+    doc_ids: Optional[List[str]] = None # NEW: multi-document field
+    subject: Optional[str] = None
+    tags: Optional[List[str]] = None
+    stream: bool = False
+    top_k: int = 5
+
+async def ask_question(request: QuestionRequest, user_id: str = Depends(get_current_user)):
+    # Normalize deprecated pdf_id into doc_ids
+    if request.pdf_id and not request.doc_ids:
+        request.doc_ids = [request.pdf_id]
+    
+    # If neither provided, search ALL user documents (new default)
+    doc_ids = request.doc_ids  # may be None
+    
+    # Proceed with query_documents()
+    context, sources, chunks = await query_documents(
+        user_id=user_id,
+        question=request.question,
+        doc_ids=doc_ids,
+        subject=request.subject,
+        tags=request.tags,
+        top_k=request.top_k
+    )
+    
+    # ... rest of handler
+```
+
+**Frontend Migration:**
+1. **Week 1**: Frontend can continue sending `pdf_id`. Backend handles it.
+2. **Week 2**: Frontend updates to send `doc_ids` (array) when user selects documents.
+3. **Week 3**: Frontend adds "Search All Documents" toggle (sends `doc_ids: null`).
+4. **Week 4**: Remove `pdf_id` from frontend. After 1 month, remove backend support.
+
+**Existing Chat Sessions:**
+- Sessions created before migration store `pdf_id` in MongoDB.
+- On session resume, if `pdf_id` exists but no `doc_ids`, treat as `doc_ids=[pdf_id]`.
+- Update `chat_sessions` schema to store `doc_ids: List[str]` instead of `pdf_id: String`.
+
+**Data Migration:**
+- No breaking data migration needed.
+- Existing `pdfs` documents will be backfilled on first query (see Section 11).
+- Old `vector_db_path` JSON files remain untouched; ignored by new code.
 
 ---
 
@@ -960,7 +1015,7 @@ async def update_document_tags(
   - [ ] Hierarchical chunking
   - [ ] Embedding generation
 - [ ] Build `VectorStore` service (ChromaDB wrapper):
-  - [ ] User collections (`user_{user_id}`)
+  - [ ] User collections (`user_{hashed_user_id}`)
   - [ ] Add chunks with metadata
   - [ ] Query with optional filters
 - [ ] Build `BM25Index` service:
