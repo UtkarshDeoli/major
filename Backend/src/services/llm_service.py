@@ -1,67 +1,70 @@
 import json
 import asyncio
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 from fastapi import HTTPException
 from src.services.pdf_service import get_relevant_context
 from src.services.gemini_service import gemini_service
+from src.services.vector_store import VectorStore
+from src.services.bm25_index import BM25IndexService
+from src.services.query_engine import QueryEngine
 
-async def ask_question(question: str, pdf_id: Optional[str] = None, stream: bool = False):
+# Initialize new services
+vector_store = VectorStore()
+bm25_service = BM25IndexService()
+query_engine = QueryEngine(vector_store, bm25_service)
+
+async def ask_question(question: str, 
+                       pdf_id: Optional[str] = None,      # DEPRECATED
+                       doc_ids: Optional[List[str]] = None,  # NEW
+                       subject: Optional[str] = None,
+                       tags: Optional[List[str]] = None,
+                       user_id: str = None,
+                       stream: bool = False):
+    """Ask a question using the multi-document RAG system.
+    
+    Backward compatibility: if pdf_id is provided, treat as doc_ids=[pdf_id].
     """
-    Ask a question to the LLM with or without PDF context
-    """
+    # Normalize deprecated pdf_id
+    if pdf_id and not doc_ids:
+        doc_ids = [pdf_id]
+    
     context = ""
+    sources = []
     
-    # Get context from PDF if pdf_id is provided
-    if pdf_id:
-        try:
-            context, _ = await get_relevant_context(pdf_id, question, top_k=3)
-        except Exception as e:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Error getting context from PDF: {str(e)}"
-            )
+    # Get context from documents if user_id is provided
+    if user_id:
+        context, sources, chunks = await query_engine.query(
+            user_id=user_id,
+            question=question,
+            doc_ids=doc_ids,
+            subject=subject,
+            tags=tags,
+            top_k=5
+        )
     
-    # Generate the prompt with or without context
+    # Build prompt
     if context:
-        prompt = f"""You are an AI tutor. Answer the question strictly based on the provided textbook excerpts.  
-
-        - Provide a clear, concise, and well-structured answer.  
-        - Focus on key points that are important for exams.  
-        - Avoid unnecessary introductions—start directly with the answer.  
-        - If necessary, break down complex ideas into simpler explanations.  
-        - If the context does not contain relevant information, state that the question is not covered in the given context.  
-
-        **Context:** {context}  
-
-        **Question:** {question}  
-
-        **Exam-Focused Answer:**  
-
-        """
+        prompt = query_engine.build_prompt(question, context, sources)
     else:
         prompt = f"""You are an AI tutor. 
 
-        - Provide a clear, concise, and well-structured answer.  
-        - Focus on key points that are important for exams.  
-        - Avoid unnecessary introductions—start directly with the answer.  
-        - If necessary, break down complex ideas into simpler explanations.  
+- Provide a clear, concise, and well-structured answer.  
+- Focus on key points that are important for exams.  
+- Avoid unnecessary introductions—start directly with the answer.  
+- If necessary, break down complex ideas into simpler explanations.  
 
-        **Question:** {question}  
+**Question:** {question}  
 
-        **Exam-Focused Answer:**  
-
-        """
+**Exam-Focused Answer:**  
+"""
     
-    # Handle streaming or non-streaming response
     if stream:
-        return await stream_llm_response(prompt, context)
+        return await stream_llm_response(prompt, context, sources)
     else:
-        return await get_llm_response(prompt, context)
+        return await get_llm_response(prompt, context, sources)
 
-async def get_llm_response(prompt: str, context: str = ""):
-    """
-    Get a non-streaming response from Gemini LLM
-    """
+async def get_llm_response(prompt: str, context: str = "", sources: List[Dict] = None):
+    """Get a non-streaming response from Gemini LLM."""
     if not gemini_service:
         raise HTTPException(
             status_code=503,
@@ -69,7 +72,6 @@ async def get_llm_response(prompt: str, context: str = ""):
         )
     
     try:
-        # Send request to Gemini API
         response = gemini_service.model.generate_content(prompt)
         
         if not response or not response.text:
@@ -80,6 +82,7 @@ async def get_llm_response(prompt: str, context: str = ""):
         
         return {
             "answer": response.text.strip(),
+            "sources": sources or [],
             "context": context
         }
     except Exception as e:
@@ -88,40 +91,36 @@ async def get_llm_response(prompt: str, context: str = ""):
             detail=f"Error generating response from Gemini: {str(e)}"
         )
 
-async def stream_llm_response(prompt: str, context: str = ""):
-    """
-    Get a streaming response from Gemini LLM
-    """
+async def stream_llm_response(prompt: str, context: str = "", sources: List[Dict] = None):
+    """Get a streaming response from Gemini LLM."""
     if not gemini_service:
         async def error_response():
-            yield json.dumps({"error": "Gemini service is not available. Please check GEMINI_API_KEY configuration."}) + "\n"
+            yield json.dumps({"error": "Gemini service is not available."}) + "\n"
         return error_response
     
     async def stream_response():
         try:
-            # Add context as first chunk if available
+            # Add context and sources as first chunk
             if context:
                 context_data = {"context": context}
+                if sources:
+                    context_data["sources"] = sources
                 yield json.dumps(context_data) + "\n"
             
-            # Use Gemini's streaming API
             response = gemini_service.model.generate_content(prompt, stream=True)
             
-            # Stream the response chunks
             for chunk in response:
                 if chunk.text:
-                    # Format as JSON similar to Ollama's response format
                     data = {
                         "response": chunk.text,
                         "done": False
                     }
                     yield json.dumps(data) + "\n"
             
-            # Send final chunk indicating completion
             yield json.dumps({"response": "", "done": True}) + "\n"
             
         except Exception as e:
-            error_data = {"error": f"Error generating streaming response from Gemini: {str(e)}"}
+            error_data = {"error": f"Error generating streaming response: {str(e)}"}
             yield json.dumps(error_data) + "\n"
     
     return stream_response
