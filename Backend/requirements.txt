@@ -9,6 +9,7 @@ cachetools==5.5.2
 certifi==2025.4.26
 cffi==1.17.1
 charset-normalizer==3.4.2
+chromadb==0.6.3
 click==8.2.0
 cryptography==45.0.2
 dnspython==2.7.0
@@ -74,6 +75,7 @@ python-dotenv==1.1.0
 python-multipart==0.0.20
 pytz==2025.2
 PyYAML==6.0.2
+rank-bm25==0.2.2
 regex==2024.11.6
 requests==2.32.3
 rich==14.1.0
