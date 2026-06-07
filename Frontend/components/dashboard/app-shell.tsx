@@ -64,7 +64,7 @@ function NavItem({
       )}
       title={collapsed ? item.label : undefined}
     >
-      <item.icon className={cn("shrink-0", collapsed ? "h-5 w-5" : "h-4 w-4")} />
+      <item.icon className={cn("shrink-0", collapsed ? "h-6 w-6" : "h-5 w-5")} />
       {!collapsed && <span className="truncate">{item.label}</span>}
     </Link>
   )
@@ -118,7 +118,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             "flex items-center gap-2.5 overflow-hidden transition-all",
             collapsed ? "justify-center w-full" : ""
           )}>
-            <div className="relative h-7 w-7 shrink-0">
+            <div className={cn("relative shrink-0", collapsed ? "h-9 w-9" : "h-8 w-8")}>
               <Image
                 src="/logo.png"
                 alt="Orbit"
