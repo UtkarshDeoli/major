@@ -36,6 +36,11 @@ try:
     # Mock Test Collections
     mock_tests_collection = db.mock_tests
     mock_test_submissions_collection = db.mock_test_submissions
+    # Workspace Collections
+    exams_collection = db.exams
+    subjects_collection = db.subjects
+    collections_collection = db.collections
+    materials_collection = db.materials
 except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     print(f"MongoDB connection error: {e}")
     print("WARNING: Data store service will not work until MongoDB is available")
@@ -49,6 +54,11 @@ except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     mock_tests_collection = None
     mock_test_submissions_collection = None
     mock_test_submissions_collection = None
+    # Workspace Collections
+    exams_collection = None
+    subjects_collection = None
+    collections_collection = None
+    materials_collection = None
 
 # Helper to convert ObjectId to string
 def object_id_to_str(obj):
