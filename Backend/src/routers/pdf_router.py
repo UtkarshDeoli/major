@@ -1,40 +1,15 @@
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Query, Path
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Path, Form
+from fastapi.responses import FileResponse
 from typing import List, Optional
 import os
-from datetime import datetime
-import jwt
 from pydantic import BaseModel
 
 from src.core.models import PDFMetadata, PDFListResponse, PDFUploadResponse
-from src.core.config import SECRET_KEY, ALGORITHM
+from src.core.security import get_current_user
 from src.services.pdf_service import process_and_store_pdf
 from src.core.data_store import get_user_pdfs, get_pdf_metadata
 
 router = APIRouter(prefix="/pdfs", tags=["PDFs"])
-
-# Helper function to get the current user from JWT token
-async def get_current_user(token: str = Depends(lambda authorization: authorization)):
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    try:
-        # Remove "Bearer " prefix if present
-        if token.startswith("Bearer "):
-            token = token.replace("Bearer ", "")
-        
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-        
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        
-        return user_id
-    except jwt.PyJWTError:
-        raise HTTPException(
-            status_code=401, 
-            detail="Invalid authentication credentials"
-        )
 
 
 class UploadPDFRequest(BaseModel):
@@ -50,9 +25,9 @@ class UploadPDFRequest(BaseModel):
     description="Upload a PDF file to be processed and stored. The file will be processed in the background and made available for querying.",
 )
 async def upload_pdf(
-    title: Optional[str] = None,
-    description: Optional[str] = None,
-    tags: Optional[List[str]] = None,
+    title: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    tags: Optional[List[str]] = Form(None),
     file: UploadFile = File(...),
     user_id: str = Depends(get_current_user)
 ):

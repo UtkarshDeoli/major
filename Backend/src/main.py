@@ -1,23 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import nltk
-from typing import Dict
-
-# Import our routers
-from src.routers import auth_router, pdf_router, question_router
 
 # Import our routers
 from src.routers import auth_router, pdf_router, question_router, analysis_router, mock_test_router
 
 app = FastAPI()
 
-# Allow CORS for all origins (you can restrict this to specific origins if needed)
+# Allow CORS for frontend origin with credentials
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=["http://localhost:3000"],  # Frontend dev server
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Include our routers
@@ -37,8 +32,4 @@ async def healthcheck():
 
 if __name__ == "__main__":
     import uvicorn
-    # Download necessary NLTK data
-    nltk.download('punkt')
-    nltk.download('stopwords')
-    nltk.download('wordnet')
     uvicorn.run(app, host="0.0.0.0", port=8001)

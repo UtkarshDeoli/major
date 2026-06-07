@@ -4,7 +4,7 @@
 cd Backend
 
 # Activate the virtual environment
-source venv/bin/activate
+source .venv/bin/activate
 
 # Start the backend using uvicorn
 # uvicorn main:app --reload

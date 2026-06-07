@@ -8,15 +8,15 @@ class Settings(BaseSettings):
     MONGODB_URL: str = "mongodb://localhost:27017"
     MONGODB_DB_NAME: str = "phadai"
     MONGODB_CONNECT_TIMEOUT: int = 30000  # 30 seconds timeout
-    
+
     # JWT settings
-    SECRET_KEY: str = "thisisasupersecretkeymadebyutkarsh"
+    SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
+
     # Gemini API settings
-    GEMINI_API_KEY: str = "AIzaSyDlz22I1ddHA3xfCMWuo-NwcSW0PHIn2k8"
-    
+    GEMINI_API_KEY: str
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -34,4 +34,3 @@ SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 GEMINI_API_KEY = settings.GEMINI_API_KEY
-ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES

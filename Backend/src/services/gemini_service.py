@@ -3,7 +3,7 @@ import google.generativeai as genai
 from typing import List, Dict, Any
 from fastapi import HTTPException
 from src.core.config import GEMINI_API_KEY
-import PyPDF2
+from pypdf import PdfReader
 
 class GeminiService:
     def __init__(self):
@@ -29,14 +29,14 @@ class GeminiService:
         """Extract text content from a PDF file"""
         try:
             with open(pdf_path, 'rb') as file:
-                pdf_reader = PyPDF2.PdfReader(file)
+                pdf_reader = PdfReader(file)
                 text = ""
                 for page in pdf_reader.pages:
                     text += page.extract_text() + "\n"
                 return text
         except Exception as e:
             raise HTTPException(
-                status_code=500, 
+                status_code=500,
                 detail=f"Error extracting text from PDF: {str(e)}"
             )
     

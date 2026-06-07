@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { authAPI } from '@/lib/api'
 
 interface AuthFormProps {
   type: 'login' | 'signup'
@@ -28,35 +29,10 @@ export function AuthForm({ type }: AuthFormProps) {
     setIsLoading(true)
     
     try {
-      const endpoint = type === 'login' ? '/auth/login' : '/auth/signup'
-      
-      let body: FormData | string;
-      let headers: HeadersInit = {};
-      
       if (type === 'login') {
-        const formData = new FormData();
-        formData.append('username', email);
-        formData.append('password', password);
-        body = formData;
+        await authAPI.login(email, password);
       } else {
-        body = JSON.stringify({ email, password, name });
-        headers = { 'Content-Type': 'application/json' };
-      }
-      
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'}${endpoint}`, {
-        method: 'POST',
-        headers,
-        body,
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.detail || 'Authentication failed');
-      }
-      
-      if (type === 'login') {
-        localStorage.setItem('token', data.access_token);
+        await authAPI.signup(email, password, name);
       }
       
       toast({
@@ -73,7 +49,7 @@ export function AuthForm({ type }: AuthFormProps) {
         variant: 'destructive'
       });
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
   };
 

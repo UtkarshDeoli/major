@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, Path
-import jwt
 
 from src.core.models import (
     MockTestGenerationRequest,
@@ -8,7 +7,7 @@ from src.core.models import (
     MockTestAnalysisResponse,
     MockTestListResponse
 )
-from src.core.config import SECRET_KEY, ALGORITHM
+from src.core.security import get_current_user
 from src.services.mock_test_service import (
     generate_mock_test_service,
     analyze_mock_test_submission_service,
@@ -17,29 +16,6 @@ from src.services.mock_test_service import (
 )
 
 router = APIRouter(prefix="/mock-tests", tags=["Mock Tests"])
-
-# Helper function to get the current user from JWT token
-async def get_current_user(token: str = Depends(lambda authorization: authorization)):
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    try:
-        # Remove "Bearer " prefix if present
-        if token.startswith("Bearer "):
-            token = token.replace("Bearer ", "")
-        
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-        
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        
-        return user_id
-    except jwt.PyJWTError:
-        raise HTTPException(
-            status_code=401, 
-            detail="Invalid authentication credentials"
-        )
 
 @router.post(
     "/generate",

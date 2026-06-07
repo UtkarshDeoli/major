@@ -25,12 +25,24 @@ import {
   BarChart3
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { pdfAPI, analysisAPI, mockTestAPI } from '@/lib/api'
 
 export default function TestPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const activeTabFromUrl = searchParams.get('tab') || 'analysis'
+  const [activeTab, setActiveTab] = useState<'analysis' | 'mock'>(activeTabFromUrl as 'analysis' | 'mock')
   const { toast } = useToast()
+
+  useEffect(() => {
+    setActiveTab(activeTabFromUrl as 'analysis' | 'mock')
+  }, [activeTabFromUrl])
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value as 'analysis' | 'mock')
+    router.push(`/test?tab=${value}`)
+  }
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isGeneratingMockTest, setIsGeneratingMockTest] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
@@ -258,7 +270,7 @@ export default function TestPage() {
 
   return (
     <div className="container mx-auto py-8 px-4">
-      <Tabs defaultValue="analysis" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
           <TabsTrigger value="analysis">Analysis</TabsTrigger>
           <TabsTrigger value="mock">Mock Tests</TabsTrigger>

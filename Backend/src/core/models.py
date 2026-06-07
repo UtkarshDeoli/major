@@ -1,6 +1,6 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
-from datetime import datetime
+from pydantic import BaseModel, Field, ConfigDict
+from typing import List, Optional, Dict, Any, Literal
+from datetime import datetime, timezone
 from bson import ObjectId
 
 class QuestionRequest(BaseModel):
@@ -169,14 +169,16 @@ class MockTestListResponse(BaseModel):
     tests: List[MockTestResponse]
 
 class User(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
     email: str
     name: str
     password_hash: str
-    role: str = "student"  # "student" or "teacher"
+    role: Literal["student", "teacher"] = "student"
     institute: Optional[str] = None
     preferred_language: str = "en"
     onboarding_completed: bool = False
     active_exam_id: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

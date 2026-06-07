@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import jwt
@@ -78,20 +78,13 @@ async def create_user(email: str, password: str, name: Optional[str] = None):
         
         # Create new user with hashed password
         hashed_password = get_password_hash(password)
-        user = {
-            "email": email,
-            "password": hashed_password,
-            "name": name,
-            "role": "student",
-            "institute": None,
-            "preferred_language": "en",
-            "onboarding_completed": False,
-            "active_exam_id": None,
-            "created_at": datetime.now(),
-            "updated_at": datetime.now(),
-        }
+        user = User(
+            email=email,
+            password_hash=hashed_password,
+            name=name,
+        )
         
-        result = await users_collection.insert_one(user)
+        result = await users_collection.insert_one(user.model_dump(by_alias=True))
         created_user = await users_collection.find_one({"_id": result.inserted_id})
         return created_user
     except HTTPException:
@@ -115,7 +108,7 @@ async def authenticate_user(email: str, password: str):
         user = await get_user_by_email(email)
         if not user:
             return False
-        if not verify_password(password, user["password"]):
+        if not verify_password(password, user["password_hash"]):
             return False
         return user
     except HTTPException:
@@ -131,9 +124,9 @@ async def authenticate_user(email: str, password: str):
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
