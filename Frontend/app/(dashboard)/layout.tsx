@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AuthProtection from "@/components/auth/route-protection/auth-protection";
 import AppShell from "@/components/dashboard/app-shell";
+import { DashboardProvider } from "@/lib/context/dashboard-context";
 
 export default function DashboardLayout({
   children,
@@ -42,15 +43,7 @@ export default function DashboardLayout({
     }
   }, [shouldRedirect, router]);
 
-  if (!onboardingChecked) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="h-10 w-10 rounded-full bg-primary animate-pulse-glow" />
-      </div>
-    );
-  }
-
-  if (shouldRedirect) {
+  if (!onboardingChecked || shouldRedirect) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="h-10 w-10 rounded-full bg-primary animate-pulse-glow" />
@@ -60,7 +53,9 @@ export default function DashboardLayout({
 
   return (
     <AuthProtection>
-      <AppShell>{children}</AppShell>
+      <DashboardProvider>
+        <AppShell>{children}</AppShell>
+      </DashboardProvider>
     </AuthProtection>
   );
 }

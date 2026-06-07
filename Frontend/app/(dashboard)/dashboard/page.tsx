@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Container from "@/components/global/container";
 import { BentoGrid } from "@/components/ui/bento-grid";
-import { DashboardProvider, useDashboard } from "@/lib/context/dashboard-context";
+import { useDashboard } from "@/lib/context/dashboard-context";
 import { ActiveStudyCard } from "@/components/dashboard/active-study-card";
 import { SubjectCard } from "@/components/dashboard/subject-card";
 import { CollectionsPanel } from "@/components/dashboard/collections-panel";
@@ -23,11 +23,7 @@ import { ExamSetupDialog } from "@/components/dashboard/exam-setup-dialog";
 import { useToast } from "@/hooks/use-toast";
 
 export default function DashboardPage() {
-  return (
-    <DashboardProvider>
-      <DashboardContent />
-    </DashboardProvider>
-  );
+  return <DashboardContent />;
 }
 
 function DashboardContent() {

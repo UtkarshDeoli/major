@@ -29,7 +29,7 @@ export function EmptyState({ onUploadDocument }: EmptyStateProps) {
           </div>
         </div>
         
-        <h2 className="text-2xl font-bold mb-2">Welcome to Padhai Whallah</h2>
+        <h2 className="text-2xl font-bold mb-2">Welcome to Orbit</h2>
         <p className="text-muted-foreground mb-8">
           Upload your first document to start studying with AI assistance
         </p>

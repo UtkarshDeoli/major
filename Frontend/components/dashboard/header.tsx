@@ -47,7 +47,7 @@ export function DashboardHeader({ onToggleSidebar, onOpenSettings, isMobile = fa
         
         <div className={`${isMobile ? "hidden" : "hidden md:flex"} items-center gap-2`}>
           <Book className="h-5 w-5 text-primary" />
-          <span className="font-bold text-lg">Padhai Whallah</span>
+          <span className="font-bold text-lg">Orbit</span>
         </div>
       </div>
       
