@@ -5,10 +5,24 @@ from bson import ObjectId
 
 class QuestionRequest(BaseModel):
     question: str
-    pdf_id: Optional[str] = None
+    pdf_id: Optional[str] = None        # DEPRECATED: old single-document field
+    doc_ids: Optional[List[str]] = None  # NEW: multi-document field
+    subject: Optional[str] = None
+    tags: Optional[List[str]] = None
+    stream: bool = False
+    top_k: int = 5
+
+class Source(BaseModel):
+    index: int
+    doc_name: str
+    page: Optional[int] = None
+    section: Optional[str] = None
+    locator: Optional[str] = None
+    chroma_id: str
 
 class QuestionResponse(BaseModel):
     answer: str
+    sources: Optional[List[Source]] = None  # NEW
     context: Optional[str] = None
 
 class StatusResponse(BaseModel):
@@ -25,7 +39,20 @@ class PDFUploadResponse(BaseModel):
     file_path: str
     processed: bool
     tags: Optional[List[str]] = None
-    
+
+class DocumentUploadResponse(BaseModel):
+    id: str
+    filename: str
+    doc_type: str
+    size: int
+    chunk_count: int
+    page_count: Optional[int] = None
+    has_scanned_pages: bool = False
+    subject: Optional[str] = None
+    tags: Optional[List[str]] = None
+    processed: bool
+    upload_date: datetime
+
 class PDFMetadata(BaseModel):
     id: str
     filename: str
@@ -42,7 +69,10 @@ class PDFMetadata(BaseModel):
 
 class PDFListResponse(BaseModel):
     pdfs: List[PDFMetadata]
-    
+
+class DocumentListResponse(BaseModel):
+    documents: List[PDFMetadata]  # Reuse existing
+
 # Chat history models
 class Message(BaseModel):
     role: str  # "user" or "assistant"
@@ -52,7 +82,8 @@ class Message(BaseModel):
 class ChatSession(BaseModel):
     id: str
     user_id: str
-    pdf_id: Optional[str] = None
+    pdf_id: Optional[str] = None         # DEPRECATED
+    doc_ids: Optional[List[str]] = None  # NEW
     title: str
     messages: List[Message]
     created_at: datetime
@@ -61,7 +92,8 @@ class ChatSession(BaseModel):
 class ChatSessionResponse(BaseModel):
     id: str
     title: str
-    pdf_id: Optional[str] = None
+    pdf_id: Optional[str] = None         # DEPRECATED
+    doc_ids: Optional[List[str]] = None  # NEW
     created_at: datetime
     updated_at: datetime
     message_count: int
