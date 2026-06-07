@@ -25,11 +25,11 @@ app.add_middleware(
 )
 
 # Include our routers
-app.include_router(auth_router.router)
-app.include_router(pdf_router.router)
-app.include_router(question_router.router)
-app.include_router(analysis_router.router)
-app.include_router(mock_test_router.router)
+app.include_router(auth_router)
+app.include_router(pdf_router)
+app.include_router(question_router)
+app.include_router(analysis_router)
+app.include_router(mock_test_router)
 app.include_router(document_router)
 app.include_router(exam_router)
 app.include_router(subject_router)

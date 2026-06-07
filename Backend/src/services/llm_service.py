@@ -2,7 +2,6 @@ import json
 import asyncio
 from typing import Dict, Any, Optional, Tuple, List
 from fastapi import HTTPException
-from src.services.pdf_service import get_relevant_context
 from src.services.gemini_service import gemini_service
 from src.services.vector_store import VectorStore
 from src.services.bm25_index import BM25IndexService
