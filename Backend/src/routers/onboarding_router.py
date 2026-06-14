@@ -11,6 +11,7 @@ router = APIRouter(tags=["Onboarding"])
 
 
 class OnboardingData(BaseModel):
+    name: Optional[str] = None
     role: Optional[str] = None
     institute: Optional[str] = None
     preferred_language: Optional[str] = None
@@ -18,6 +19,7 @@ class OnboardingData(BaseModel):
 
 class OnboardingStatus(BaseModel):
     onboarding_completed: bool
+    name: Optional[str] = None
     role: Optional[str] = None
     institute: Optional[str] = None
     preferred_language: Optional[str] = None
@@ -41,12 +43,14 @@ async def save_onboarding(
 
     try:
         update_fields = {}
-        if data.role is not None:
-            update_fields["role"] = data.role
+        if data.name is not None:
+            update_fields["name"] = data.name.strip()
+        # Ignore any role sent from onboarding; roles are assigned through
+        # admin/sub-admin enrollment or during the signup flow.
         if data.institute is not None:
-            update_fields["institute"] = data.institute
+            update_fields["institute"] = data.institute.strip()
         if data.preferred_language is not None:
-            update_fields["preferred_language"] = data.preferred_language
+            update_fields["preferred_language"] = data.preferred_language.strip()
         update_fields["updated_at"] = datetime.now(timezone.utc)
 
         await users_collection.update_one(
@@ -63,6 +67,7 @@ async def save_onboarding(
 
         return OnboardingStatus(
             onboarding_completed=user.get("onboarding_completed", False),
+            name=user.get("name"),
             role=user.get("role"),
             institute=user.get("institute"),
             preferred_language=user.get("preferred_language", "en"),
