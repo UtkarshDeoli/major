@@ -1,12 +1,9 @@
 import uuid
-from unittest.mock import AsyncMock
 
-import pytest
 from fastapi.testclient import TestClient
 
 # Must patch before importing the app so the module sees the mocked collection.
 import src.services.auth_service as auth_service
-import src.core.security as security
 
 
 class _FakeCollection:
@@ -29,6 +26,9 @@ class _FakeCollection:
         class _Result:
             inserted_id = _id
         return _Result()
+
+
+import pytest
 
 
 @pytest.fixture

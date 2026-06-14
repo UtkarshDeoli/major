@@ -27,7 +27,7 @@ try:
     
     db = client[MONGODB_DB_NAME]
     users_collection = db.users
-except Exception as e:
+except (ConnectionFailure, ServerSelectionTimeoutError, ValueError) as e:
     print(f"MongoDB connection error: {e}")
     print("WARNING: Authentication service will not work until MongoDB is available")
     # We'll initialize these as None and check before each operation
