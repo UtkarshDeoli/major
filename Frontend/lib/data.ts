@@ -1,8 +1,25 @@
 import { nanoid } from './utils';
 
 // User
+export interface SubscriptionInfo {
+  plan: 'weekly' | 'monthly';
+  started_at: string;
+  expires_at: string;
+  status: 'active' | 'expired' | 'cancelled';
+}
+
 export interface User {
   email: string;
+  name?: string;
+  role?: 'student' | 'teacher' | 'subadmin' | 'admin';
+  institute?: string;
+  preferred_language?: string;
+  onboarding_completed?: boolean;
+  active_exam_id?: string;
+  teacher_id?: string;
+  managed_by?: string;
+  license_id?: string;
+  subscription?: SubscriptionInfo;
 }
 
 // Document Types

@@ -1,11 +1,11 @@
 from datetime import timedelta
-from typing import Any, Literal, Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
 
-from src.core.models import User
+from src.core.models import SubscriptionInfo
 from src.core.security import get_current_user
 from src.services.auth_service import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
@@ -40,11 +40,7 @@ class UserResponse(BaseModel):
     teacher_id: Optional[str] = None
     managed_by: Optional[str] = None
     license_id: Optional[str] = None
-    subscription: Optional[dict] = None
-    teacher_id: Optional[str] = None
-    managed_by: Optional[str] = None
-    license_id: Optional[str] = None
-    subscription: Optional[Any] = None
+    subscription: Optional[SubscriptionInfo] = None
 
 
 class SignupResponse(BaseModel):
