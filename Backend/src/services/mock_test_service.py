@@ -5,6 +5,7 @@ from datetime import datetime
 from fastapi import HTTPException
 
 from src.services.gemini_service import gemini_service
+from src.services.web_search_agent import fetch_web_examples
 from src.core.data_store import (
     get_pdf_metadata,
     store_mock_test,
@@ -28,7 +29,11 @@ async def generate_mock_test_service(
     num_text: int,
     total_marks: int,
     difficulty_level: str,
-    user_id: str
+    user_id: str,
+    focus_topics: Optional[List[str]] = None,
+    weak_topics: Optional[List[str]] = None,
+    subject: Optional[str] = None,
+    student_email: Optional[str] = None,
 ) -> MockTestResponse:
     """Generate a mock test using Gemini AI"""
     
@@ -69,6 +74,28 @@ async def generate_mock_test_service(
             if notes_metadata and notes_metadata["user_id"] == user_id:
                 notes_content = await gemini_service.extract_text_from_pdf(notes_metadata["file_path"])
         
+        # Pull student's historical weak topics from submissions if requested
+        resolved_weak_topics = weak_topics or []
+        if student_email and not weak_topics:
+            resolved_weak_topics = await _extract_weak_topics_for_student(student_email)
+        
+        # Optionally fetch real-world examples for weak/focus topics
+        web_examples = ""
+        search_terms = []
+        if subject:
+            search_terms.append(subject)
+        if focus_topics:
+            search_terms.extend(focus_topics)
+        if resolved_weak_topics:
+            search_terms.extend(resolved_weak_topics)
+        if search_terms:
+            web_examples = await fetch_web_examples(
+                topic=search_terms[0],
+                question_type="mcq",
+                subject=subject,
+                num_results=3,
+            )
+        
         # Generate mock test using Gemini
         mock_test_data = await _generate_mock_test_with_gemini(
             syllabus_content,
@@ -77,21 +104,34 @@ async def generate_mock_test_service(
             num_mcq,
             num_text,
             total_marks,
-            difficulty_level
+            difficulty_level,
+            focus_topics=focus_topics,
+            weak_topics=resolved_weak_topics,
+            subject=subject,
+            web_examples=web_examples,
         )
         
         # Create mock test object
         test_id = str(uuid.uuid4())
         created_at = datetime.utcnow()
         
+        title_parts = ["Mock Test", created_at.strftime('%B %d, %Y')]
+        if subject:
+            title_parts.insert(1, f"- {subject}")
+        if resolved_weak_topics:
+            title_parts.append("(Weakness-focused)")
+        elif focus_topics:
+            title_parts.append("(Topic-focused)")
+        
         mock_test = MockTestResponse(
             test_id=test_id,
-            title=f"Mock Test - {created_at.strftime('%B %d, %Y')}",
+            title=" ".join(title_parts),
             questions=mock_test_data["questions"],
             total_marks=total_marks,
             time_limit=_calculate_time_limit(total_marks, num_mcq, num_text),
             created_at=created_at,
-            user_id=user_id
+            user_id=user_id,
+            difficulty_level=difficulty_level
         )
         
         # Store in database
@@ -107,6 +147,39 @@ async def generate_mock_test_service(
             detail=f"Error generating mock test: {str(e)}"
         )
 
+
+async def _extract_weak_topics_for_student(student_email: str) -> List[str]:
+    """Inspect recent submissions and return topics the student struggles with."""
+    from src.core.data_store import mock_test_submissions_collection
+    
+    if mock_test_submissions_collection is None:
+        return []
+    
+    cursor = mock_test_submissions_collection.find({"user_id": student_email}).sort("created_at", -1).limit(20)
+    submissions = await cursor.to_list(length=None)
+    
+    topic_scores: Dict[str, List[float]] = {}
+    
+    for submission in submissions:
+        for feedback in submission.get("question_feedback", []):
+            topic = feedback.get("topic")
+            if not topic:
+                continue
+            marks_awarded = float(feedback.get("marks_awarded", 0))
+            max_marks = float(feedback.get("max_marks", 1))
+            ratio = marks_awarded / max_marks if max_marks > 0 else 0
+            topic_scores.setdefault(topic, []).append(ratio)
+    
+    weak_topics = []
+    for topic, scores in topic_scores.items():
+        avg = sum(scores) / len(scores)
+        if avg < 0.6:
+            weak_topics.append(topic)
+    
+    # Return the top 5 weakest topics
+    return weak_topics[:5]
+
+
 async def _generate_mock_test_with_gemini(
     syllabus_content: str,
     question_papers_content: List[str],
@@ -114,7 +187,11 @@ async def _generate_mock_test_with_gemini(
     num_mcq: int,
     num_text: int,
     total_marks: int,
-    difficulty_level: str
+    difficulty_level: str,
+    focus_topics: Optional[List[str]] = None,
+    weak_topics: Optional[List[str]] = None,
+    subject: Optional[str] = None,
+    web_examples: str = "",
 ) -> Dict[str, Any]:
     """Use Gemini to generate mock test questions with enhanced pattern matching"""
     
@@ -124,6 +201,22 @@ async def _generate_mock_test_with_gemini(
     # Calculate marks distribution
     mcq_marks_per_question = 2
     text_marks_per_question = max(5, (total_marks - num_mcq * mcq_marks_per_question) // num_text) if num_text > 0 else 5
+    
+    focus_section = ""
+    if focus_topics:
+        focus_section = f"""
+FOCUS TOPICS (generate questions specifically targeting these):
+{', '.join(focus_topics)}
+"""
+    
+    weak_section = ""
+    if weak_topics:
+        weak_section = f"""
+WEAK TOPICS (the student has previously struggled with these; prioritize them):
+{', '.join(weak_topics)}
+"""
+    
+    subject_section = f"\nSUBJECT: {subject}\n" if subject else ""
     
     prompt = f"""You are an expert exam paper setter with years of experience. Create a realistic mock test paper.
 
@@ -141,7 +234,7 @@ INSTRUCTIONS:
    - Test conceptual understanding, application, and problem-solving
    - Have realistic difficulty levels
    - Cover different units proportionally
-
+{focus_section}{weak_section}{subject_section}
 SYLLABUS (PRIMARY REFERENCE):
 {syllabus_content[:3000]}
 
@@ -151,6 +244,8 @@ STUDY NOTES (For topic depth):
 PREVIOUS YEAR QUESTION PAPERS (For pattern matching):
 {combined_question_papers[:4000]}
 
+{web_examples}
+
 REQUIREMENTS:
 - Generate {num_mcq} Multiple Choice Questions (MCQ) worth {mcq_marks_per_question} marks each
 - Generate {num_text} Descriptive/Text questions worth {text_marks_per_question} marks each
@@ -158,6 +253,8 @@ REQUIREMENTS:
 - ALL questions must be traceable to syllabus topics
 - MCQ should have 4 options with one correct answer
 - Follow question patterns from previous papers
+- If weak topics are listed, at least 60% of questions must target those weak topics
+- If focus topics are listed, at least 50% of questions must target those focus topics
 
 RESPOND ONLY WITH VALID JSON IN THIS EXACT FORMAT:
 {{
@@ -229,7 +326,7 @@ CRITICAL REQUIREMENTS:
             )
             questions.append(question)
         
-        return {"questions": questions}
+        return {"questions": questions, "topics": list(set(q.get("topic") for q in mock_test_data.get("questions", []) if q.get("topic")))}
         
     except json.JSONDecodeError as e:
         print(f"JSON parsing error in mock test generation: {str(e)}")
@@ -262,7 +359,7 @@ def _create_fallback_mock_test(num_mcq: int, num_text: int, mcq_marks: int, text
             marks=text_marks
         ))
     
-    return {"questions": questions}
+    return {"questions": questions, "topics": []}
 
 def _calculate_time_limit(total_marks: int, num_mcq: int, num_text: int) -> int:
     """Calculate appropriate time limit in minutes"""

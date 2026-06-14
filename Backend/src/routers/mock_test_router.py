@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Path
 
+from src.core.data_store import users_collection
 from src.core.models import (
     MockTestGenerationRequest,
     MockTestResponse,
@@ -62,6 +63,17 @@ async def generate_mock_test(
                 detail="At least one question paper PDF ID is required"
             )
         
+        # Teachers can generate tests targeting a specific student under them
+        if request.student_email and user_id != request.student_email:
+            if users_collection is None:
+                raise HTTPException(status_code=503, detail="Database unavailable")
+            student = await users_collection.find_one({
+                "email": request.student_email,
+                "teacher_id": user_id,
+            })
+            if not student:
+                raise HTTPException(status_code=403, detail="You can only target students you manage")
+        
         # Generate mock test
         mock_test = await generate_mock_test_service(
             syllabus_pdf_id=request.syllabus_pdf_id,
@@ -71,7 +83,11 @@ async def generate_mock_test(
             num_text=request.num_text,
             total_marks=request.total_marks,
             difficulty_level=request.difficulty_level,
-            user_id=user_id
+            user_id=user_id,
+            focus_topics=request.focus_topics,
+            weak_topics=request.weak_topics,
+            subject=request.subject,
+            student_email=request.student_email,
         )
         
         return mock_test
