@@ -5,11 +5,18 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
-import { authAPI } from '@/lib/api'
+import { useAuth } from '@/lib/context/auth-context'
 
 interface AuthFormProps {
   type: 'login' | 'signup'
@@ -18,29 +25,32 @@ interface AuthFormProps {
 export function AuthForm({ type }: AuthFormProps) {
   const { toast } = useToast()
   const router = useRouter()
+  const { login, signup } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    
+
     try {
       if (type === 'login') {
-        await authAPI.login(email, password);
+        await login(email, password);
       } else {
-        await authAPI.signup(email, password, name);
+        await signup({
+          email,
+          password,
+          name: name || undefined,
+        });
       }
       
       toast({
         title: type === 'login' ? 'Welcome back!' : 'Account created!',
         description: "You're now part of Orbit.",
       });
-      
-      router.push('/dashboard');
     } catch (error) {
       console.error('Authentication error:', error);
       toast({
@@ -121,7 +131,7 @@ export function AuthForm({ type }: AuthFormProps) {
           </div>
         </div>
       )}
-      
+
       {/* Email field */}
       <div className="space-y-2">
         <Label htmlFor="email" className="text-gray-400 text-sm font-medium">Email</Label>

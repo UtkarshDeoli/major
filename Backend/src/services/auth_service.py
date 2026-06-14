@@ -21,13 +21,13 @@ try:
         MONGODB_URL,
         serverSelectionTimeoutMS=MONGODB_CONNECT_TIMEOUT
     )
-    # Force a connection to verify it works
-    client.admin.command('ismaster')
-    print(f"Connected to MongoDB at {MONGODB_URL}")
+    # Defer connection verification until the first actual DB operation to avoid
+    # requiring a running event loop at import time.
+    print(f"Configured MongoDB client for {MONGODB_URL}")
     
     db = client[MONGODB_DB_NAME]
     users_collection = db.users
-except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+except Exception as e:
     print(f"MongoDB connection error: {e}")
     print("WARNING: Authentication service will not work until MongoDB is available")
     # We'll initialize these as None and check before each operation
@@ -60,13 +60,20 @@ async def get_user_by_email(email: str):
         )
 
 
-async def create_user(email: str, password: str, name: Optional[str] = None):
+async def create_user(
+    email: str,
+    password: str,
+    name: Optional[str] = None,
+    role: str = "student",
+    institute: Optional[str] = None,
+    preferred_language: Optional[str] = None
+):
     if users_collection is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database connection not available"
         )
-    
+
     try:
         # Check if user already exists
         existing_user = await get_user_by_email(email)
@@ -75,15 +82,26 @@ async def create_user(email: str, password: str, name: Optional[str] = None):
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
             )
-        
+
+        # Validate role. Public signup is always a student; privileged roles
+        # require admin/sub-admin enrollment. Sanitize any caller-supplied role.
+        allowed_roles = {"student", "teacher", "subadmin", "admin"}
+        if role not in allowed_roles:
+            role = "student"
+        if role in {"admin", "subadmin", "teacher"}:
+            role = "student"
+
         # Create new user with hashed password
         hashed_password = get_password_hash(password)
         user = User(
             email=email,
             password_hash=hashed_password,
             name=name,
+            role=role,  # type: ignore[arg-type]
+            institute=institute,
+            preferred_language=preferred_language or "en",
         )
-        
+
         result = await users_collection.insert_one(user.model_dump(by_alias=True))
         created_user = await users_collection.find_one({"_id": result.inserted_id})
         return created_user

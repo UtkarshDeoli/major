@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -32,11 +32,19 @@ class UserCreate(BaseModel):
 class UserResponse(BaseModel):
     email: str
     name: Optional[str] = None
-    role: Literal["student", "teacher"] = "student"
+    role: Literal["student", "teacher", "subadmin", "admin"] = "student"
     institute: Optional[str] = None
     preferred_language: str = "en"
     onboarding_completed: bool = False
     active_exam_id: Optional[str] = None
+    teacher_id: Optional[str] = None
+    managed_by: Optional[str] = None
+    license_id: Optional[str] = None
+    subscription: Optional[dict] = None
+    teacher_id: Optional[str] = None
+    managed_by: Optional[str] = None
+    license_id: Optional[str] = None
+    subscription: Optional[Any] = None
 
 
 class SignupResponse(BaseModel):
@@ -47,14 +55,22 @@ class SignupResponse(BaseModel):
 
 @router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
 async def signup(user_data: UserCreate):
-    """Register a new user with email and password and return an access token"""
-    user = await create_user(user_data.email, user_data.password, getattr(user_data, "name", None))
-    
+    """Register a new user with email and password and return an access token.
+
+    Public signup always creates a student. Privileged roles must be assigned
+    through admin/sub-admin enrollment flows.
+    """
+    user = await create_user(
+        email=user_data.email,
+        password=user_data.password,
+        name=user_data.name,
+    )
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user["email"]}, expires_delta=access_token_expires
     )
-    
+
     return {
         "email": user["email"],
         "access_token": access_token,
@@ -98,4 +114,8 @@ async def get_me(user_email: str = Depends(get_current_user)):
         preferred_language=user.get("preferred_language", "en"),
         onboarding_completed=user.get("onboarding_completed", False),
         active_exam_id=user.get("active_exam_id"),
+        teacher_id=user.get("teacher_id"),
+        managed_by=user.get("managed_by"),
+        license_id=user.get("license_id"),
+        subscription=user.get("subscription"),
     )
