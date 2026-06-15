@@ -187,6 +187,7 @@ export default function TestPage() {
 
     setIsGeneratingMockTest(true)
     try {
+      const weakTopicsToSend = targetWeaknesses ? selectedTopics : undefined;
       const mockTest = await mockTestAPI.generateMockTest(
         selectedSyllabus,
         selectedQuestionPapers,
@@ -196,7 +197,7 @@ export default function TestPage() {
         mockTestSettings.totalMarks,
         mockTestSettings.difficultyLevel,
         selectedTopics.length > 0 ? selectedTopics : undefined,
-        targetWeaknesses ? [] : undefined,
+        weakTopicsToSend,
         subject || undefined,
         selectedStudent || undefined,
       )

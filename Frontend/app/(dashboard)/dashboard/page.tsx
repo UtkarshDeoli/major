@@ -404,7 +404,7 @@ export default function DashboardPage() {
                             <p className="font-medium">{test.title}</p>
                             <p className="text-xs text-muted-foreground">From {test.created_by}</p>
                           </div>
-                          <Button size="sm" onClick={() => router.push(`/test?id=${test.test_id}`)}>
+                          <Button size="sm" onClick={() => router.push(`/test/quiz?testId=${test.test_id}`)}>
                             Start
                           </Button>
                         </div>
