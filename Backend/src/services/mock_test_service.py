@@ -92,7 +92,8 @@ async def generate_mock_test_service(
             time_limit=_calculate_time_limit(total_marks, num_mcq, num_text),
             created_at=created_at,
             user_id=user_id,
-            difficulty_level=difficulty_level
+            difficulty_level=difficulty_level,
+            created_by=user_id
         )
         
         # Store in database
@@ -333,8 +334,10 @@ async def get_mock_test_service(test_id: str, user_id: str) -> Optional[MockTest
     """Get a specific mock test"""
     try:
         test_data = await get_mock_test(test_id)
+        if not test_data:
+            return None
         allowed = {test_data.get("user_id"), test_data.get("assigned_to"), test_data.get("created_by")}
-        if not test_data or user_id not in allowed:
+        if user_id not in allowed:
             return None
 
         questions = [MockTestQuestion(**q) for q in test_data["questions"]]
