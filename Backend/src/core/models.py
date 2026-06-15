@@ -122,6 +122,8 @@ class MockTestGenerationRequest(BaseModel):
     num_text: int = 5
     total_marks: int = 50
     difficulty_level: str = "medium"  # easy, medium, hard
+    student_email: Optional[str] = None
+    weak_topics: Optional[List[str]] = None
 
 class MockTestResponse(BaseModel):
     test_id: str

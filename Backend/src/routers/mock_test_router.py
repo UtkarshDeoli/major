@@ -9,6 +9,7 @@ from src.core.models import (
     MockTestListResponse
 )
 from src.core.config import SECRET_KEY, ALGORITHM
+from src.services.auth_service import get_user_by_email
 from src.services.mock_test_service import (
     generate_mock_test_service,
     analyze_mock_test_submission_service,
@@ -86,6 +87,24 @@ async def generate_mock_test(
                 detail="At least one question paper PDF ID is required"
             )
         
+        # Determine ownership / assignment
+        created_by = user_id
+        assigned_to = None
+
+        if request.student_email and request.student_email != user_id:
+            student = await get_user_by_email(request.student_email)
+            if not student:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Student not found"
+                )
+            if student.get("teacher_id") != user_id:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Not authorized to assign test to this student"
+                )
+            assigned_to = request.student_email
+
         # Generate mock test
         mock_test = await generate_mock_test_service(
             syllabus_pdf_id=request.syllabus_pdf_id,
@@ -95,7 +114,9 @@ async def generate_mock_test(
             num_text=request.num_text,
             total_marks=request.total_marks,
             difficulty_level=request.difficulty_level,
-            user_id=user_id
+            user_id=user_id,
+            created_by=created_by,
+            assigned_to=assigned_to
         )
         
         return mock_test
@@ -200,11 +221,17 @@ async def submit_mock_test(
                 detail="Mock test not found"
             )
         
+        # Determine the actual submitter for assigned tests
+        submitter_email = None
+        if test.assigned_to and test.assigned_to != user_id:
+            submitter_email = test.assigned_to
+
         # Analyze the submission
         analysis = await analyze_mock_test_submission_service(
             test=test,
             submission=submission,
-            user_id=user_id
+            user_id=user_id,
+            submitter_email=submitter_email
         )
         
         return analysis

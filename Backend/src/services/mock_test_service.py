@@ -365,7 +365,8 @@ async def get_mock_test_service(test_id: str, user_id: str) -> Optional[MockTest
 async def analyze_mock_test_submission_service(
     test: MockTestResponse,
     submission: MockTestSubmission,
-    user_id: str
+    user_id: str,
+    submitter_email: Optional[str] = None
 ) -> MockTestAnalysisResponse:
     """Analyze a mock test submission using Gemini AI"""
     
@@ -445,9 +446,11 @@ async def analyze_mock_test_submission_service(
             created_at=created_at
         )
         
-        # Store submission in database
-        await store_mock_test_submission(analysis.dict())
-        
+        # Store submission in database, recording the actual submitter
+        submission_record = analysis.dict()
+        submission_record["user_id"] = submitter_email if submitter_email else user_id
+        await store_mock_test_submission(submission_record)
+
         return analysis
         
     except Exception as e:
