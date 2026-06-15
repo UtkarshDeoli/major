@@ -1,17 +1,40 @@
 import json
-import google.generativeai as genai
 from typing import List, Dict, Any
 from fastapi import HTTPException
 from src.core.config import GEMINI_API_KEY
-import PyPDF2
+
+
+class _LazyGeminiService:
+    """Lazy proxy that initializes the real GeminiService on first use.
+
+    This keeps heavy dependencies (google.generativeai, PyPDF2, grpcio) from
+    being imported when the module is merely loaded by the test harness.
+    """
+
+    def __init__(self):
+        self._instance = None
+
+    def __bool__(self):
+        return self._instance is not None or bool(GEMINI_API_KEY)
+
+    def _load(self):
+        if self._instance is None:
+            self._instance = GeminiService()
+        return self._instance
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
 
 class GeminiService:
     def __init__(self):
+        import google.generativeai as genai
+
         if not GEMINI_API_KEY:
             raise ValueError("GEMINI_API_KEY is not set in environment variables")
-        
+
         genai.configure(api_key=GEMINI_API_KEY)
-        
+
         # Configure generation settings for more reliable JSON output
         generation_config = genai.types.GenerationConfig(
             temperature=0.1,  # Lower temperature for more consistent output
@@ -19,14 +42,16 @@ class GeminiService:
             top_k=40,
             max_output_tokens=8192,
         )
-        
+
         self.model = genai.GenerativeModel(
             'gemini-2.5-flash',
             generation_config=generation_config
         )
-    
+
     async def extract_text_from_pdf(self, pdf_path: str) -> str:
         """Extract text content from a PDF file"""
+        import PyPDF2
+
         try:
             with open(pdf_path, 'rb') as file:
                 pdf_reader = PyPDF2.PdfReader(file)
@@ -36,7 +61,7 @@ class GeminiService:
                 return text
         except Exception as e:
             raise HTTPException(
-                status_code=500, 
+                status_code=500,
                 detail=f"Error extracting text from PDF: {str(e)}"
             )
     
@@ -412,11 +437,11 @@ Return ONLY the JSON object, no additional text."""
             ]
         }
 
-# Create global instance with proper error handling
+# Create lazy global instance with proper error handling
 try:
-    gemini_service = GeminiService() if GEMINI_API_KEY else None
+    gemini_service = _LazyGeminiService() if GEMINI_API_KEY else None
     if gemini_service:
-        print("✓ Gemini service initialized successfully")
+        print("✓ Gemini service configured (lazy initialization)")
 except Exception as e:
     print(f"✗ Failed to initialize Gemini service: {str(e)}")
     gemini_service = None

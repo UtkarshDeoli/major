@@ -32,6 +32,7 @@ try:
     # Collections
     users_collection = db.users
     pdfs_collection = db.pdfs
+    materials_collection = db.materials
     chat_sessions_collection = db.chat_sessions
     # Mock Test Collections
     mock_tests_collection = db.mock_tests
@@ -44,6 +45,7 @@ except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     db = None
     users_collection = None
     pdfs_collection = None
+    materials_collection = None
     chat_sessions_collection = None
     # Mock Test Collections
     mock_tests_collection = None

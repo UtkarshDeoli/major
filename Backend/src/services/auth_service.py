@@ -2,53 +2,59 @@ import os
 from datetime import datetime, timedelta
 from typing import Optional
 
+import bcrypt
 import jwt
 from fastapi import HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorClient
-from passlib.context import CryptContext
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 
 # Import settings from config
 from src.core.config import MONGODB_URL, MONGODB_DB_NAME, MONGODB_CONNECT_TIMEOUT, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# MongoDB connection with error handling
-try:
-    client = AsyncIOMotorClient(
-        MONGODB_URL,
-        serverSelectionTimeoutMS=MONGODB_CONNECT_TIMEOUT
-    )
-    # Force a connection to verify it works
-    client.admin.command('ismaster')
-    print(f"Connected to MongoDB at {MONGODB_URL}")
-    
-    db = client[MONGODB_DB_NAME]
-    users_collection = db.users
-except (ConnectionFailure, ServerSelectionTimeoutError) as e:
-    print(f"MongoDB connection error: {e}")
-    print("WARNING: Authentication service will not work until MongoDB is available")
-    # We'll initialize these as None and check before each operation
-    client = None
-    db = None
-    users_collection = None
-
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password, hashed_password)
+# MongoDB connection (initialized lazily on first use so the client is bound to
+# the event loop that actually performs I/O, e.g. the loop created by TestClient).
+client = None
+db = None
+users_collection = None
 
 
-def get_password_hash(password):
-    return pwd_context.hash(password)
+def _ensure_auth_db():
+    """Create the MongoDB client and users collection if not already present."""
+    global client, db, users_collection
+    if users_collection is not None:
+        return
+
+    try:
+        client = AsyncIOMotorClient(
+            MONGODB_URL,
+            serverSelectionTimeoutMS=MONGODB_CONNECT_TIMEOUT
+        )
+        db = client[MONGODB_DB_NAME]
+        users_collection = db.users
+    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+        print(f"MongoDB connection error: {e}")
+        print("WARNING: Authentication service will not work until MongoDB is available")
+        client = None
+        db = None
+        users_collection = None
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+
+
+def get_password_hash(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 async def get_user_by_email(email: str):
+    _ensure_auth_db()
     if users_collection is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database connection not available"
         )
-    
+
     try:
         user = await users_collection.find_one({"email": email})
         return user
@@ -59,13 +65,14 @@ async def get_user_by_email(email: str):
         )
 
 
-async def create_user(email: str, password: str):
+async def create_user(email: str, password: str, role: str = "student"):
+    _ensure_auth_db()
     if users_collection is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database connection not available"
         )
-    
+
     try:
         # Check if user already exists
         existing_user = await get_user_by_email(email)
@@ -74,15 +81,16 @@ async def create_user(email: str, password: str):
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
             )
-        
+
         # Create new user with hashed password
         hashed_password = get_password_hash(password)
         user = {
             "email": email,
             "password": hashed_password,
+            "role": role,
             "created_at": datetime.now(),
         }
-        
+
         result = await users_collection.insert_one(user)
         created_user = await users_collection.find_one({"_id": result.inserted_id})
         return created_user
@@ -97,12 +105,13 @@ async def create_user(email: str, password: str):
 
 
 async def authenticate_user(email: str, password: str):
+    _ensure_auth_db()
     if users_collection is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database connection not available"
         )
-    
+
     try:
         user = await get_user_by_email(email)
         if not user:

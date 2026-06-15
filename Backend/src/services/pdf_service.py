@@ -2,26 +2,31 @@ import os
 import io
 import re
 import json
-import torch
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 import PyPDF2
 from fastapi import UploadFile, HTTPException
-from sentence_transformers import SentenceTransformer, util
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.cluster import KMeans
 from src.core.data_store import (
-    store_pdf_metadata, 
-    update_pdf_metadata, 
+    store_pdf_metadata,
+    update_pdf_metadata,
     get_pdf_metadata,
     save_vector_db,
     load_vector_db
 )
 
-# Initialize the sentence transformer model 
-model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+# Heavy ML dependencies are loaded lazily so the module can be imported in
+# lightweight test environments that do not need PDF processing.
+_model = None
+
+
+def _get_sentence_transformer():
+    global _model
+    if _model is None:
+        from sentence_transformers import SentenceTransformer
+        _model = SentenceTransformer('paraphrase-MiniLM-L6-v2')
+    return _model
 
 async def process_and_store_pdf(
     file_content: bytes,
@@ -75,7 +80,7 @@ async def process_and_store_pdf(
         paragraphs = [para.strip() for para in re.split(r'\n\n|\. ', text) if len(para.strip()) >= 20]
         
         # Generate embeddings
-        embeddings = model.encode(paragraphs)
+        embeddings = _get_sentence_transformer().encode(paragraphs)
         
         # Create vector database
         vector_data = {
@@ -135,22 +140,25 @@ async def get_relevant_context(pdf_id: str, question: str, top_k: int = 5) -> Tu
     _, vector_data = await get_pdf_content(pdf_id)
     
     # Get paragraphs and embeddings
+    import torch
+    from sentence_transformers import util
+
     paragraphs = vector_data["paragraphs"]
     embeddings = torch.tensor(vector_data["embeddings"])
-    
+
     # Encode the question
-    question_embedding = model.encode(question)
-    
+    question_embedding = _get_sentence_transformer().encode(question)
+
     # Find most relevant paragraphs
     similarities = util.pytorch_cos_sim(
-        question_embedding, 
+        question_embedding,
         embeddings
     )[0]
-    
+
     # Get top k most relevant paragraphs
     top_indices = similarities.argsort(descending=True)[:top_k]
     context = "\n\n".join([paragraphs[idx] for idx in top_indices.tolist()])
-    
+
     return context, top_indices.tolist()
 
 def preprocess_questions(text):
@@ -168,6 +176,10 @@ def preprocess_questions(text):
 
 
 def select_sample_questions(cleaned_questions, original_questions, num_q=10):
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.cluster import KMeans
+    import numpy as np
+
     vectorizer = TfidfVectorizer()
     X = vectorizer.fit_transform(cleaned_questions)
 
