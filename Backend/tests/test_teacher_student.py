@@ -107,7 +107,7 @@ def test_teacher_can_manage_existing_student():
     _run(_test())
 
 
-def test_teacher_can_manage_nonexistent_student():
+def test_teacher_cannot_manage_nonexistent_student():
     async def _test():
         async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             teacher_email = "teacher.nostudent@example.com"
@@ -119,8 +119,7 @@ def test_teacher_can_manage_nonexistent_student():
                 json={"student_email": "missing.student@example.com"},
                 headers=_auth_headers(teacher_token),
             )
-            assert resp.status_code == 200
-            assert resp.json()["success"] is True
+            assert resp.status_code == 404
 
     _run(_test())
 

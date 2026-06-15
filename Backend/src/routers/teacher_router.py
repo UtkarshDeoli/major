@@ -45,6 +45,24 @@ async def manage_student(
     teacher = user_info["user"]
     teacher_email = teacher["email"]
 
+    student = await users_collection.find_one({"email": request.student_email})
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student not found"
+        )
+    if student.get("role") != "student":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not a student"
+        )
+    existing_teacher_id = student.get("teacher_id")
+    if existing_teacher_id and existing_teacher_id != teacher_email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Student is already managed by another teacher"
+        )
+
     update_fields = {
         "teacher_id": teacher_email,
     }
