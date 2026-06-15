@@ -1,14 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, Path, status
-import jwt
 
 from src.core.models import (
     MockTestGenerationRequest,
     MockTestResponse,
+    MockTestQuestion,
     MockTestSubmission,
     MockTestAnalysisResponse,
     MockTestListResponse
 )
-from src.core.config import SECRET_KEY, ALGORITHM
+from src.core.security import get_current_user
+from src.core.data_store import get_mock_test as fetch_mock_test_data
 from src.services.auth_service import get_user_by_email
 from src.services.mock_test_service import (
     generate_mock_test_service,
@@ -18,29 +19,6 @@ from src.services.mock_test_service import (
 )
 
 router = APIRouter(prefix="/mock-tests", tags=["Mock Tests"])
-
-# Helper function to get the current user from JWT token
-async def get_current_user(token: str = Depends(lambda authorization: authorization)):
-    if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    
-    try:
-        # Remove "Bearer " prefix if present
-        if token.startswith("Bearer "):
-            token = token.replace("Bearer ", "")
-        
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("sub")
-        
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        
-        return user_id
-    except jwt.PyJWTError:
-        raise HTTPException(
-            status_code=401, 
-            detail="Invalid authentication credentials"
-        )
 
 @router.post(
     "/generate",
@@ -114,6 +92,9 @@ async def generate_mock_test(
             num_text=request.num_text,
             total_marks=request.total_marks,
             difficulty_level=request.difficulty_level,
+            focus_topics=request.focus_topics,
+            weak_topics=request.weak_topics,
+            subject=request.subject,
             user_id=user_id,
             created_by=created_by,
             assigned_to=assigned_to
@@ -213,9 +194,9 @@ async def submit_mock_test(
                 detail="Test ID mismatch in submission"
             )
         
-        # Get the mock test to validate it belongs to the user
-        test = await get_mock_test_service(test_id, user_id)
-        if not test:
+        # Validate access to the mock test
+        test_check = await get_mock_test_service(test_id, user_id)
+        if not test_check:
             raise HTTPException(
                 status_code=404,
                 detail="Mock test not found"
@@ -223,13 +204,35 @@ async def submit_mock_test(
 
         # Determine who is allowed to submit
         submitter_email = user_id
-        if test.assigned_to:
-            if test.assigned_to != user_id:
+        if test_check.assigned_to:
+            if test_check.assigned_to != user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Only the assigned student can submit this test"
                 )
-            submitter_email = test.assigned_to
+            submitter_email = test_check.assigned_to
+
+        # Load the full test data (with correct answers) for grading
+        test_data = await fetch_mock_test_data(test_id)
+        if not test_data:
+            raise HTTPException(
+                status_code=404,
+                detail="Mock test not found"
+            )
+
+        questions = [MockTestQuestion(**q) for q in test_data["questions"]]
+        test = MockTestResponse(
+            test_id=test_data["test_id"],
+            title=test_data["title"],
+            questions=questions,
+            total_marks=test_data["total_marks"],
+            time_limit=test_data["time_limit"],
+            created_at=test_data["created_at"],
+            user_id=test_data["user_id"],
+            difficulty_level=test_data.get("difficulty_level", "medium"),
+            created_by=test_data.get("created_by"),
+            assigned_to=test_data.get("assigned_to")
+        )
 
         # Analyze the submission
         analysis = await analyze_mock_test_submission_service(

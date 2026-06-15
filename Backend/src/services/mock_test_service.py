@@ -30,7 +30,10 @@ async def generate_mock_test_service(
     difficulty_level: str,
     user_id: str,
     created_by: Optional[str] = None,
-    assigned_to: Optional[str] = None
+    assigned_to: Optional[str] = None,
+    focus_topics: Optional[List[str]] = None,
+    weak_topics: Optional[List[str]] = None,
+    subject: Optional[str] = None
 ) -> MockTestResponse:
     """Generate a mock test using Gemini AI"""
     
@@ -73,13 +76,16 @@ async def generate_mock_test_service(
         
         # Generate mock test using Gemini
         mock_test_data = await _generate_mock_test_with_gemini(
-            syllabus_content,
-            question_papers_content,
-            notes_content,
-            num_mcq,
-            num_text,
-            total_marks,
-            difficulty_level
+            syllabus_content=syllabus_content,
+            question_papers_content=question_papers_content,
+            notes_content=notes_content,
+            num_mcq=num_mcq,
+            num_text=num_text,
+            total_marks=total_marks,
+            difficulty_level=difficulty_level,
+            focus_topics=focus_topics,
+            weak_topics=weak_topics,
+            subject=subject
         )
         
         # Create mock test object
@@ -119,7 +125,10 @@ async def _generate_mock_test_with_gemini(
     num_mcq: int,
     num_text: int,
     total_marks: int,
-    difficulty_level: str
+    difficulty_level: str,
+    focus_topics: Optional[List[str]] = None,
+    weak_topics: Optional[List[str]] = None,
+    subject: Optional[str] = None
 ) -> Dict[str, Any]:
     """Use Gemini to generate mock test questions with enhanced pattern matching"""
     
@@ -156,11 +165,22 @@ STUDY NOTES (For topic depth):
 PREVIOUS YEAR QUESTION PAPERS (For pattern matching):
 {combined_question_papers[:4000]}
 
+SUBJECT:
+{subject or "Not specified"}
+
+FOCUS TOPICS (emphasize these in the test when provided):
+{", ".join(focus_topics) if focus_topics else "None provided"}
+
+WEAK TOPICS (include more questions targeting these areas when provided):
+{", ".join(weak_topics) if weak_topics else "None provided"}
+
 REQUIREMENTS:
 - Generate {num_mcq} Multiple Choice Questions (MCQ) worth {mcq_marks_per_question} marks each
 - Generate {num_text} Descriptive/Text questions worth {text_marks_per_question} marks each
 - Difficulty level: {difficulty_level}
+- Subject: {subject or "the syllabus subject"}
 - ALL questions must be traceable to syllabus topics
+- Prioritize focus topics and weak topics when they are provided
 - MCQ should have 4 options with one correct answer
 - Follow question patterns from previous papers
 
@@ -359,6 +379,21 @@ async def get_mock_test_service(test_id: str, user_id: str) -> Optional[MockTest
             return None
 
         questions = [MockTestQuestion(**q) for q in test_data["questions"]]
+
+        # Hide correct answers from the assigned student
+        if test_data.get("assigned_to") == user_id:
+            questions = [
+                MockTestQuestion(
+                    id=q.id,
+                    type=q.type,
+                    question=q.question,
+                    options=q.options,
+                    correctAnswer=None,
+                    marks=q.marks
+                )
+                for q in questions
+            ]
+
         return MockTestResponse(
             test_id=test_data["test_id"],
             title=test_data["title"],

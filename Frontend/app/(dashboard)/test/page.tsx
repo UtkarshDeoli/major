@@ -32,6 +32,7 @@ export default function TestPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const preselectedStudent = searchParams.get("student")
+  const tab = searchParams.get("tab") || "analysis"
   const { toast } = useToast()
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [user, setUser] = useState<{ email: string; name?: string; role?: string } | null>(null)
@@ -295,7 +296,7 @@ export default function TestPage() {
 
   return (
     <div className="container mx-auto py-8 px-4">
-      <Tabs defaultValue="analysis" className="space-y-6">
+      <Tabs defaultValue={tab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
           <TabsTrigger value="analysis">Analysis</TabsTrigger>
           <TabsTrigger value="mock">Mock Tests</TabsTrigger>
