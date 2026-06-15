@@ -1,5 +1,10 @@
 import asyncio
+import os
+import sys
 from datetime import datetime, timezone
+
+# Add Backend to sys.path so absolute `src.*` imports resolve during tests.
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import httpx
 from httpx import ASGITransport
