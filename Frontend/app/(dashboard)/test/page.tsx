@@ -45,6 +45,7 @@ export default function TestPage() {
   const [selectedSyllabus, setSelectedSyllabus] = useState<string>('')
   const [selectedQuestionPapers, setSelectedQuestionPapers] = useState<string[]>([])
   const [selectedNotes, setSelectedNotes] = useState<string>('none')
+  const [subject, setSubject] = useState<string>("")
   const [analysisResult, setAnalysisResult] = useState<any>(null)
   const [mockTestSettings, setMockTestSettings] = useState({
     numMcq: 15,
@@ -195,7 +196,7 @@ export default function TestPage() {
         mockTestSettings.difficultyLevel,
         selectedTopics.length > 0 ? selectedTopics : undefined,
         targetWeaknesses ? [] : undefined,
-        undefined,
+        subject || undefined,
         selectedStudent || undefined,
       )
       
@@ -820,8 +821,8 @@ export default function TestPage() {
                       
                       <div className="space-y-2">
                         <Label htmlFor="difficulty">Difficulty Level</Label>
-                        <Select 
-                          value={mockTestSettings.difficultyLevel} 
+                        <Select
+                          value={mockTestSettings.difficultyLevel}
                           onValueChange={(value) => setMockTestSettings(prev => ({
                             ...prev,
                             difficultyLevel: value
@@ -836,6 +837,17 @@ export default function TestPage() {
                             <SelectItem value="hard">Hard</SelectItem>
                           </SelectContent>
                         </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="subject">Subject</Label>
+                        <Input
+                          id="subject"
+                          type="text"
+                          placeholder="e.g. Mathematics"
+                          value={subject}
+                          onChange={(e) => setSubject(e.target.value)}
+                        />
                       </div>
                     </div>
 
