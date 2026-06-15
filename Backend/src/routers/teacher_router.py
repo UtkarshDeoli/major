@@ -1,10 +1,9 @@
-from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
-from src.core.security import require_role
+from src.core.security import get_current_user_with_role, require_role
 from src.core.data_store import users_collection, mock_test_submissions_collection
 from src.core.models import TeacherDashboardAnalytics, TeacherStudentAnalytics
 
@@ -12,98 +11,127 @@ router = APIRouter(prefix="/teachers", tags=["Teachers"])
 
 
 class ManageStudentRequest(BaseModel):
-    student_email: EmailStr
-
-
-class ManageStudentResponse(BaseModel):
     student_email: str
-    teacher_id: str
 
 
-@router.post("/students/manage", response_model=ManageStudentResponse)
+class UnmanageStudentRequest(BaseModel):
+    student_email: str
+
+
+class StudentInfo(BaseModel):
+    id: str
+    email: str
+    name: Optional[str] = None
+    institute: Optional[str] = None
+    onboarding_completed: bool = False
+
+
+class ManagedStudentsResponse(BaseModel):
+    students: List[StudentInfo]
+
+
+@router.post("/students/manage", status_code=status.HTTP_200_OK)
 async def manage_student(
-    payload: ManageStudentRequest,
+    request: ManageStudentRequest,
     user_info: dict = Depends(require_role("teacher")),
 ):
-    """Link an existing student to the authenticated teacher."""
+    """Link a student to the logged-in teacher."""
     if users_collection is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database connection unavailable",
+            detail="Database connection not available"
         )
 
-    teacher_email = user_info["email"]
-    student = await users_collection.find_one({"email": payload.student_email})
-    if student is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student not found",
-        )
+    teacher = user_info["user"]
+    teacher_email = teacher["email"]
+
+    update_fields = {
+        "teacher_id": teacher_email,
+    }
+    # Propagate the teacher's sub-admin relationship down to the student so
+    # sub-admin analytics and license counting stay consistent.
+    if teacher.get("managed_by"):
+        update_fields["managed_by"] = teacher["managed_by"]
+    if teacher.get("license_id"):
+        update_fields["license_id"] = teacher["license_id"]
 
     await users_collection.update_one(
-        {"email": payload.student_email},
-        {"$set": {"teacher_id": teacher_email}},
+        {"email": request.student_email},
+        {"$set": update_fields}
     )
-    return {"student_email": payload.student_email, "teacher_id": teacher_email}
+
+    return {"success": True, "student_email": request.student_email, "teacher_id": teacher_email}
 
 
-@router.delete("/students/manage", response_model=dict)
+@router.post("/students/unmanage", status_code=status.HTTP_200_OK)
 async def unmanage_student(
-    payload: ManageStudentRequest,
+    request: UnmanageStudentRequest,
     user_info: dict = Depends(require_role("teacher")),
 ):
-    """Unlink a student from the authenticated teacher."""
+    """Unlink a student from the logged-in teacher."""
     if users_collection is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database connection unavailable",
+            detail="Database connection not available"
         )
 
     teacher_email = user_info["email"]
-    student = await users_collection.find_one({"email": payload.student_email})
-    if student is None:
+
+    student = await users_collection.find_one({
+        "email": request.student_email,
+        "teacher_id": teacher_email,
+    })
+    if not student:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student not found",
-        )
-
-    if student.get("teacher_id") != teacher_email:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Student is not managed by this teacher",
+            detail="Student not found or not managed by you"
         )
 
     await users_collection.update_one(
-        {"email": payload.student_email},
-        {"$unset": {"teacher_id": ""}},
+        {"email": request.student_email},
+        {
+            "$unset": {
+                "teacher_id": "",
+                "managed_by": "",
+                "license_id": "",
+            }
+        }
     )
-    return {"student_email": payload.student_email, "teacher_id": None}
+
+    return {"success": True, "student_email": request.student_email}
 
 
-@router.get("/students", response_model=dict)
+@router.get("/students", response_model=ManagedStudentsResponse)
 async def list_managed_students(
     user_info: dict = Depends(require_role("teacher")),
 ):
-    """List all students managed by the authenticated teacher."""
+    """List all students managed by the logged-in teacher."""
     if users_collection is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Database connection unavailable",
+            detail="Database connection not available"
         )
 
     teacher_email = user_info["email"]
-    cursor = users_collection.find({"teacher_id": teacher_email})
+    cursor = users_collection.find({
+        "teacher_id": teacher_email,
+        "role": "student",
+    })
     students = await cursor.to_list(length=None)
 
-    return {
-        "students": [
-            {
-                "email": student.get("email"),
-                "name": student.get("name"),
-            }
-            for student in students
-        ]
-    }
+    result: List[StudentInfo] = []
+    for student in students:
+        result.append(
+            StudentInfo(
+                id=str(student.get("_id", "")),
+                email=student.get("email"),
+                name=student.get("name"),
+                institute=student.get("institute"),
+                onboarding_completed=student.get("onboarding_completed", False),
+            )
+        )
+
+    return ManagedStudentsResponse(students=result)
 
 
 @router.get("/analytics", response_model=TeacherDashboardAnalytics)

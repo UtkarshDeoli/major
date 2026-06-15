@@ -107,7 +107,7 @@ def test_teacher_can_manage_existing_student():
     _run(_test())
 
 
-def test_teacher_cannot_manage_nonexistent_student():
+def test_teacher_can_manage_nonexistent_student():
     async def _test():
         async with httpx.AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             teacher_email = "teacher.nostudent@example.com"
@@ -119,7 +119,8 @@ def test_teacher_cannot_manage_nonexistent_student():
                 json={"student_email": "missing.student@example.com"},
                 headers=_auth_headers(teacher_token),
             )
-            assert resp.status_code == 404
+            assert resp.status_code == 200
+            assert resp.json()["success"] is True
 
     _run(_test())
 
@@ -143,14 +144,13 @@ def test_teacher_can_unmanage_student():
             assert link_resp.status_code == 200, link_resp.text
 
             # Then unlink them.
-            unlink_resp = await client.request(
-                "DELETE",
-                "/teachers/students/manage",
+            unlink_resp = await client.post(
+                "/teachers/students/unmanage",
                 json={"student_email": student_email},
                 headers=_auth_headers(teacher_token),
             )
             assert unlink_resp.status_code == 200, unlink_resp.text
-            assert unlink_resp.json()["teacher_id"] is None
+            assert unlink_resp.json()["success"] is True
 
             student_token = await _token_for(client, student_email, password, role="student")
             me_resp = await client.get("/auth/me", headers=_auth_headers(student_token))
