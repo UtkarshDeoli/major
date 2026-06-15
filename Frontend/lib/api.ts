@@ -294,4 +294,12 @@ export const mockTestAPI = {
   }
 };
 
+// Teacher APIs
+export const teacherAPI = {
+  getAnalytics: async () => {
+    const response = await api.get('/teachers/analytics');
+    return response.data;
+  },
+};
+
 export default api;
