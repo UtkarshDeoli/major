@@ -48,7 +48,7 @@ except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     # Mock Test Collections
     mock_tests_collection = None
     mock_test_submissions_collection = None
-    mock_test_submissions_collection = None
+
 
 # Helper to convert ObjectId to string
 def object_id_to_str(obj):

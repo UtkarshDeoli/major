@@ -91,7 +91,8 @@ async def generate_mock_test_service(
             total_marks=total_marks,
             time_limit=_calculate_time_limit(total_marks, num_mcq, num_text),
             created_at=created_at,
-            user_id=user_id
+            user_id=user_id,
+            difficulty_level=difficulty_level
         )
         
         # Store in database
@@ -310,7 +311,9 @@ async def get_user_mock_tests_service(user_id: str) -> List[MockTestResponse]:
                 "time_limit": test_data["time_limit"],
                 "created_at": test_data["created_at"],
                 "user_id": test_data["user_id"],
-                "difficulty_level": test_data.get("difficulty_level", "medium")
+                "difficulty_level": test_data.get("difficulty_level", "medium"),
+                "created_by": test_data.get("created_by"),
+                "assigned_to": test_data.get("assigned_to")
             }
             
             if latest_submission:
@@ -330,9 +333,10 @@ async def get_mock_test_service(test_id: str, user_id: str) -> Optional[MockTest
     """Get a specific mock test"""
     try:
         test_data = await get_mock_test(test_id)
-        if not test_data or test_data["user_id"] != user_id:
+        allowed = {test_data.get("user_id"), test_data.get("assigned_to"), test_data.get("created_by")}
+        if not test_data or user_id not in allowed:
             return None
-        
+
         questions = [MockTestQuestion(**q) for q in test_data["questions"]]
         return MockTestResponse(
             test_id=test_data["test_id"],
@@ -341,7 +345,10 @@ async def get_mock_test_service(test_id: str, user_id: str) -> Optional[MockTest
             total_marks=test_data["total_marks"],
             time_limit=test_data["time_limit"],
             created_at=test_data["created_at"],
-            user_id=test_data["user_id"]
+            user_id=test_data["user_id"],
+            difficulty_level=test_data.get("difficulty_level", "medium"),
+            created_by=test_data.get("created_by"),
+            assigned_to=test_data.get("assigned_to")
         )
     except Exception as e:
         raise HTTPException(
