@@ -170,3 +170,21 @@ class MockTestAnalysisResponse(BaseModel):
 
 class MockTestListResponse(BaseModel):
     tests: List[MockTestResponse]
+
+# Teacher analytics models
+class TeacherStudentAnalytics(BaseModel):
+    email: str
+    name: Optional[str] = None
+    tests_taken: int
+    average_score: float
+    last_active_at: Optional[str] = None
+    strengths: List[str] = []
+    weaknesses: List[str] = []
+
+
+class TeacherDashboardAnalytics(BaseModel):
+    total_students: int
+    active_students: int
+    total_tests_taken: int
+    class_average: float
+    student_analytics: List[TeacherStudentAnalytics]

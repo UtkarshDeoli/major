@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import nltk
-from typing import Dict
 
 # Import our routers
 from src.routers import (
