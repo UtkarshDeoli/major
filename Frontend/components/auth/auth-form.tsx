@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/lib/context/auth-context'
 
 interface AuthFormProps {
   type: 'login' | 'signup'
@@ -17,6 +18,7 @@ interface AuthFormProps {
 export function AuthForm({ type }: AuthFormProps) {
   const { toast } = useToast()
   const router = useRouter()
+  const { login, signup } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState('')
@@ -28,43 +30,21 @@ export function AuthForm({ type }: AuthFormProps) {
     setIsLoading(true)
     
     try {
-      const endpoint = type === 'login' ? '/auth/login' : '/auth/signup'
-      
-      let body: FormData | string;
-      let headers: HeadersInit = {};
-      
-      if (type === 'login') {
-        const formData = new FormData();
-        formData.append('username', email);
-        formData.append('password', password);
-        body = formData;
-      } else {
-        body = JSON.stringify({ email, password, name });
-        headers = { 'Content-Type': 'application/json' };
-      }
-      
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'}${endpoint}`, {
-        method: 'POST',
-        headers,
-        body,
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.detail || 'Authentication failed');
-      }
-      
-      if (type === 'login') {
-        localStorage.setItem('token', data.access_token);
-      }
-      
+      const me = type === 'login'
+        ? await login(email, password)
+        : await signup(email, password, name || undefined)
+
       toast({
         title: type === 'login' ? 'Welcome back!' : 'Account created!',
         description: "You're now part of Orbit.",
       });
-      
-      router.push('/dashboard');
+
+      // Role-aware default redirect
+      if (me.role === 'teacher') {
+        router.replace('/teacher');
+      } else {
+        router.replace('/dashboard');
+      }
     } catch (error) {
       console.error('Authentication error:', error);
       toast({
