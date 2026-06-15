@@ -28,7 +28,9 @@ async def generate_mock_test_service(
     num_text: int,
     total_marks: int,
     difficulty_level: str,
-    user_id: str
+    user_id: str,
+    created_by: Optional[str] = None,
+    assigned_to: Optional[str] = None
 ) -> MockTestResponse:
     """Generate a mock test using Gemini AI"""
     
@@ -93,7 +95,8 @@ async def generate_mock_test_service(
             created_at=created_at,
             user_id=user_id,
             difficulty_level=difficulty_level,
-            created_by=user_id
+            created_by=created_by,
+            assigned_to=assigned_to
         )
         
         # Store in database
