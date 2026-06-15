@@ -68,7 +68,7 @@ function TeacherDashboardContent() {
   }, [toast])
 
   const handleCreateTest = () => {
-    router.push(`/test?tab=mock&student=${selectedStudentEmail ?? ""}`)
+    router.push(`/test?tab=mock&student=${encodeURIComponent(selectedStudentEmail ?? "")}`)
   }
 
   return (

@@ -2,14 +2,23 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
 import Link from 'next/link'
-import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/context/auth-context'
+
+const authSchema = z.object({
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+})
+
+type AuthFormData = z.infer<typeof authSchema>
 
 interface AuthFormProps {
   type: 'login' | 'signup'
@@ -21,18 +30,23 @@ export function AuthForm({ type }: AuthFormProps) {
   const { login, signup } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [name, setName] = useState('')
-  
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+
+  const form = useForm<AuthFormData>({
+    resolver: zodResolver(authSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  })
+
+  const onSubmit = async (data: AuthFormData) => {
     setIsLoading(true)
-    
+
     try {
       const me = type === 'login'
-        ? await login(email, password)
-        : await signup(email, password, name || undefined)
+        ? await login(data.email, data.password)
+        : await signup(data.email, data.password, name || undefined)
 
       toast({
         title: type === 'login' ? 'Welcome back!' : 'Account created!',
@@ -63,9 +77,9 @@ export function AuthForm({ type }: AuthFormProps) {
       description: 'Google authentication coming soon!',
     });
   };
-  
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
       {/* Google Sign In Button */}
       <Button
         type="button"
@@ -112,20 +126,19 @@ export function AuthForm({ type }: AuthFormProps) {
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
               <User className="h-5 w-5 text-gray-500" />
             </div>
-            <Input 
-              id="name" 
+            <Input
+              id="name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your full name" 
-              required 
+              placeholder="Enter your full name"
               disabled={isLoading}
               className="h-12 rounded-xl bg-[#1a1a30] border-white/10 pl-12 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20"
             />
           </div>
         </div>
       )}
-      
+
       {/* Email field */}
       <div className="space-y-2">
         <Label htmlFor="email" className="text-gray-400 text-sm font-medium">Email</Label>
@@ -133,19 +146,20 @@ export function AuthForm({ type }: AuthFormProps) {
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
             <Mail className="h-5 w-5 text-gray-500" />
           </div>
-          <Input 
-            id="email" 
-            type="email" 
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Enter your email" 
-            required 
+          <Input
+            id="email"
+            type="email"
+            placeholder="Enter your email"
             disabled={isLoading}
+            {...form.register('email')}
             className="h-12 rounded-xl bg-[#1a1a30] border-white/10 pl-12 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20"
           />
         </div>
+        {form.formState.errors.email && (
+          <p className="text-sm text-red-400">{form.formState.errors.email.message}</p>
+        )}
       </div>
-      
+
       {/* Password field */}
       <div className="space-y-2">
         <Label htmlFor="password" className="text-gray-400 text-sm font-medium">Password</Label>
@@ -153,14 +167,12 @@ export function AuthForm({ type }: AuthFormProps) {
           <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
             <Lock className="h-5 w-5 text-gray-500" />
           </div>
-          <Input 
-            id="password" 
+          <Input
+            id="password"
             type={showPassword ? "text" : "password"}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter your password" 
-            required 
+            placeholder="Enter your password"
             disabled={isLoading}
+            {...form.register('password')}
             className="h-12 rounded-xl bg-[#1a1a30] border-white/10 pl-12 pr-12 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20"
           />
           <Button
@@ -177,6 +189,9 @@ export function AuthForm({ type }: AuthFormProps) {
             )}
           </Button>
         </div>
+        {form.formState.errors.password && (
+          <p className="text-sm text-red-400">{form.formState.errors.password.message}</p>
+        )}
       </div>
 
       {/* Forgot password link for login */}
@@ -187,10 +202,10 @@ export function AuthForm({ type }: AuthFormProps) {
           </Link>
         </div>
       )}
-      
+
       {/* Submit Button */}
-      <Button 
-        type="submit" 
+      <Button
+        type="submit"
         className="w-full h-12 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 border-0 shadow-lg shadow-purple-500/25 text-white font-semibold text-lg transition-all duration-300"
         disabled={isLoading}
       >
@@ -203,7 +218,7 @@ export function AuthForm({ type }: AuthFormProps) {
           type === 'login' ? 'Sign In' : 'Create Account'
         )}
       </Button>
-      
+
       {/* Social proof */}
       <p className="text-center text-gray-500 text-sm">
         {type === 'login' ? (
