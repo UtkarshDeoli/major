@@ -1,6 +1,7 @@
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
-from datetime import datetime
+from pydantic import BaseModel, Field, ConfigDict
+from typing import List, Optional, Dict, Any, Literal
+from datetime import datetime, timezone
+from bson import ObjectId
 
 class QuestionRequest(BaseModel):
     question: str
@@ -188,3 +189,25 @@ class TeacherDashboardAnalytics(BaseModel):
     total_tests_taken: int
     class_average: float
     student_analytics: List[TeacherStudentAnalytics]
+
+
+class SubscriptionInfo(BaseModel):
+    plan: Optional[str] = None
+    status: Optional[str] = None
+    expires_at: Optional[datetime] = None
+
+
+class User(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
+    email: str
+    name: Optional[str] = None
+    password_hash: str
+    role: Literal["student", "teacher", "subadmin", "admin"] = "student"
+    institute: Optional[str] = None
+    preferred_language: str = "en"
+    onboarding_completed: bool = False
+    active_exam_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

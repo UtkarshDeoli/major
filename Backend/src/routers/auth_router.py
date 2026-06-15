@@ -1,10 +1,12 @@
 from datetime import timedelta
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
 
+from src.core.models import SubscriptionInfo
+from src.core.security import get_current_user
 from src.services.auth_service import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     authenticate_user,
@@ -12,11 +14,8 @@ from src.services.auth_service import (
     create_user,
     get_user_by_email,
 )
-from src.core.security import get_current_user_with_role
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 
 class Token(BaseModel):
@@ -27,29 +26,52 @@ class Token(BaseModel):
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
-    role: str = "student"
+    name: Optional[str] = None
 
 
 class UserResponse(BaseModel):
     email: str
-
-
-class MeResponse(BaseModel):
-    email: str
-    role: str
+    name: Optional[str] = None
+    role: Literal["student", "teacher", "subadmin", "admin"] = "student"
+    institute: Optional[str] = None
+    preferred_language: str = "en"
+    onboarding_completed: bool = False
+    active_exam_id: Optional[str] = None
     teacher_id: Optional[str] = None
+    managed_by: Optional[str] = None
+    license_id: Optional[str] = None
+    subscription: Optional[SubscriptionInfo] = None
 
 
-@router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+class SignupResponse(BaseModel):
+    email: str
+    access_token: str
+    token_type: str
+
+
+@router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
 async def signup(user_data: UserCreate):
-    """Register a new user with email, password, and optional role"""
-    if user_data.role not in {"student", "teacher"}:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="role must be 'student' or 'teacher'",
-        )
-    user = await create_user(user_data.email, user_data.password, role=user_data.role)
-    return {"email": user["email"]}
+    """Register a new user with email and password and return an access token.
+
+    Public signup always creates a student. Privileged roles must be assigned
+    through admin/sub-admin enrollment flows.
+    """
+    user = await create_user(
+        email=user_data.email,
+        password=user_data.password,
+        name=user_data.name,
+    )
+
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user["email"]}, expires_delta=access_token_expires
+    )
+
+    return {
+        "email": user["email"],
+        "access_token": access_token,
+        "token_type": "bearer",
+    }
 
 
 @router.post("/login", response_model=Token)
@@ -71,12 +93,25 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.get("/me", response_model=MeResponse)
-async def me(user_info: dict = Depends(get_current_user_with_role)):
-    """Return the current authenticated user's profile"""
-    user = user_info["user"]
-    return {
-        "email": user["email"],
-        "role": user.get("role", "student"),
-        "teacher_id": user.get("teacher_id"),
-    }
+@router.get("/me", response_model=UserResponse)
+async def get_me(user_email: str = Depends(get_current_user)):
+    """Get the current authenticated user's profile"""
+    user = await get_user_by_email(user_email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    return UserResponse(
+        email=user["email"],
+        name=user.get("name"),
+        role=user.get("role", "student"),
+        institute=user.get("institute"),
+        preferred_language=user.get("preferred_language", "en"),
+        onboarding_completed=user.get("onboarding_completed", False),
+        active_exam_id=user.get("active_exam_id"),
+        teacher_id=user.get("teacher_id"),
+        managed_by=user.get("managed_by"),
+        license_id=user.get("license_id"),
+        subscription=user.get("subscription"),
+    )

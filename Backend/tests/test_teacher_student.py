@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 
 import httpx
 from httpx import ASGITransport
@@ -21,22 +22,45 @@ def _run(coro):
     return _loop.run_until_complete(coro)
 
 
-async def _token_for(client: httpx.AsyncClient, email: str, password: str, role: str = "student"):
-    """Return a bearer token for the given email, signing up first if needed."""
-    signup_resp = await client.post(
-        "/auth/signup",
-        json={"email": email, "password": password, "role": role},
-    )
-    if signup_resp.status_code not in (200, 201):
-        # Assume the user already exists and log in instead.
-        login_resp = await client.post(
-            "/auth/login",
-            data={"username": email, "password": password},
-        )
-        assert login_resp.status_code == 200, login_resp.text
-        return login_resp.json()["access_token"]
+async def _ensure_user(client: httpx.AsyncClient, email: str, password: str, role: str = "student"):
+    """Create a test user. Students go through public signup; privileged roles are seeded directly.
 
-    # After signup, log in to obtain the token.
+    If the user already exists without a password_hash (left over from an older schema),
+    the password is re-hashed so login still works.
+    """
+    from src.services.auth_service import get_password_hash, get_user_by_email
+
+    existing = await get_user_by_email(email)
+    if existing:
+        if "password_hash" not in existing:
+            await users_collection.update_one(
+                {"email": email},
+                {"$set": {"password_hash": get_password_hash(password)}},
+            )
+        return
+
+    if role == "student":
+        signup_resp = await client.post(
+            "/auth/signup",
+            json={"email": email, "password": password},
+        )
+        assert signup_resp.status_code in (200, 201), signup_resp.text
+        return
+
+    # Public signup is student-only, so insert teachers/admins directly into the DB.
+    await users_collection.insert_one({
+        "email": email,
+        "password_hash": get_password_hash(password),
+        "role": role,
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
+    })
+
+
+async def _token_for(client: httpx.AsyncClient, email: str, password: str, role: str = "student"):
+    """Return a bearer token for the given email, creating the user first if needed."""
+    await _ensure_user(client, email, password, role=role)
+
     login_resp = await client.post(
         "/auth/login",
         data={"username": email, "password": password},
@@ -58,7 +82,7 @@ def test_teacher_can_manage_existing_student():
 
             # Ensure both users exist.
             teacher_token = await _token_for(client, teacher_email, password, role="teacher")
-            await _token_for(client, student_email, password, role="student")
+            await _ensure_user(client, student_email, password, role="student")
 
             manage_resp = await client.post(
                 "/teachers/students/manage",
@@ -103,7 +127,7 @@ def test_teacher_can_unmanage_student():
             password = "testpassword123"
 
             teacher_token = await _token_for(client, teacher_email, password, role="teacher")
-            await _token_for(client, student_email, password, role="student")
+            await _ensure_user(client, student_email, password, role="student")
 
             # Link the student first.
             link_resp = await client.post(
@@ -139,7 +163,7 @@ def test_teacher_analytics_returns_managed_students():
             password = "testpassword123"
 
             teacher_token = await _token_for(client, teacher_email, password, role="teacher")
-            await _token_for(client, student_email, password, role="student")
+            await _ensure_user(client, student_email, password, role="student")
 
             link_resp = await client.post(
                 "/teachers/students/manage",

@@ -1,15 +1,18 @@
-import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-import bcrypt
 import jwt
 from fastapi import HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorClient
+from passlib.context import CryptContext
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 
 # Import settings from config
 from src.core.config import MONGODB_URL, MONGODB_DB_NAME, MONGODB_CONNECT_TIMEOUT, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+from src.core.models import User
+
+# Password hashing
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # MongoDB connection (initialized lazily on first use so the client is bound to
 # the event loop that actually performs I/O, e.g. the loop created by TestClient).
@@ -31,7 +34,7 @@ def _ensure_auth_db():
         )
         db = client[MONGODB_DB_NAME]
         users_collection = db.users
-    except (ConnectionFailure, ServerSelectionTimeoutError) as e:
+    except (ConnectionFailure, ServerSelectionTimeoutError, ValueError) as e:
         print(f"MongoDB connection error: {e}")
         print("WARNING: Authentication service will not work until MongoDB is available")
         client = None
@@ -39,12 +42,12 @@ def _ensure_auth_db():
         users_collection = None
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
 
 
-def get_password_hash(password: str) -> str:
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+def get_password_hash(password):
+    return pwd_context.hash(password)
 
 
 async def get_user_by_email(email: str):
@@ -65,7 +68,14 @@ async def get_user_by_email(email: str):
         )
 
 
-async def create_user(email: str, password: str, role: str = "student"):
+async def create_user(
+    email: str,
+    password: str,
+    name: Optional[str] = None,
+    role: str = "student",
+    institute: Optional[str] = None,
+    preferred_language: Optional[str] = None
+):
     _ensure_auth_db()
     if users_collection is None:
         raise HTTPException(
@@ -82,16 +92,26 @@ async def create_user(email: str, password: str, role: str = "student"):
                 detail="Email already registered"
             )
 
+        # Validate role. Public signup is always a student; privileged roles
+        # require admin/sub-admin enrollment. Sanitize any caller-supplied role.
+        allowed_roles = {"student", "teacher", "subadmin", "admin"}
+        if role not in allowed_roles:
+            role = "student"
+        if role in {"admin", "subadmin", "teacher"}:
+            role = "student"
+
         # Create new user with hashed password
         hashed_password = get_password_hash(password)
-        user = {
-            "email": email,
-            "password": hashed_password,
-            "role": role,
-            "created_at": datetime.now(),
-        }
+        user = User(
+            email=email,
+            password_hash=hashed_password,
+            name=name,
+            role=role,  # type: ignore[arg-type]
+            institute=institute,
+            preferred_language=preferred_language or "en",
+        )
 
-        result = await users_collection.insert_one(user)
+        result = await users_collection.insert_one(user.model_dump(by_alias=True))
         created_user = await users_collection.find_one({"_id": result.inserted_id})
         return created_user
     except HTTPException:
@@ -116,7 +136,7 @@ async def authenticate_user(email: str, password: str):
         user = await get_user_by_email(email)
         if not user:
             return False
-        if not verify_password(password, user["password"]):
+        if not verify_password(password, user["password_hash"]):
             return False
         return user
     except HTTPException:
@@ -132,9 +152,9 @@ async def authenticate_user(email: str, password: str):
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.now() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
