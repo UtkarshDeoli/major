@@ -307,7 +307,21 @@ async def get_user_mock_tests_service(user_id: str) -> List[MockTestResponse]:
         
         for test_data in tests_data:
             questions = [MockTestQuestion(**q) for q in test_data["questions"]]
-            
+
+            # Hide correct answers from the assigned student
+            if test_data.get("assigned_to") == user_id:
+                questions = [
+                    MockTestQuestion(
+                        id=q.id,
+                        type=q.type,
+                        question=q.question,
+                        options=q.options,
+                        correctAnswer=None,
+                        marks=q.marks
+                    )
+                    for q in questions
+                ]
+
             # Get the latest submission for this test
             latest_submission = None
             if mock_test_submissions_collection is not None:
