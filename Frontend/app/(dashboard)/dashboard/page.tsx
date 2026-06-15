@@ -14,7 +14,8 @@ import { useToast } from '@/hooks/use-toast'
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 import { TestTube } from 'lucide-react'
-import { pdfAPI, chatAPI, authAPI } from '@/lib/api'
+import { pdfAPI, chatAPI, authAPI, mockTestAPI } from '@/lib/api'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 
 export default function DashboardPage() {
   // Initialize with empty arrays and populate in useEffect to avoid hydration mismatches
@@ -30,6 +31,8 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<'documents' | 'chats'>('documents')
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const [user, setUser] = useState<{ email: string; name?: string; role?: string } | null>(null)
+  const [assignedTests, setAssignedTests] = useState<Array<{ test_id: string; title: string; created_at: string; created_by?: string }>>([])
   const { toast } = useToast()
   const router = useRouter()
 
@@ -89,6 +92,32 @@ export default function DashboardPage() {
       setIsSidebarOpen(!isMobile);
     }
   };
+
+  // Load current user once authenticated
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const me = await authAPI.getMe();
+        setUser(me);
+      } catch (error) {
+        console.error("Error loading user:", error);
+      }
+    };
+
+    if (isAuthenticated) {
+      loadUser();
+    }
+  }, [isAuthenticated]);
+
+  // Fetch tests assigned to the current student
+  useEffect(() => {
+    if (user?.email) {
+      mockTestAPI.listMockTests().then((tests) => {
+        const mine = tests.filter((t: any) => t.assigned_to === user?.email);
+        setAssignedTests(mine);
+      });
+    }
+  }, [user?.email]);
 
   // Detect mobile view
   useEffect(() => {
@@ -359,7 +388,33 @@ export default function DashboardPage() {
               </div>
             </>
           ) : (
-            <EmptyState onUploadDocument={handleUploadDocument} />
+            <div className="flex-1 overflow-auto p-4 md:p-6 space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Assigned Tests</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {assignedTests.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">No assigned tests yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {assignedTests.map((test) => (
+                        <div key={test.test_id} className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">{test.title}</p>
+                            <p className="text-xs text-muted-foreground">From {test.created_by}</p>
+                          </div>
+                          <Button size="sm" onClick={() => router.push(`/test?id=${test.test_id}`)}>
+                            Start
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              <EmptyState onUploadDocument={handleUploadDocument} />
+            </div>
           )}
         </main>
       </div>

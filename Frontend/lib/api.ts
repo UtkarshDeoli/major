@@ -48,6 +48,11 @@ export const authAPI = {
   
   isAuthenticated: () => {
     return !!localStorage.getItem('token');
+  },
+
+  getMe: async () => {
+    const response = await api.get(addTokenToRequest('/auth/me'));
+    return response.data;
   }
 };
 
