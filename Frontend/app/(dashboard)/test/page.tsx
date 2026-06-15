@@ -25,13 +25,20 @@ import {
   BarChart3
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
-import { useRouter } from 'next/navigation'
-import { pdfAPI, analysisAPI, mockTestAPI } from '@/lib/api'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { pdfAPI, analysisAPI, mockTestAPI, authAPI, teacherAPI } from '@/lib/api'
 
 export default function TestPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const preselectedStudent = searchParams.get("student")
   const { toast } = useToast()
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [user, setUser] = useState<{ email: string; name?: string; role?: string } | null>(null)
+  const [linkedStudents, setLinkedStudents] = useState<Array<{ email: string; name?: string }>>([])
+  const [selectedStudent, setSelectedStudent] = useState<string>(preselectedStudent || "")
+  const [targetWeaknesses, setTargetWeaknesses] = useState(false)
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([])
   const [isGeneratingMockTest, setIsGeneratingMockTest] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [pdfs, setPdfs] = useState<any[]>([])
@@ -91,6 +98,31 @@ export default function TestPage() {
     fetchPDFs()
     fetchMockTests()
   }, [])
+
+  // Load current user
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const me = await authAPI.getMe();
+        setUser(me);
+      } catch (error) {
+        console.error("Error loading user:", error);
+      }
+    };
+
+    if (authAPI.isAuthenticated()) {
+      loadUser();
+    }
+  }, []);
+
+  // Fetch linked students when the current user is a teacher
+  useEffect(() => {
+    if (user?.role === "teacher") {
+      teacherAPI.listManagedStudents().then(setLinkedStudents).catch((error) => {
+        console.error("Error fetching managed students:", error);
+      });
+    }
+  }, [user?.role]);
 
   const handleQuestionPaperToggle = (pdfId: string) => {
     setSelectedQuestionPapers(prev => 
@@ -160,7 +192,11 @@ export default function TestPage() {
         mockTestSettings.numMcq,
         mockTestSettings.numText,
         mockTestSettings.totalMarks,
-        mockTestSettings.difficultyLevel
+        mockTestSettings.difficultyLevel,
+        selectedTopics.length > 0 ? selectedTopics : undefined,
+        targetWeaknesses ? [] : undefined,
+        undefined,
+        selectedStudent || undefined,
       )
       
       toast({
@@ -802,6 +838,65 @@ export default function TestPage() {
                         </Select>
                       </div>
                     </div>
+
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="focusTopics">Focus Topics (optional)</Label>
+                      <Input
+                        id="focusTopics"
+                        placeholder="Enter topics separated by commas"
+                        value={selectedTopics.join(", ")}
+                        onChange={(e) =>
+                          setSelectedTopics(
+                            e.target.value
+                              .split(",")
+                              .map((t) => t.trim())
+                              .filter((t) => t.length > 0)
+                          )
+                        }
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        The test will emphasize these topics when provided.
+                      </p>
+                    </div>
+
+                    {user?.role === "teacher" && (
+                      <div className="space-y-4 md:col-span-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="assignStudent" className="text-sm font-medium">
+                            Assign to student
+                          </Label>
+                          <Select
+                            value={selectedStudent}
+                            onValueChange={setSelectedStudent}
+                          >
+                            <SelectTrigger id="assignStudent">
+                              <SelectValue placeholder="Myself / No assignment" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="">Myself / No assignment</SelectItem>
+                              {linkedStudents.map((s) => (
+                                <SelectItem key={s.email} value={s.email}>
+                                  {s.name || s.email}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="target-weaknesses"
+                            checked={targetWeaknesses}
+                            onCheckedChange={(checked) =>
+                              setTargetWeaknesses(checked === true)
+                            }
+                          />
+                          <Label htmlFor="target-weaknesses" className="text-sm">
+                            Target weak topics
+                          </Label>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="p-4 bg-muted/30 rounded-lg">
                       <h4 className="font-medium mb-2">Test Summary</h4>
