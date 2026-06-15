@@ -80,6 +80,32 @@ async def unmanage_student(
     return {"student_email": payload.student_email, "teacher_id": None}
 
 
+@router.get("/students", response_model=dict)
+async def list_managed_students(
+    user_info: dict = Depends(require_role("teacher")),
+):
+    """List all students managed by the authenticated teacher."""
+    if users_collection is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database connection unavailable",
+        )
+
+    teacher_email = user_info["email"]
+    cursor = users_collection.find({"teacher_id": teacher_email})
+    students = await cursor.to_list(length=None)
+
+    return {
+        "students": [
+            {
+                "email": student.get("email"),
+                "name": student.get("name"),
+            }
+            for student in students
+        ]
+    }
+
+
 @router.get("/analytics", response_model=TeacherDashboardAnalytics)
 async def get_teacher_analytics(user_info: dict = Depends(require_role("teacher"))):
     """

@@ -296,6 +296,21 @@ export const mockTestAPI = {
 
 // Teacher APIs
 export const teacherAPI = {
+  manageStudent: async (studentEmail: string) => {
+    const response = await api.post('/teachers/students/manage', { student_email: studentEmail });
+    return response.data;
+  },
+
+  unmanageStudent: async (studentEmail: string) => {
+    const response = await api.post('/teachers/students/unmanage', { student_email: studentEmail });
+    return response.data;
+  },
+
+  listManagedStudents: async () => {
+    const response = await api.get('/teachers/students');
+    return response.data.students;
+  },
+
   getAnalytics: async () => {
     const response = await api.get('/teachers/analytics');
     return response.data;
