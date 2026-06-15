@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 import jwt
 
 from src.core.models import (
@@ -220,10 +220,15 @@ async def submit_mock_test(
                 status_code=404,
                 detail="Mock test not found"
             )
-        
-        # Determine the actual submitter for assigned tests
-        submitter_email = None
-        if test.assigned_to and test.assigned_to != user_id:
+
+        # Determine who is allowed to submit
+        submitter_email = user_id
+        if test.assigned_to:
+            if test.assigned_to != user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Only the assigned student can submit this test"
+                )
             submitter_email = test.assigned_to
 
         # Analyze the submission
@@ -259,26 +264,37 @@ async def get_mock_test_analysis(
     """
     try:
         # Get the submission analysis from database
-        from src.core.data_store import mock_test_submissions_collection
-        
+        from src.core.data_store import mock_test_submissions_collection, get_mock_test
+
         if mock_test_submissions_collection is None:
             raise HTTPException(
                 status_code=503,
                 detail="Database connection unavailable"
             )
-        
-        # Find the submission
+
+        # Find the submission by ID only, then authorize
         submission = await mock_test_submissions_collection.find_one({
-            "submission_id": submission_id,
-            "user_id": user_id
+            "submission_id": submission_id
         })
-        
+
         if not submission:
             raise HTTPException(
                 status_code=404,
                 detail="Mock test submission not found"
             )
-        
+
+        test_data = await get_mock_test(submission["test_id"])
+        is_owner = submission.get("user_id") == user_id
+        is_creator = test_data is not None and (
+            test_data.get("created_by") == user_id or
+            test_data.get("user_id") == user_id
+        )
+        if not is_owner and not is_creator:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view this submission"
+            )
+
         # Convert MongoDB document to response model
         analysis_data = {
             "submission_id": submission["submission_id"],
@@ -294,9 +310,9 @@ async def get_mock_test_analysis(
             "study_recommendations": submission["study_recommendations"],
             "created_at": submission["created_at"]
         }
-        
+
         return MockTestAnalysisResponse(**analysis_data)
-        
+
     except HTTPException:
         raise
     except Exception as e:

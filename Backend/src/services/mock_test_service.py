@@ -292,8 +292,23 @@ async def get_user_mock_tests_service(user_id: str) -> List[MockTestResponse]:
             latest_submission = None
             if mock_test_submissions_collection is not None:
                 try:
+                    # Teachers viewing an assigned test should see the assigned student's submission
+                    if test_data.get("assigned_to") and (
+                        test_data.get("created_by") == user_id or
+                        test_data.get("user_id") == user_id
+                    ):
+                        submission_query = {
+                            "test_id": test_data["test_id"],
+                            "user_id": test_data["assigned_to"]
+                        }
+                    else:
+                        submission_query = {
+                            "test_id": test_data["test_id"],
+                            "user_id": user_id
+                        }
+
                     submission = await mock_test_submissions_collection.find_one(
-                        {"test_id": test_data["test_id"], "user_id": user_id},
+                        submission_query,
                         sort=[("created_at", -1)]
                     )
                     if submission:
@@ -305,7 +320,7 @@ async def get_user_mock_tests_service(user_id: str) -> List[MockTestResponse]:
                         }
                 except Exception as e:
                     print(f"Error fetching submission for test {test_data['test_id']}: {e}")
-            
+
             # Create the test response with optional submission info
             test_dict = {
                 "test_id": test_data["test_id"],
