@@ -4,10 +4,15 @@ import nltk
 from typing import Dict
 
 # Import our routers
-from src.routers import auth_router, pdf_router, question_router
-
-# Import our routers
-from src.routers import auth_router, pdf_router, question_router, analysis_router, mock_test_router
+from src.routers import (
+    auth_router,
+    pdf_router,
+    question_router,
+    analysis_router,
+    mock_test_router,
+    teacher_router,
+    analytics_router,
+)
 
 app = FastAPI()
 
@@ -26,6 +31,8 @@ app.include_router(pdf_router.router)
 app.include_router(question_router.router)
 app.include_router(analysis_router.router)
 app.include_router(mock_test_router.router)
+app.include_router(teacher_router.router)
+app.include_router(analytics_router.router)
 
 @app.get("/")
 async def root():
