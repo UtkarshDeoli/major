@@ -272,7 +272,13 @@ async def get_user_mock_tests(user_id: str) -> List[Dict[str, Any]]:
         raise Exception("Database connection not available")
     
     try:
-        cursor = mock_tests_collection.find({"user_id": user_id}).sort("created_at", -1)
+        cursor = mock_tests_collection.find({
+            "$or": [
+                {"user_id": user_id},
+                {"assigned_to": user_id},
+                {"created_by": user_id}
+            ]
+        }).sort("created_at", -1)
         tests = await cursor.to_list(length=None)
         return [object_id_to_str(test) for test in tests]
     except Exception as e:

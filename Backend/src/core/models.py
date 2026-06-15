@@ -131,6 +131,8 @@ class MockTestResponse(BaseModel):
     time_limit: int  # in minutes
     created_at: datetime
     user_id: str
+    created_by: Optional[str] = None
+    assigned_to: Optional[str] = None
     difficulty_level: Optional[str] = "medium"
     latest_submission: Optional[Dict[str, Any]] = None
 
