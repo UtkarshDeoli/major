@@ -56,19 +56,19 @@ export function MessageItem({
       )}
     >
       {!isUser && isFirstInGroup && (
-        <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-          <span className="text-primary text-xs font-semibold">AI</span>
+        <div className="w-7 h-7 rounded-md bg-secondary flex items-center justify-center flex-shrink-0">
+          <span className="text-muted-foreground text-[10px] font-semibold">AI</span>
         </div>
       )}
       
-      {!isUser && !isFirstInGroup && <div className="w-8" />}
+      {!isUser && !isFirstInGroup && <div className="w-7" />}
       
-      <div 
+      <div
         className={cn(
-          "relative group rounded-lg p-3 max-w-[80%]",
-          isUser 
-            ? "bg-primary/10 text-foreground" 
-            : "bg-muted text-foreground"
+          "relative group rounded-md p-3 max-w-[80%]",
+          isUser
+            ? "text-foreground"
+            : "bg-secondary text-foreground"
         )}
       >
         {/* Message content */}
@@ -130,7 +130,7 @@ export function MessageItem({
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 rounded-full hover:bg-background/80"
+              className="h-6 w-6 rounded-md hover:bg-background/80"
               onClick={handleCopyMessage}
             >
               {isCopied ? (
@@ -145,7 +145,7 @@ export function MessageItem({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 rounded-full hover:bg-background/80"
+                  className="h-6 w-6 rounded-md hover:bg-background/80"
                 >
                   <Smile className="h-3 w-3" />
                 </Button>
@@ -181,12 +181,12 @@ export function MessageItem({
       </div>
       
       {isUser && isFirstInGroup && (
-        <div className="w-8 h-8 rounded-full bg-accent/30 flex items-center justify-center flex-shrink-0">
-          <span className="text-accent-foreground text-xs font-semibold">You</span>
+        <div className="w-7 h-7 rounded-md bg-secondary flex items-center justify-center flex-shrink-0">
+          <span className="text-muted-foreground text-[10px] font-semibold">You</span>
         </div>
       )}
-      
-      {isUser && !isFirstInGroup && <div className="w-8" />}
+
+      {isUser && !isFirstInGroup && <div className="w-7" />}
     </div>
   )
 }

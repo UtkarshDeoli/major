@@ -33,10 +33,10 @@ export function MessageList({ messages, isTyping, onAddReaction }: MessageListPr
       
       {isTyping && (
         <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-            <span className="text-primary text-xs font-semibold">AI</span>
+          <div className="w-7 h-7 rounded-md bg-secondary flex items-center justify-center flex-shrink-0">
+            <span className="text-muted-foreground text-[10px] font-semibold">AI</span>
           </div>
-          <div className="rounded-lg bg-muted p-3 max-w-[80%]">
+          <div className="rounded-md bg-secondary p-3 max-w-[80%]">
             <TypingIndicator />
           </div>
         </div>

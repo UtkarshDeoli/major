@@ -1,38 +1,31 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useDashboard } from "@/lib/context/dashboard-context";
-import { CollectionsChatSidebar } from "@/components/dashboard/chat/collections-chat-sidebar";
-import { ChatInterface } from "@/components/dashboard/chat/chat-interface";
-import { Material, Collection, Subject } from "@/lib/context/dashboard-context";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Menu, X, MessageSquare } from "lucide-react";
+import { useState } from "react"
+import { useDashboard } from "@/lib/context/dashboard-context"
+import { CollectionsChatSidebar } from "@/components/dashboard/chat/collections-chat-sidebar"
+import { ChatInterface } from "@/components/dashboard/chat/chat-interface"
+import { Material, Collection, Subject } from "@/lib/context/dashboard-context"
+import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { PanelLeftClose, PanelLeftOpen, MessageSquare } from "lucide-react"
 
 export default function ChatPage() {
-  const { activeExam } = useDashboard();
-  const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null);
-  const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { activeExam } = useDashboard()
+  const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null)
+  const [selectedCollection, setSelectedCollection] = useState<Collection | null>(null)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
-  const handleSelectMaterial = (
-    material: Material,
-    collection: Collection,
-    _subject: Subject
-  ) => {
-    setSelectedMaterial(material);
-    setSelectedCollection(collection);
-  };
+  const handleSelectMaterial = (material: Material, collection: Collection, _subject: Subject) => {
+    setSelectedMaterial(material)
+    setSelectedCollection(collection)
+  }
 
   return (
-    <div className="h-full flex overflow-hidden bg-background">
-      {/* Sidebar */}
-      <div
-        className={cn(
-          "flex flex-col border-r bg-card/50 backdrop-blur-xl transition-all duration-300 ease-in-out z-20",
-          sidebarOpen ? "w-72" : "w-0 overflow-hidden border-r-0"
-        )}
-      >
+    <div className="h-full flex overflow-hidden">
+      <div className={cn(
+        "flex flex-col border-r bg-background transition-all duration-200 z-20",
+        sidebarOpen ? "w-60" : "w-0 overflow-hidden border-r-0"
+      )}>
         {sidebarOpen && (
           <CollectionsChatSidebar
             exam={activeExam}
@@ -42,28 +35,19 @@ export default function ChatPage() {
         )}
       </div>
 
-      {/* Main Chat Area */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        {/* Top bar */}
-        <div className="h-14 border-b bg-card/50 backdrop-blur-sm flex items-center px-4 gap-3 shrink-0">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-          >
-            {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+        <div className="h-11 border-b flex items-center px-3 gap-2 shrink-0">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setSidebarOpen(!sidebarOpen)}>
+            {sidebarOpen ? <PanelLeftClose className="h-3.5 w-3.5" /> : <PanelLeftOpen className="h-3.5 w-3.5" />}
           </Button>
-
-          <div className="flex items-center gap-2 text-sm">
-            <MessageSquare className="h-4 w-4 text-primary" />
-            <span className="font-medium">
+          <div className="flex items-center gap-1.5 text-[13px]">
+            <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-muted-foreground">
               {selectedMaterial ? selectedMaterial.name : "Select a material to chat"}
             </span>
           </div>
         </div>
 
-        {/* Chat content */}
         <div className="flex-1 overflow-hidden">
           {selectedMaterial ? (
             <ChatInterface
@@ -85,19 +69,15 @@ export default function ChatPage() {
             />
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-center p-6">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                <MessageSquare className="h-8 w-8 text-primary" />
+              <div className="w-12 h-12 rounded-md bg-secondary flex items-center justify-center mb-4">
+                <MessageSquare className="h-6 w-6 text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-semibold mb-2">Select a Study Material</h3>
-              <p className="text-sm text-muted-foreground max-w-sm">
-                Open the sidebar and choose a material from your collections to start
-                chatting with AI.
+              <h3 className="text-sm font-medium mb-1">Select a Study Material</h3>
+              <p className="text-xs text-muted-foreground max-w-xs">
+                Choose a material from the sidebar to start chatting with AI.
               </p>
               {!sidebarOpen && (
-                <Button
-                  className="mt-4"
-                  onClick={() => setSidebarOpen(true)}
-                >
+                <Button size="sm" className="mt-4 rounded-md h-8 text-[13px]" onClick={() => setSidebarOpen(true)}>
                   Open Sidebar
                 </Button>
               )}
@@ -106,5 +86,5 @@ export default function ChatPage() {
         </div>
       </div>
     </div>
-  );
+  )
 }

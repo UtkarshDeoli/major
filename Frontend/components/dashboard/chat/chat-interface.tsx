@@ -23,6 +23,8 @@ export function ChatInterface({ document, initialMessages = [], initialChatId, o
   // State for messages and chat session
   const [messages, setMessages] = useState<Message[]>([])
   const [isTyping, setIsTyping] = useState(false)
+  const [streamingMessage, setStreamingMessage] = useState<string | null>(null)
+  const [isStreaming, setIsStreaming] = useState(false)
   const [chatSession, setChatSession] = useState<ChatSession | null>(null)
   const [context, setContext] = useState<string | null>(null)
   
@@ -49,7 +51,7 @@ export function ChatInterface({ document, initialMessages = [], initialChatId, o
     }
   }, [document, initialChatId, chatSession]);
   
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages change or streaming updates
   useEffect(() => {
     if (scrollAreaRef.current) {
       // Find the scrollable viewport element within ScrollArea
@@ -58,7 +60,7 @@ export function ChatInterface({ document, initialMessages = [], initialChatId, o
         viewport.scrollTop = viewport.scrollHeight;
       }
     }
-  }, [messages])
+  }, [messages, streamingMessage])
   
   // Fetch existing chat session
   const fetchChatSession = async (sessionId: string) => {
@@ -143,61 +145,39 @@ export function ChatInterface({ document, initialMessages = [], initialChatId, o
     setIsTyping(true);
     
     try {
-      let aiMessage: Message;
-      let responseContext: string | null = null;
-      
       if (chatSession.id) {
-        // Use the non-streaming API to add the message and get the response
-        const response = await chatAPI.addMessageToChat(chatSession.id, content);
-        
-        // Assuming the response contains the assistant's message and context
-        // Adjust based on the actual structure of the response from addMessageToChat
-        aiMessage = createMessage({
-          id: nanoid(), // Or use an ID from the response if available
-          role: MessageRole.Assistant,
-          content: response.answer || "Sorry, I couldn't get a response.", // Adjust property names as needed
-          timestamp: new Date().toISOString(), // Adjust property names as needed
-        });
-        
-        if (response.context) {
-          responseContext = response.context;
+        // Use the streaming API to add the message and get the response
+        setIsStreaming(true)
+        setStreamingMessage("")
+        await chatAPI.addMessageToChatStream(chatSession.id, content, (chunk: any) => {
+          if (chunk.content) {
+            setStreamingMessage(prev => (prev || "") + chunk.content)
+          }
+        })
+        // After stream completes, refresh messages from the session
+        await fetchChatSession(chatSession.id)
+        setStreamingMessage(null)
+
+        // If this was the first user message, add the chat session to history
+        if (isFirstUserMessage && onChatSessionUpdate && chatSession) {
+          const updatedChatSession = {
+            ...chatSession,
+            messages: [...messages, userMessage],
+            updated_at: new Date().toISOString()
+          };
+          onChatSessionUpdate(updatedChatSession);
         }
-        
       } else {
-        // Fallback to non-streaming askQuestion if no chat session ID (should ideally not happen if session is created)
+        // Fallback to non-streaming askQuestion if no chat session ID
         const response = await chatAPI.askQuestion(content, document.id);
-        
-        aiMessage = createMessage({
+        const aiMessage = createMessage({
           id: nanoid(),
           role: MessageRole.Assistant,
           content: response.answer,
           timestamp: new Date().toISOString(),
         });
-        
-        if (response.context) {
-          responseContext = response.context;
-        }
+        setMessages(prev => [...prev, aiMessage]);
       }
-      
-      // Add the AI message to the state
-      setMessages(prev => [...prev, aiMessage]);
-      
-      // If this was the first user message, add the chat session to history
-      if (isFirstUserMessage && onChatSessionUpdate && chatSession) {
-        // Create updated chat session with current messages
-        const updatedChatSession = {
-          ...chatSession,
-          messages: [...messages, userMessage, aiMessage],
-          updated_at: new Date().toISOString()
-        };
-        onChatSessionUpdate(updatedChatSession);
-      }
-      
-      // Update context if available
-      if (responseContext) {
-        setContext(responseContext);
-      }
-      
     } catch (error) {
       console.error("Error getting AI response:", error);
       toast({
@@ -205,12 +185,9 @@ export function ChatInterface({ document, initialMessages = [], initialChatId, o
         description: "Failed to get a response. Please try again.",
         variant: "destructive"
       });
-      
-      // Optionally remove the user message if the API call failed
-      // setMessages(prev => prev.filter(msg => msg.id !== userMessage.id));
-      
     } finally {
       setIsTyping(false);
+      setIsStreaming(false);
     }
   };
   
@@ -255,9 +232,21 @@ export function ChatInterface({ document, initialMessages = [], initialChatId, o
               {document && <SuggestedPrompts onSelectPrompt={handleUsePrompt} document={document} />}
             </div>
           ) : (
-            <MessageList 
-              messages={messages} 
-              isTyping={isTyping}
+            <MessageList
+              messages={
+                streamingMessage
+                  ? [
+                      ...messages,
+                      createMessage({
+                        id: 'streaming',
+                        role: MessageRole.Assistant,
+                        content: streamingMessage,
+                        timestamp: new Date().toISOString(),
+                      }),
+                    ]
+                  : messages
+              }
+              isTyping={isTyping && !isStreaming}
               onAddReaction={handleAddReaction}
             />
           )}
@@ -277,10 +266,10 @@ export function ChatInterface({ document, initialMessages = [], initialChatId, o
         
         <div className="p-2 sm:p-4 border-t mt-auto">
           
-          <ChatInput 
-            onSendMessage={handleSendMessage} 
+          <ChatInput
+            onSendMessage={handleSendMessage}
             isTyping={isTyping}
-            disabled={!document || !chatSession}
+            disabled={!document || !chatSession || isStreaming}
           />
         </div>
       </div>
