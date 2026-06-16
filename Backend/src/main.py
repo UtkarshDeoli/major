@@ -12,6 +12,10 @@ from src.routers import (
     mock_test_router,
     teacher_router,
     analytics_router,
+    exam_router,
+    subject_router,
+    collection_router,
+    material_router,
 )
 
 app = FastAPI()
@@ -34,6 +38,10 @@ app.include_router(analysis_router)
 app.include_router(mock_test_router)
 app.include_router(teacher_router)
 app.include_router(analytics_router)
+app.include_router(exam_router)
+app.include_router(subject_router)
+app.include_router(collection_router)
+app.include_router(material_router)
 
 @app.get("/")
 async def root():

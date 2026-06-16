@@ -7,3 +7,7 @@ from .analysis_router import router as analysis_router
 from .mock_test_router import router as mock_test_router
 from .teacher_router import router as teacher_router
 from .analytics_router import router as analytics_router
+from .exam_router import router as exam_router
+from .subject_router import router as subject_router
+from .collection_router import router as collection_router
+from .material_router import router as material_router

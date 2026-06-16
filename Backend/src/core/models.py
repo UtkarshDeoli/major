@@ -218,6 +218,61 @@ class SubscriptionInfo(BaseModel):
     expires_at: Optional[datetime] = None
 
 
+class Exam(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
+    user_id: str
+    name: str
+    description: Optional[str] = None
+    icon: Optional[str] = None
+    color: Optional[str] = None
+    is_active: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class Subject(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
+    exam_id: str
+    name: str
+    icon: Optional[str] = None
+    progress: int = Field(default=0, ge=0, le=100)
+    last_studied_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class Collection(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
+    subject_id: str
+    name: str
+    description: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class Material(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
+    collection_id: str
+    name: str
+    type: Literal["pdf", "image", "text"] = "pdf"
+    size: int = 0
+    url: str
+    doc_id: Optional[str] = None
+    processed: bool = False
+    page_count: Optional[int] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    rag_indexed: bool = False
+
+
 class User(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
