@@ -5,20 +5,18 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { 
-  FileUp, 
-  Book, 
-  FileText, 
-  Clock, 
-  CheckCircle, 
-  Brain, 
-  Target, 
+import {
+  FileUp,
+  Book,
+  FileText,
+  Clock,
+  CheckCircle,
+  Brain,
+  Target,
   TrendingUp,
   Download,
   Lightbulb,
@@ -116,14 +114,14 @@ export default function TestPage() {
         })
       }
     }
-    
+
     fetchPDFs()
     fetchMockTests()
   }, [])
 
   const handleQuestionPaperToggle = (pdfId: string) => {
-    setSelectedQuestionPapers(prev => 
-      prev.includes(pdfId) 
+    setSelectedQuestionPapers(prev =>
+      prev.includes(pdfId)
         ? prev.filter(id => id !== pdfId)
         : [...prev, pdfId]
     )
@@ -153,13 +151,13 @@ export default function TestPage() {
     } catch (error: any) {
       console.error("Analysis error:", error);
       let errorMessage = "Failed to analyze question papers. Please try again.";
-      
+
       if (error.response?.data?.detail) {
         errorMessage = error.response.data.detail;
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       toast({
         title: "Analysis Failed",
         description: errorMessage,
@@ -201,25 +199,25 @@ export default function TestPage() {
         subject || undefined,
         selectedStudent || undefined
       )
-      
+
       toast({
         title: "Mock Test Generated",
         description: "Your personalized mock test is ready!"
       })
-      
+
       // Navigate to the quiz page with the generated test
       router.push(`/test/quiz?testId=${mockTest.test_id}`)
-      
+
     } catch (error: any) {
       console.error("Mock test generation error:", error);
       let errorMessage = "Failed to generate mock test. Please try again.";
-      
+
       if (error.response?.data?.detail) {
         errorMessage = error.response.data.detail;
       } else if (error.message) {
         errorMessage = error.message;
       }
-      
+
       toast({
         title: "Generation Failed",
         description: errorMessage,
@@ -253,18 +251,18 @@ export default function TestPage() {
         .filter(([_, file]) => file !== null)
         .map(async ([type, file]) => {
           if (file) {
-            const title = type === 'syllabus' ? 'Syllabus' : 
+            const title = type === 'syllabus' ? 'Syllabus' :
                          type === 'questionPaper' ? 'Question Paper' : 'Study Notes'
             return await pdfAPI.uploadPDF(file, title, `Uploaded ${title}`, [type])
           }
         })
 
       await Promise.all(uploadPromises)
-      
+
       // Refresh the PDF list
       const userPdfs = await pdfAPI.listPDFs()
       setPdfs(userPdfs)
-      
+
       // Reset selected files
       setSelectedFiles({
         questionPaper: null,
@@ -296,11 +294,11 @@ export default function TestPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
+    <div className="max-w-5xl mx-auto py-8 px-6">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
-          <TabsTrigger value="analysis">Analysis</TabsTrigger>
-          <TabsTrigger value="mock">Mock Tests</TabsTrigger>
+        <TabsList className="inline-flex h-9 items-center gap-1 rounded-md bg-secondary p-1">
+          <TabsTrigger value="analysis" className="rounded-md text-[13px] px-3">Analysis</TabsTrigger>
+          <TabsTrigger value="mock" className="rounded-md text-[13px] px-3">Mock Tests</TabsTrigger>
         </TabsList>
 
         <TabsContent value="analysis">
@@ -308,23 +306,23 @@ export default function TestPage() {
             {!analysisResult ? (
               <div className="grid gap-6 lg:grid-cols-2">
                 {/* PDF Selection */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                <div className="rounded-md border">
+                  <div className="p-4 border-b">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
                       <Brain className="h-5 w-5" />
                       Generate Question Paper Analysis
-                    </CardTitle>
-                    <CardDescription>
-                      Select your syllabus and previous year question papers to generate intelligent analysis using AI. 
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Select your syllabus and previous year question papers to generate intelligent analysis using AI.
                       Make sure your PDFs contain clear, readable text for best results.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
+                    </p>
+                  </div>
+                  <div className="p-4 space-y-6">
                     {/* Syllabus Selection */}
                     <div className="space-y-3">
                       <Label className="text-sm font-medium">Select Syllabus</Label>
                       <Select value={selectedSyllabus} onValueChange={setSelectedSyllabus}>
-                        <SelectTrigger>
+                        <SelectTrigger className="rounded-md h-9 text-[13px]">
                           <SelectValue placeholder="Choose a syllabus PDF" />
                         </SelectTrigger>
                         <SelectContent>
@@ -383,11 +381,11 @@ export default function TestPage() {
                       </ScrollArea>
                     </div>
 
-                    <Button 
+                    <Button
                       onClick={handleAnalyze}
                       disabled={isAnalyzing || !selectedSyllabus || selectedSyllabus === 'no-pdfs' || selectedQuestionPapers.length === 0}
-                      className="w-full"
-                      size="lg"
+                      className="w-full rounded-md h-9 text-[13px]"
+                      size="sm"
                     >
                       {isAnalyzing ? (
                         <span className="flex items-center gap-2">
@@ -401,21 +399,21 @@ export default function TestPage() {
                         </span>
                       )}
                     </Button>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
                 {/* Upload New PDFs */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                <div className="rounded-md border">
+                  <div className="p-4 border-b">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
                       <FileUp className="h-5 w-5" />
                       Upload New PDFs
-                    </CardTitle>
-                    <CardDescription>
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">
                       Upload additional study materials if needed
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
+                    </p>
+                  </div>
+                  <div className="p-4 space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="questionPaper">Previous Question Papers</Label>
                       <div className="flex items-center gap-4">
@@ -424,6 +422,7 @@ export default function TestPage() {
                           type="file"
                           accept=".pdf,.doc,.docx"
                           onChange={(e) => handleFileSelect('questionPaper', e.target.files?.[0] || null)}
+                          className="rounded-md h-9 text-[13px]"
                         />
                         <FileUp className="h-5 w-5 text-muted-foreground" />
                       </div>
@@ -437,15 +436,16 @@ export default function TestPage() {
                           type="file"
                           accept=".pdf,.doc,.docx"
                           onChange={(e) => handleFileSelect('syllabus', e.target.files?.[0] || null)}
+                          className="rounded-md h-9 text-[13px]"
                         />
                         <Book className="h-5 w-5 text-muted-foreground" />
                       </div>
                     </div>
 
-                    <Button 
-                      onClick={handleUpload} 
+                    <Button
+                      onClick={handleUpload}
                       disabled={isUploading || !Object.values(selectedFiles).some(file => file)}
-                      className="w-full"
+                      className="w-full rounded-md"
                     >
                       {isUploading ? (
                         <span className="flex items-center gap-2">
@@ -456,199 +456,184 @@ export default function TestPage() {
                         'Upload Files'
                       )}
                     </Button>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
               </div>
             ) : (
               /* Analysis Results */
               <div className="space-y-6">
                 {/* Header */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Target className="h-6 w-6" />
+                <div className="rounded-md border p-4">
+                  <div className="flex items-center gap-2 border-l-2 border-l-primary pl-3">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <Target className="h-5 w-5" />
                       Question Paper Analysis Report
-                    </CardTitle>
-                    <CardDescription>
-                      AI-powered analysis of your syllabus and previous year question papers
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
+                    </h3>
+                  </div>
+                  <p className="text-sm text-muted-foreground mt-2 pl-5">
+                    AI-powered analysis of your syllabus and previous year question papers
+                  </p>
+                </div>
 
                 {/* Overall Summary */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                <div className="rounded-md border p-4 space-y-4">
+                  <div className="flex items-center gap-2 border-l-2 border-l-primary pl-3">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
                       <TrendingUp className="h-5 w-5" />
                       Overall Summary
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground leading-relaxed">
-                      {analysisResult.overall_summary}
-                    </p>
-                  </CardContent>
-                </Card>
+                    </h3>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed pl-5">
+                    {analysisResult.overall_summary}
+                  </p>
+                </div>
 
                 {/* Focus Areas */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                <div className="rounded-md border p-4 space-y-4">
+                  <div className="flex items-center gap-2 border-l-2 border-l-primary pl-3">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
                       <Target className="h-5 w-5" />
                       Key Focus Areas
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {analysisResult.focus_areas.map((area: string, index: number) => (
-                        <Badge key={index} variant="secondary" className="px-3 py-1">
-                          {area}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                    </h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pl-5">
+                    {analysisResult.focus_areas.map((area: string, index: number) => (
+                      <Badge key={index} variant="secondary" className="px-3 py-1 rounded-md">
+                        {area}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
 
                 {/* Unit-wise Analysis */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                <div className="rounded-md border p-4 space-y-4">
+                  <div className="flex items-center gap-2 border-l-2 border-l-primary pl-3">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
                       <BarChart3 className="h-5 w-5" />
                       Unit-wise Analysis
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {analysisResult.unit_wise_analysis.map((unit: any, index: number) => (
-                        <Card key={index} className="border-l-4 border-l-primary">
-                          <CardHeader className="pb-2">
-                            <div className="flex justify-between items-start">
-                              <CardTitle className="text-lg">{unit.unit_name}</CardTitle>
-                              <Badge variant={unit.difficulty_level === 'Easy' ? 'secondary' : unit.difficulty_level === 'Medium' ? 'default' : 'destructive'}>
-                                {unit.difficulty_level}
-                              </Badge>
+                    </h3>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2 pl-5">
+                    {analysisResult.unit_wise_analysis.map((unit: any, index: number) => (
+                      <div key={index} className="rounded-md border border-l-2 border-l-primary p-4">
+                        <div className="flex justify-between items-start">
+                          <h4 className="text-sm font-semibold">{unit.unit_name}</h4>
+                          <Badge variant={unit.difficulty_level === 'Easy' ? 'secondary' : unit.difficulty_level === 'Medium' ? 'default' : 'destructive'} className="rounded-md">
+                            {unit.difficulty_level}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <div className="text-2xl font-bold text-primary">
+                            {unit.weightage_percentage}%
+                          </div>
+                          <div className="text-sm text-muted-foreground">weightage</div>
+                        </div>
+                        <div className="space-y-3 mt-3">
+                          <div>
+                            <h4 className="font-medium mb-2 text-sm">Important Topics:</h4>
+                            <div className="flex flex-wrap gap-1">
+                              {unit.important_topics.map((topic: string, topicIndex: number) => (
+                                <Badge key={topicIndex} variant="outline" className="text-xs rounded-md">
+                                  {topic}
+                                </Badge>
+                              ))}
                             </div>
-                            <div className="flex items-center gap-2">
-                              <div className="text-2xl font-bold text-primary">
-                                {unit.weightage_percentage}%
-                              </div>
-                              <div className="text-sm text-muted-foreground">weightage</div>
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            <div>
-                              <h4 className="font-medium mb-2">Important Topics:</h4>
-                              <div className="flex flex-wrap gap-1">
-                                {unit.important_topics.map((topic: string, topicIndex: number) => (
-                                  <Badge key={topicIndex} variant="outline" className="text-xs">
-                                    {topic}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                            <div>
-                              <h4 className="font-medium mb-1">Recommendation:</h4>
-                              <p className="text-sm text-muted-foreground">{unit.recommendation}</p>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Question Patterns */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5" />
-                      Question Patterns
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {analysisResult.question_patterns.map((pattern: any, index: number) => (
-                        <Card key={index}>
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-base">{pattern.question_type}</CardTitle>
-                            <div className="text-sm text-muted-foreground">
-                              Frequency: {pattern.frequency} times
-                            </div>
-                          </CardHeader>
-                          <CardContent className="space-y-3">
-                            <div>
-                              <h4 className="font-medium mb-2">Marks Distribution:</h4>
-                              <div className="flex gap-2 flex-wrap">
-                                {Object.entries(pattern.marks_distribution).map(([marks, count]: [string, any]) => (
-                                  <Badge key={marks} variant="outline">
-                                    {marks.replace('_', ' ')}: {count}
-                                  </Badge>
-                                ))}
-                              </div>
-                            </div>
-                            <div>
-                              <h4 className="font-medium mb-2">Examples:</h4>
-                              <ul className="text-sm text-muted-foreground space-y-1">
-                                {pattern.examples.slice(0, 2).map((example: string, exIndex: number) => (
-                                  <li key={exIndex} className="truncate">• {example}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Sample Questions */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Lightbulb className="h-5 w-5" />
-                      Generated Sample Questions
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      {analysisResult.sample_questions.map((question: string, index: number) => (
-                        <div key={index} className="p-4 border rounded-lg">
-                          <div className="flex items-start gap-3">
-                            <div className="flex-shrink-0 w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                              <span className="text-sm font-medium text-primary">{index + 1}</span>
-                            </div>
-                            <p className="text-sm leading-relaxed">{question}</p>
+                          </div>
+                          <div>
+                            <h4 className="font-medium mb-1 text-sm">Recommendation:</h4>
+                            <p className="text-sm text-muted-foreground">{unit.recommendation}</p>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Question Patterns */}
+                <div className="rounded-md border p-4 space-y-4">
+                  <div className="flex items-center gap-2 border-l-2 border-l-primary pl-3">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      Question Patterns
+                    </h3>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2 pl-5">
+                    {analysisResult.question_patterns.map((pattern: any, index: number) => (
+                      <div key={index} className="rounded-md border p-4">
+                        <h4 className="text-sm font-semibold">{pattern.question_type}</h4>
+                        <div className="text-sm text-muted-foreground">
+                          Frequency: {pattern.frequency} times
+                        </div>
+                        <div className="space-y-3 mt-3">
+                          <div>
+                            <h4 className="font-medium mb-2 text-sm">Marks Distribution:</h4>
+                            <div className="flex gap-2 flex-wrap">
+                              {Object.entries(pattern.marks_distribution).map(([marks, count]: [string, any]) => (
+                                <Badge key={marks} variant="outline" className="rounded-md">
+                                  {marks.replace('_', ' ')}: {count}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <h4 className="font-medium mb-2 text-sm">Examples:</h4>
+                            <ul className="text-sm text-muted-foreground space-y-1">
+                              {pattern.examples.slice(0, 2).map((example: string, exIndex: number) => (
+                                <li key={exIndex} className="truncate">&bull; {example}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Sample Questions */}
+                <div className="rounded-md border p-4 space-y-4">
+                  <div className="flex items-center gap-2 border-l-2 border-l-primary pl-3">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <Lightbulb className="h-5 w-5" />
+                      Generated Sample Questions
+                    </h3>
+                  </div>
+                  <div className="space-y-4 pl-5">
+                    {analysisResult.sample_questions.map((question: string, index: number) => (
+                      <div key={index} className="p-4 rounded-md border">
+                        <div className="flex items-start gap-3">
+                          <div className="flex-shrink-0 w-8 h-8 rounded-md bg-secondary flex items-center justify-center">
+                            <span className="text-sm font-medium">{index + 1}</span>
+                          </div>
+                          <p className="text-sm leading-relaxed">{question}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
                 {/* Preparation Strategy */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
+                <div className="rounded-md border p-4 space-y-4">
+                  <div className="flex items-center gap-2 border-l-2 border-l-primary pl-3">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
                       <CheckCircle className="h-5 w-5" />
                       Preparation Strategy
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-muted-foreground leading-relaxed whitespace-pre-line">
-                      {analysisResult.preparation_strategy}
-                    </p>
-                  </CardContent>
-                </Card>
+                    </h3>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed whitespace-pre-line pl-5">
+                    {analysisResult.preparation_strategy}
+                  </p>
+                </div>
 
                 {/* Actions */}
                 <div className="flex gap-4">
-                  <Button 
+                  <Button
                     onClick={() => setAnalysisResult(null)}
                     variant="outline"
+                    className="rounded-md"
                   >
                     Generate New Analysis
                   </Button>
-                  <Button 
+                  <Button
                     onClick={() => {
                       const dataStr = JSON.stringify(analysisResult, null, 2)
                       const dataBlob = new Blob([dataStr], {type: 'application/json'})
@@ -658,6 +643,7 @@ export default function TestPage() {
                       link.download = 'question-paper-analysis.json'
                       link.click()
                     }}
+                    className="rounded-md"
                   >
                     <Download className="h-4 w-4 mr-2" />
                     Download Report
@@ -671,27 +657,27 @@ export default function TestPage() {
         <TabsContent value="mock">
           <div className="grid gap-6 max-w-6xl mx-auto">
             {/* Mock Test Generator */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <div className="rounded-md border">
+              <div className="p-4 border-b">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
                   <Target className="h-5 w-5" />
                   Generate Mock Test
-                </CardTitle>
-                <CardDescription>
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
                   Create a personalized mock test based on your study materials
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
+                </p>
+              </div>
+              <div className="p-4 space-y-6">
                 <div className="grid gap-6 lg:grid-cols-2">
                   {/* Material Selection */}
                   <div className="space-y-4">
                     <h3 className="font-semibold text-base">Select Study Materials</h3>
-                    
+
                     {/* Syllabus Selection */}
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">Syllabus (Required)</Label>
                       <Select value={selectedSyllabus} onValueChange={setSelectedSyllabus}>
-                        <SelectTrigger>
+                        <SelectTrigger className="rounded-md h-9 text-[13px]">
                           <SelectValue placeholder="Choose syllabus PDF" />
                         </SelectTrigger>
                         <SelectContent>
@@ -753,7 +739,7 @@ export default function TestPage() {
                     <div className="space-y-2">
                       <Label className="text-sm font-medium">Study Notes (Optional)</Label>
                       <Select value={selectedNotes} onValueChange={setSelectedNotes}>
-                        <SelectTrigger>
+                        <SelectTrigger className="rounded-md h-9 text-[13px]">
                           <SelectValue placeholder="Choose study notes (optional)" />
                         </SelectTrigger>
                         <SelectContent>
@@ -774,7 +760,7 @@ export default function TestPage() {
                   {/* Test Configuration */}
                   <div className="space-y-4">
                     <h3 className="font-semibold text-base">Test Configuration</h3>
-                    
+
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="space-y-2">
                         <Label htmlFor="numMcq">MCQ Questions</Label>
@@ -788,9 +774,10 @@ export default function TestPage() {
                             ...prev,
                             numMcq: parseInt(e.target.value) || 15
                           }))}
+                          className="rounded-md h-9 text-[13px]"
                         />
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Label htmlFor="numText">Descriptive Questions</Label>
                         <Input
@@ -803,9 +790,10 @@ export default function TestPage() {
                             ...prev,
                             numText: parseInt(e.target.value) || 5
                           }))}
+                          className="rounded-md h-9 text-[13px]"
                         />
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Label htmlFor="totalMarks">Total Marks</Label>
                         <Input
@@ -818,9 +806,10 @@ export default function TestPage() {
                             ...prev,
                             totalMarks: parseInt(e.target.value) || 50
                           }))}
+                          className="rounded-md h-9 text-[13px]"
                         />
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Label htmlFor="difficulty">Difficulty Level</Label>
                         <Select
@@ -830,7 +819,7 @@ export default function TestPage() {
                             difficultyLevel: value
                           }))}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger className="rounded-md h-9 text-[13px]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -846,7 +835,7 @@ export default function TestPage() {
                           <Label htmlFor="assign-student">Assign to Student</Label>
                           <select
                             id="assign-student"
-                            className="w-full border rounded px-3 py-2 text-sm bg-background"
+                            className="w-full rounded-md border bg-background px-3 py-1.5 text-[13px] h-9"
                             value={selectedStudent}
                             onChange={(e) => setSelectedStudent(e.target.value)}
                           >
@@ -870,6 +859,7 @@ export default function TestPage() {
                           placeholder="e.g. Mathematics"
                           value={subject}
                           onChange={(e) => setSubject(e.target.value)}
+                          className="rounded-md h-9 text-[13px]"
                         />
                       </div>
 
@@ -881,6 +871,7 @@ export default function TestPage() {
                           placeholder="e.g. Calculus, Algebra"
                           value={selectedTopics}
                           onChange={(e) => setSelectedTopics(e.target.value)}
+                          className="rounded-md h-9 text-[13px]"
                         />
                       </div>
 
@@ -898,24 +889,24 @@ export default function TestPage() {
                       )}
                     </div>
 
-                    <div className="p-4 bg-muted/30 rounded-lg">
-                      <h4 className="font-medium mb-2">Test Summary</h4>
+                    <div className="rounded-md border bg-secondary/50 p-4">
+                      <h4 className="font-medium mb-2 text-sm">Test Summary</h4>
                       <div className="text-sm text-muted-foreground space-y-1">
-                        <p>• {mockTestSettings.numMcq} MCQ questions (2 marks each)</p>
-                        <p>• {mockTestSettings.numText} descriptive questions</p>
-                        <p>• Total marks: {mockTestSettings.totalMarks}</p>
-                        <p>• Estimated time: {Math.ceil((mockTestSettings.numMcq * 2 + mockTestSettings.numText * 10))} minutes</p>
-                        <p>• Difficulty: {mockTestSettings.difficultyLevel}</p>
+                        <p>&bull; {mockTestSettings.numMcq} MCQ questions (2 marks each)</p>
+                        <p>&bull; {mockTestSettings.numText} descriptive questions</p>
+                        <p>&bull; Total marks: {mockTestSettings.totalMarks}</p>
+                        <p>&bull; Estimated time: {Math.ceil((mockTestSettings.numMcq * 2 + mockTestSettings.numText * 10))} minutes</p>
+                        <p>&bull; Difficulty: {mockTestSettings.difficultyLevel}</p>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <Button 
+                <Button
                   onClick={handleGenerateMockTest}
                   disabled={isGeneratingMockTest || !selectedSyllabus || selectedSyllabus === 'no-pdfs' || selectedQuestionPapers.length === 0}
-                  className="w-full"
-                  size="lg"
+                  className="w-full rounded-md h-9 text-[13px]"
+                  size="sm"
                 >
                   {isGeneratingMockTest ? (
                     <span className="flex items-center gap-2">
@@ -929,21 +920,21 @@ export default function TestPage() {
                     </span>
                   )}
                 </Button>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {/* Upload New PDFs (if needed) */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
+            <div className="rounded-md border">
+              <div className="p-4 border-b">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
                   <FileUp className="h-5 w-5" />
                   Upload New PDFs
-                </CardTitle>
-                <CardDescription>
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
                   Add new study materials to your collection
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
+                </p>
+              </div>
+              <div className="p-4 space-y-4">
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="questionPaper">Question Papers</Label>
@@ -953,6 +944,7 @@ export default function TestPage() {
                         type="file"
                         accept=".pdf,.doc,.docx"
                         onChange={(e) => handleFileSelect('questionPaper', e.target.files?.[0] || null)}
+                        className="rounded-md h-9 text-[13px]"
                       />
                       <FileText className="h-5 w-5 text-muted-foreground" />
                     </div>
@@ -966,6 +958,7 @@ export default function TestPage() {
                         type="file"
                         accept=".pdf,.doc,.docx"
                         onChange={(e) => handleFileSelect('syllabus', e.target.files?.[0] || null)}
+                        className="rounded-md h-9 text-[13px]"
                       />
                       <Book className="h-5 w-5 text-muted-foreground" />
                     </div>
@@ -979,16 +972,17 @@ export default function TestPage() {
                         type="file"
                         accept=".pdf,.doc,.docx"
                         onChange={(e) => handleFileSelect('notes', e.target.files?.[0] || null)}
+                        className="rounded-md h-9 text-[13px]"
                       />
                       <FileText className="h-5 w-5 text-muted-foreground" />
                     </div>
                   </div>
                 </div>
 
-                <Button 
-                  onClick={handleUpload} 
+                <Button
+                  onClick={handleUpload}
                   disabled={isUploading || !Object.values(selectedFiles).some(file => file)}
-                  className="w-full"
+                  className="w-full rounded-md"
                 >
                   {isUploading ? (
                     <span className="flex items-center gap-2">
@@ -999,33 +993,34 @@ export default function TestPage() {
                     'Upload Files'
                   )}
                 </Button>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {/* Existing Mock Tests */}
-            <Card>
-              <CardHeader>
+            <div className="rounded-md border">
+              <div className="p-4 border-b">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
                       <Clock className="h-5 w-5" />
                       Your Mock Tests
-                    </CardTitle>
-                    <CardDescription>
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">
                       Previously generated mock tests ready to take
-                    </CardDescription>
+                    </p>
                   </div>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     size="sm"
                     onClick={fetchMockTests}
                     disabled={isLoadingMockTests}
+                    className="rounded-md h-9 text-[13px]"
                   >
                     Refresh
                   </Button>
                 </div>
-              </CardHeader>
-              <CardContent>
+              </div>
+              <div className="p-4">
                 {isLoadingMockTests ? (
                   <div className="flex items-center justify-center py-8">
                     <div className="text-center">
@@ -1035,74 +1030,44 @@ export default function TestPage() {
                   </div>
                 ) : (mockTests && mockTests.length === 0) ? (
                   <div className="text-center py-8">
-                    <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                    <div className="mx-auto w-16 h-16 rounded-md bg-secondary flex items-center justify-center mb-4">
                       <Target className="h-8 w-8 text-muted-foreground" />
                     </div>
                     <p className="text-muted-foreground mb-2">No mock tests generated yet</p>
                     <p className="text-sm text-muted-foreground">Generate your first mock test using the form above!</p>
                   </div>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <div className="rounded-md border">
+                    <div className="grid grid-cols-[1fr_80px_80px_80px_100px] gap-4 px-4 py-2 border-b text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      <span>Title</span>
+                      <span className="text-right">Questions</span>
+                      <span className="text-right">Marks</span>
+                      <span className="text-right">Time</span>
+                      <span className="text-right">Actions</span>
+                    </div>
                     {(mockTests || []).map((test: any) => (
-                      <Card key={test.test_id} className="hover:shadow-md transition-shadow">
-                        <CardContent className="pt-6">
-                          <div className="space-y-3">
-                            <div>
-                              <h4 className="font-semibold text-base truncate">{test.title}</h4>
-                              <div className="text-xs text-muted-foreground">
-                                Created: {new Date(test.created_at).toLocaleDateString()}
-                              </div>
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-2 text-sm">
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <CheckCircle className="h-4 w-4" />
-                                <span>{test.questions.length} questions</span>
-                              </div>
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <Target className="h-4 w-4" />
-                                <span>{test.total_marks} marks</span>
-                              </div>
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <Clock className="h-4 w-4" />
-                                <span>{test.time_limit} min</span>
-                              </div>
-                              <div className="flex items-center gap-1 text-muted-foreground">
-                                <Brain className="h-4 w-4" />
-                                <span className="capitalize">{test.difficulty_level}</span>
-                              </div>
-                            </div>
-                            
-                            <Separator />
-                            
-                            <div className="space-y-2">
-                              <Button 
-                                className="w-full"
-                                onClick={() => handleStartTest(test.test_id)}
-                              >
-                                <Target className="h-4 w-4 mr-2" />
-                                Start Test
-                              </Button>
-                              
-                              {test.latest_submission && (
-                                <Button 
-                                  variant="outline"
-                                  className="w-full"
-                                  onClick={() => handleViewResults(test.test_id, test.latest_submission!.submission_id)}
-                                >
-                                  <BarChart3 className="h-4 w-4 mr-2" />
-                                  View Results ({test.latest_submission.percentage.toFixed(1)}%)
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <div key={test.test_id} className="grid grid-cols-[1fr_80px_80px_80px_100px] gap-4 px-4 py-3 border-b last:border-b-0 items-center">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{test.title}</p>
+                          <p className="text-xs text-muted-foreground font-mono">{new Date(test.created_at).toLocaleDateString()}</p>
+                        </div>
+                        <span className="text-sm tabular-nums text-right">{test.questions.length}</span>
+                        <span className="text-sm tabular-nums text-right">{test.total_marks}</span>
+                        <span className="text-sm tabular-nums text-right">{test.time_limit}m</span>
+                        <div className="flex gap-1 justify-end">
+                          <Button size="sm" className="rounded-md h-7 text-xs" onClick={() => handleStartTest(test.test_id)}>Start</Button>
+                          {test.latest_submission && (
+                            <Button variant="outline" size="sm" className="rounded-md h-7 text-xs" onClick={() => handleViewResults(test.test_id, test.latest_submission!.submission_id)}>
+                              {test.latest_submission.percentage.toFixed(0)}%
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
         </TabsContent>
       </Tabs>
