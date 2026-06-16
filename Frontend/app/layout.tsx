@@ -9,7 +9,6 @@ import { AuthProvider } from '@/lib/context/auth-context';
 const sans = Inter({
   subsets: ['latin'],
   variable: '--font-sans',
-  fontFeatureSettings: '"ss01", "ss02"',
 });
 
 const mono = JetBrains_Mono({

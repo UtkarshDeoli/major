@@ -86,6 +86,7 @@
     @apply bg-background text-foreground;
     background: hsl(var(--background));
     min-height: 100vh;
+    font-feature-settings: "ss01", "ss02";
   }
 }
 
