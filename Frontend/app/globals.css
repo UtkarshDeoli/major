@@ -210,3 +210,33 @@
   }
 }
 
+/* ── Landing page styles ── */
+
+/* Testimonials auto-scroll */
+.animate-scroll {
+  animation: scroll 25s linear infinite;
+}
+.animate-scroll:hover {
+  animation-play-state: paused;
+}
+
+@keyframes scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* Gradient text animation */
+.gradient-text {
+  background: linear-gradient(135deg, #1DA1F2 0%, #4DB5FF 25%, #1DA1F2 50%, #4DB5FF 75%, #1DA1F2 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-shift 5s ease infinite;
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+

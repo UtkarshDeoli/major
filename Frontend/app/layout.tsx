@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { Inter, JetBrains_Mono } from 'next/font/google';
+import { Inter, JetBrains_Mono, Instrument_Serif } from 'next/font/google';
+import localFont from 'next/font/local';
 import { ThemeProvider } from '@/components/providers/theme-provider';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
@@ -15,6 +16,24 @@ const mono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-mono',
   weight: ['400'],
+});
+
+// Landing page fonts (Satoshi + Instrument Serif)
+const heading = localFont({
+  src: [
+    { path: '../public/fonts/Satoshi-Light.woff2', weight: '300', style: 'normal' },
+    { path: '../public/fonts/Satoshi-Regular.woff2', weight: '400', style: 'normal' },
+    { path: '../public/fonts/Satoshi-Medium.woff2', weight: '500', style: 'normal' },
+    { path: '../public/fonts/Satoshi-Bold.woff2', weight: '700', style: 'normal' },
+    { path: '../public/fonts/Satoshi-Black.woff2', weight: '900', style: 'normal' },
+  ],
+  variable: '--font-heading',
+});
+
+const subheading = Instrument_Serif({
+  subsets: ['latin'],
+  weight: ['400'],
+  variable: '--font-subheading',
 });
 
 export const metadata: Metadata = {
@@ -34,6 +53,8 @@ export default function RootLayout({
           'min-h-screen bg-background text-foreground antialiased font-sans overflow-x-hidden',
           sans.variable,
           mono.variable,
+          heading.variable,
+          subheading.variable,
         )}
         suppressHydrationWarning
       >

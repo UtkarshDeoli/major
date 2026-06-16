@@ -18,6 +18,9 @@ const config: Config = {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+        xl: '12px',
+        '2xl': '16px',
+        '3xl': '24px',
       },
       colors: {
         background: 'hsl(var(--background))',
@@ -63,7 +66,12 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['var(--font-sans)', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        heading: ['var(--font-heading)', 'Satoshi', 'Inter', 'system-ui', 'sans-serif'],
+        subheading: ['var(--font-subheading)', 'Instrument Serif', 'Georgia', 'serif'],
         mono: ['var(--font-mono)', 'JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+      },
+      spacing: {
+        '1/8': '12.5%',
       },
       keyframes: {
         'accordion-down': {
@@ -78,11 +86,44 @@ const config: Config = {
           from: { opacity: '0' },
           to: { opacity: '1' },
         },
+        flip: {
+          to: { transform: 'rotate(360deg)' },
+        },
+        rotate: {
+          to: { transform: 'rotate(90deg)' },
+        },
+        orbit: {
+          '0%': {
+            transform: 'rotate(calc(var(--angle) * 1deg)) translateY(calc(var(--radius) * 1px)) rotate(calc(var(--angle) * -1deg))',
+          },
+          '100%': {
+            transform: 'rotate(calc(var(--angle) * 1deg + 360deg)) translateY(calc(var(--radius) * 1px)) rotate(calc((var(--angle) * -1deg) - 360deg))',
+          },
+        },
+        ripple: {
+          '0%, 100%': { transform: 'translate(-50%, -50%) scale(1)' },
+          '50%': { transform: 'translate(-50%, -50%) scale(0.9)' },
+        },
+        'image-glow': {
+          '0%': { opacity: '0' },
+          '10%': { opacity: '0.5' },
+          '100%': { opacity: '1' },
+        },
+        scroll: {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         'fade-in': 'fade-in 0.2s ease-out',
+        flip: 'flip 6s infinite steps(2, end)',
+        rotate: 'rotate 3s linear infinite both',
+        orbit: 'orbit calc(var(--duration)*1s) linear infinite',
+        ripple: 'ripple var(--duration,2s) ease calc(var(--i, 0)*.2s) infinite',
+        'image-glow': 'image-glow 6s ease-out 0.6s forwards',
+        scroll: 'scroll 25s linear infinite',
       },
     },
   },

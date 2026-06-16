@@ -20,10 +20,10 @@ export function MagicCard({
     ...props
 }: MagicCardProps) {
     return (
-        <div className={cn("group relative flex size-full rounded-md", className)} {...props}>
+        <div className={cn("group relative flex size-full rounded-xl", className)} {...props}>
             {/* Gradient border (1px sharp line) */}
             <div
-                className="absolute inset-0 rounded-md opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                className="absolute inset-0 rounded-xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
                 style={{
                     background: `linear-gradient(135deg, ${gradientFrom}, ${gradientTo})`,
                 }}
@@ -31,13 +31,13 @@ export function MagicCard({
 
             {/* Card background with uniform inner glow on hover */}
             <div
-                className="absolute inset-[1px] z-10 rounded-md bg-card transition-all duration-300"
+                className="absolute inset-[1px] z-10 rounded-xl bg-card transition-all duration-300"
                 style={{
                     boxShadow: "inset 0 0 0 0 transparent",
                 }}
             />
             <div
-                className="absolute inset-[1px] z-10 rounded-md opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                className="absolute inset-[1px] z-10 rounded-xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
                 style={{
                     background: innerGlowColor,
                 }}
