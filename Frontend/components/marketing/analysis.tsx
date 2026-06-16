@@ -19,7 +19,7 @@ const Analysis = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative w-full">
 
                 <Container delay={0.2}>
-                    <div className="rounded-2xl bg-background/40 relative border border-border/50">
+                    <div className="rounded-2xl bg-background/40 relative">
                         <MagicCard
                             gradientFrom="#38bdf8"
                             gradientTo="#3b82f6"
@@ -60,7 +60,7 @@ const Analysis = () => {
                                             { name: "Chemistry", status: "Active", quizzes: "18", score: "85%" },
                                             { name: "Math", status: "Done", quizzes: "32", score: "88%" },
                                         ].map((subject) => (
-                                            <div key={subject.name} className="grid grid-cols-4 text-sm py-2 border-t border-border/50">
+                                            <div key={subject.name} className="grid grid-cols-4 text-sm py-2 border-t border-white/5">
                                                 <div>{subject.name}</div>
                                                 <div>{subject.status}</div>
                                                 <div>{subject.quizzes}</div>
@@ -75,7 +75,7 @@ const Analysis = () => {
                 </Container>
 
                 <Container delay={0.2}>
-                    <div className="rounded-2xl bg-background/40 relative border border-border/50">
+                    <div className="rounded-2xl bg-background/40 relative">
                         <MagicCard
                             gradientFrom="#38bdf8"
                             gradientTo="#3b82f6"
@@ -114,7 +114,7 @@ const Analysis = () => {
                                             { activity: "Quiz", hours: "15h", docs: "5", quizzes: "24" },
                                             { activity: "Read", hours: "15h", docs: "8", quizzes: "0" },
                                         ].map((metric) => (
-                                            <div key={metric.activity} className="grid grid-cols-4 text-sm py-2 border-t border-border/50">
+                                            <div key={metric.activity} className="grid grid-cols-4 text-sm py-2 border-t border-white/5">
                                                 <div>{metric.activity}</div>
                                                 <div>{metric.hours}</div>
                                                 <div>{metric.docs}</div>

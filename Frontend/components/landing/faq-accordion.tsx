@@ -37,11 +37,11 @@ export function FAQAccordion({ items, isLoaded }: FAQAccordionProps) {
         <div
           key={index}
           className={cn(
-            "rounded-xl border transition-all duration-500 overflow-hidden",
+            "rounded-xl transition-all duration-500 overflow-hidden",
             isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4",
             openIndex === index
-              ? "bg-card border-border"
-              : "bg-card/50 border-border/30 hover:border-border/60"
+              ? "bg-card"
+              : "bg-card/50 hover:bg-card/70"
           )}
           style={{ transitionDelay: `${index * 50}ms` }}
         >
