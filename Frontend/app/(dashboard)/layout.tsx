@@ -1,61 +1,35 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import AuthProtection from "@/components/auth/route-protection/auth-protection";
-import AppShell from "@/components/dashboard/app-shell";
-import { DashboardProvider } from "@/lib/context/dashboard-context";
+import { useEffect } from "react"
+import { usePathname, useRouter } from "next/navigation"
+import { Toaster } from "@/components/ui/toaster"
+import AuthProtection from "@/components/auth/route-protection/auth-protection"
+import { useAuth } from "@/lib/context/auth-context"
 
 export default function DashboardLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
-  const router = useRouter();
-  const [onboardingChecked, setOnboardingChecked] = useState(false);
-  const [shouldRedirect, setShouldRedirect] = useState(false);
+  const router = useRouter()
+  const pathname = usePathname()
+  const { user, role, isLoading } = useAuth()
 
   useEffect(() => {
-    const checkOnboarding = async () => {
-      try {
-        const res = await fetch("/api/onboarding");
-        if (!res.ok) {
-          setOnboardingChecked(true);
-          return;
-        }
-        const data = await res.json();
-        if (data.onboarding_completed === false) {
-          setShouldRedirect(true);
-        }
-      } catch (error) {
-        console.error("Error checking onboarding status:", error);
-      } finally {
-        setOnboardingChecked(true);
-      }
-    };
+    if (isLoading) return
 
-    checkOnboarding();
-  }, []);
-
-  useEffect(() => {
-    if (shouldRedirect) {
-      router.push("/onboarding");
+    // Role-aware default redirect: teachers land on their own dashboard
+    if (role === "teacher" && pathname === "/dashboard") {
+      router.replace("/teacher")
     }
-  }, [shouldRedirect, router]);
-
-  if (!onboardingChecked || shouldRedirect) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="h-10 w-10 rounded-full bg-primary animate-pulse-glow" />
-      </div>
-    );
-  }
+  }, [isLoading, role, pathname, router])
 
   return (
     <AuthProtection>
-      <DashboardProvider>
-        <AppShell>{children}</AppShell>
-      </DashboardProvider>
+      <div className="min-h-screen">
+        {children}
+        <Toaster />
+      </div>
     </AuthProtection>
-  );
+  )
 }

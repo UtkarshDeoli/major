@@ -1,4 +1,3 @@
-import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -15,25 +14,33 @@ from src.core.models import User
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# MongoDB connection with error handling
-try:
-    client = AsyncIOMotorClient(
-        MONGODB_URL,
-        serverSelectionTimeoutMS=MONGODB_CONNECT_TIMEOUT
-    )
-    # Defer connection verification until the first actual DB operation to avoid
-    # requiring a running event loop at import time.
-    print(f"Configured MongoDB client for {MONGODB_URL}")
-    
-    db = client[MONGODB_DB_NAME]
-    users_collection = db.users
-except (ConnectionFailure, ServerSelectionTimeoutError, ValueError) as e:
-    print(f"MongoDB connection error: {e}")
-    print("WARNING: Authentication service will not work until MongoDB is available")
-    # We'll initialize these as None and check before each operation
-    client = None
-    db = None
-    users_collection = None
+# MongoDB connection (initialized lazily on first use so the client is bound to
+# the event loop that actually performs I/O, e.g. the loop created by TestClient).
+client = None
+db = None
+users_collection = None
+
+
+def _ensure_auth_db():
+    """Create the MongoDB client and users collection if not already present."""
+    global client, db, users_collection
+    if users_collection is not None:
+        return
+
+    try:
+        client = AsyncIOMotorClient(
+            MONGODB_URL,
+            serverSelectionTimeoutMS=MONGODB_CONNECT_TIMEOUT
+        )
+        db = client[MONGODB_DB_NAME]
+        users_collection = db.users
+    except (ConnectionFailure, ServerSelectionTimeoutError, ValueError) as e:
+        print(f"MongoDB connection error: {e}")
+        print("WARNING: Authentication service will not work until MongoDB is available")
+        client = None
+        db = None
+        users_collection = None
+
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -44,12 +51,13 @@ def get_password_hash(password):
 
 
 async def get_user_by_email(email: str):
+    _ensure_auth_db()
     if users_collection is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database connection not available"
         )
-    
+
     try:
         user = await users_collection.find_one({"email": email})
         return user
@@ -68,6 +76,7 @@ async def create_user(
     institute: Optional[str] = None,
     preferred_language: Optional[str] = None
 ):
+    _ensure_auth_db()
     if users_collection is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -116,12 +125,13 @@ async def create_user(
 
 
 async def authenticate_user(email: str, password: str):
+    _ensure_auth_db()
     if users_collection is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Database connection not available"
         )
-    
+
     try:
         user = await get_user_by_email(email)
         if not user:

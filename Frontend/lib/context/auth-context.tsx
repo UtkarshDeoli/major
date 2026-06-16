@@ -1,163 +1,115 @@
-"use client";
+"use client"
 
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-} from "react";
-import { useRouter } from "next/navigation";
-import api from "@/lib/api";
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react"
+import { authAPI } from "@/lib/api"
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+export type UserRole = "student" | "teacher" | "subadmin" | "admin"
 
-export type UserRole = "student" | "teacher" | "subadmin" | "admin";
-
-export interface SubscriptionInfo {
-  plan: "weekly" | "monthly";
-  started_at: string;
-  expires_at: string;
-  status: "active" | "expired" | "cancelled";
-}
-
-export interface User {
-  email: string;
-  name?: string;
-  role: UserRole;
-  institute?: string;
-  preferred_language: string;
-  onboarding_completed: boolean;
-  active_exam_id?: string;
-  teacher_id?: string;
-  managed_by?: string;
-  license_id?: string;
-  subscription?: SubscriptionInfo;
+export interface AuthUser {
+  email: string
+  name?: string
+  role: UserRole
+  onboarding_completed?: boolean
+  institute?: string
+  preferred_language?: string
+  active_exam_id?: string
+  teacher_id?: string
+  managed_by?: string
+  license_id?: string
+  subscription?: {
+    plan?: string
+    status?: string
+    expires_at?: string
+  }
 }
 
 interface AuthContextValue {
-  user: User | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (payload: SignupPayload) => Promise<void>;
-  logout: () => void;
-  refreshUser: () => Promise<void>;
-  hasRole: (...roles: UserRole[]) => boolean;
+  user: AuthUser | null
+  role: UserRole | null
+  isLoading: boolean
+  isAuthenticated: boolean
+  login: (email: string, password: string) => Promise<AuthUser>
+  signup: (email: string, password: string, name?: string) => Promise<AuthUser>
+  logout: () => void
+  refreshUser: () => Promise<AuthUser | null>
 }
 
-export interface SignupPayload {
-  email: string;
-  password: string;
-  name?: string;
-}
+const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
-// ─── Context ────────────────────────────────────────────────────────────────
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const readToken = () => {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem("token");
-  };
-
-  const fetchMe = useCallback(async () => {
-    const token = readToken();
-    if (!token) {
-      setUser(null);
-      setIsLoading(false);
-      return;
+  const loadUser = useCallback(async () => {
+    if (!authAPI.isAuthenticated()) {
+      setIsLoading(false)
+      setUser(null)
+      return null
     }
+
     try {
-      const response = await api.get("/auth/me");
-      setUser(response.data as User);
+      const me = await authAPI.getMe()
+      setUser(me)
+      return me as AuthUser
     } catch (error) {
-      console.error("Failed to fetch current user:", error);
-      localStorage.removeItem("token");
-      setUser(null);
+      console.error("Failed to load current user:", error)
+      authAPI.logout()
+      setUser(null)
+      return null
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  }, []);
+  }, [])
 
   useEffect(() => {
-    fetchMe();
-  }, [fetchMe]);
+    loadUser()
+  }, [loadUser])
 
-  const login = useCallback(
-    async (email: string, password: string) => {
-      const params = new URLSearchParams();
-      params.append("username", email);
-      params.append("password", password);
-      const response = await api.post("/auth/login", params, {
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      });
-      const { access_token } = response.data as { access_token: string };
-      localStorage.setItem("token", access_token);
-      await fetchMe();
-      router.replace("/dashboard");
-    },
-    [fetchMe, router]
-  );
+  const login = useCallback(async (email: string, password: string) => {
+    await authAPI.login(email, password)
+    const me = await loadUser()
+    if (!me) {
+      throw new Error("Login succeeded but user profile could not be loaded.")
+    }
+    return me
+  }, [loadUser])
 
-  const signup = useCallback(
-    async (payload: SignupPayload) => {
-      const response = await api.post("/auth/signup", payload);
-      const { access_token } = response.data as { access_token: string };
-      if (access_token) {
-        localStorage.setItem("token", access_token);
-        await fetchMe();
-        router.replace("/onboarding");
-      }
-    },
-    [fetchMe, router]
-  );
+  const signup = useCallback(async (email: string, password: string, name?: string) => {
+    await authAPI.signup(email, password, name)
+    const me = await loadUser()
+    if (!me) {
+      throw new Error("Signup succeeded but user profile could not be loaded.")
+    }
+    return me
+  }, [loadUser])
 
   const logout = useCallback(() => {
-    localStorage.removeItem("token");
-    setUser(null);
-    router.replace("/login");
-  }, [router]);
+    authAPI.logout()
+    setUser(null)
+  }, [])
 
   const refreshUser = useCallback(async () => {
-    await fetchMe();
-  }, [fetchMe]);
+    return loadUser()
+  }, [loadUser])
 
-  const hasRole = useCallback(
-    (...roles: UserRole[]) => {
-      if (!user) return false;
-      return roles.includes(user.role);
-    },
-    [user]
-  );
+  const value: AuthContextValue = {
+    user,
+    role: user?.role ?? null,
+    isLoading,
+    isAuthenticated: !!user,
+    login,
+    signup,
+    logout,
+    refreshUser,
+  }
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isLoading,
-        isAuthenticated: !!user,
-        login,
-        signup,
-        logout,
-        refreshUser,
-        hasRole,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (ctx === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
+export function useAuth() {
+  const context = useContext(AuthContext)
+  if (context === undefined) {
+    throw new Error("useAuth must be used within an AuthProvider")
   }
-  return ctx;
+  return context
 }
