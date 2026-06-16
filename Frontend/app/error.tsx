@@ -15,7 +15,7 @@ export default function Error({
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
       <div className="text-center max-w-md">
         <div className="text-7xl font-bold text-destructive mb-4">500</div>
-        <h1 className="text-2xl md:text-3xl font-heading font-semibold text-foreground mb-4">
+        <h1 className="text-2xl md:text-3xl font-sans font-semibold text-foreground mb-4">
           You have encountered an error
         </h1>
         <p className="text-muted-foreground mb-8">

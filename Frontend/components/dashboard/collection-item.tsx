@@ -13,7 +13,7 @@ export function CollectionItem({ collection }: CollectionItemProps) {
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className="border rounded-lg overflow-hidden">
+    <div className="border rounded-md overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
         className="flex items-center gap-3 w-full p-3 text-left hover:bg-muted/50 transition-colors"

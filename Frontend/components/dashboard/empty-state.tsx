@@ -45,15 +45,15 @@ export function EmptyState({ onUploadDocument }: EmptyStateProps) {
         
         {/* Features grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-12">
-          <div className="p-4 border rounded-lg bg-card">
+          <div className="p-4 border rounded-md bg-card">
             <FileText className="h-8 w-8 text-primary/70 mb-2 mx-auto" />
             <h3 className="font-medium mb-1">Document Analysis</h3>
             <p className="text-sm text-muted-foreground">
               Extract key information from your study materials
             </p>
           </div>
-          
-          <div className="p-4 border rounded-lg bg-card">
+
+          <div className="p-4 border rounded-md bg-card">
             <MessageSquare className="h-8 w-8 text-primary/70 mb-2 mx-auto" />
             <h3 className="font-medium mb-1">AI Conversations</h3>
             <p className="text-sm text-muted-foreground">

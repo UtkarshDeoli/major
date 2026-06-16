@@ -52,7 +52,7 @@ export function ActiveStudyCard({ onAddExam, onContinueSession }: ActiveStudyCar
             <span className="text-xs uppercase tracking-wider text-muted-foreground">
               Currently Preparing For
             </span>
-            <h2 className="font-subheading italic text-2xl">{activeExam.name}</h2>
+            <h2 className="font-sans italic text-2xl">{activeExam.name}</h2>
             <Button
               variant="ghost"
               className="w-fit px-0"

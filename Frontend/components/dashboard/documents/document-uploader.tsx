@@ -138,7 +138,7 @@ export function DocumentUploader({ onUpload, onCancel }: DocumentUploaderProps) 
         
         <div className="space-y-4 py-4">
           <div 
-            className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors"
+            className="border-2 border-dashed rounded-md p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors"
             onClick={() => fileInputRef.current?.click()}
             onDrop={handleDrop}
             onDragOver={handleDragOver}

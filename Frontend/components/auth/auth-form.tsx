@@ -70,7 +70,7 @@ export function AuthForm({ type }: AuthFormProps) {
         type="button"
         variant="outline"
         onClick={handleGoogleSignIn}
-        className="w-full h-12 rounded-xl bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-300"
+        className="w-full h-12 rounded-md bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-300"
       >
         <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
           <path
@@ -119,7 +119,7 @@ export function AuthForm({ type }: AuthFormProps) {
               placeholder="Enter your full name" 
               required 
               disabled={isLoading}
-              className="h-12 rounded-xl bg-[#1a1a30] border-white/10 pl-12 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20"
+              className="h-12 rounded-md bg-[#1a1a30] border-white/10 pl-12 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20"
             />
           </div>
         </div>
@@ -140,7 +140,7 @@ export function AuthForm({ type }: AuthFormProps) {
             placeholder="Enter your email" 
             required 
             disabled={isLoading}
-            className="h-12 rounded-xl bg-[#1a1a30] border-white/10 pl-12 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20"
+            className="h-12 rounded-md bg-[#1a1a30] border-white/10 pl-12 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20"
           />
         </div>
       </div>
@@ -160,7 +160,7 @@ export function AuthForm({ type }: AuthFormProps) {
             placeholder="Enter your password" 
             required 
             disabled={isLoading}
-            className="h-12 rounded-xl bg-[#1a1a30] border-white/10 pl-12 pr-12 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20"
+            className="h-12 rounded-md bg-[#1a1a30] border-white/10 pl-12 pr-12 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20"
           />
           <Button
             type="button"
@@ -190,7 +190,7 @@ export function AuthForm({ type }: AuthFormProps) {
       {/* Submit Button */}
       <Button 
         type="submit" 
-        className="w-full h-12 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 border-0 shadow-lg shadow-purple-500/25 text-white font-semibold text-lg transition-all duration-300"
+        className="w-full h-12 rounded-md bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 border-0 shadow-lg shadow-purple-500/25 text-white font-semibold text-lg transition-all duration-300"
         disabled={isLoading}
       >
         {isLoading ? (

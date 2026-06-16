@@ -111,7 +111,7 @@ export function OnboardingContainer() {
 
           {isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/50 rounded-md z-20">
-              <div className="h-8 w-8 rounded-full bg-primary animate-pulse-glow" />
+              <div className="h-8 w-8 rounded-full bg-primary" />
             </div>
           )}
 
