@@ -1,39 +1,52 @@
-"use client"
+"use client";
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useAuth, UserRole } from "@/lib/context/auth-context"
+import { useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { useAuth, type UserRole } from "@/lib/context/auth-context";
 
 interface RoleGuardProps {
-  allowedRoles: UserRole[]
-  fallback?: string
-  children: React.ReactNode
+  children: React.ReactNode;
+  allowedRoles?: UserRole[];
+  fallback?: React.ReactNode;
 }
 
 export default function RoleGuard({
-  allowedRoles,
-  fallback = "/dashboard",
   children,
+  allowedRoles,
+  fallback,
 }: RoleGuardProps) {
-  const router = useRouter()
-  const { user, role, isLoading, isAuthenticated } = useAuth()
+  const { user, isLoading, isAuthenticated } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    if (isLoading) return
+    if (isLoading) return;
 
-    if (!isAuthenticated || !role) {
-      router.replace("/login")
-      return
+    if (!isAuthenticated) {
+      router.replace("/login");
+      return;
     }
 
-    if (!allowedRoles.includes(role)) {
-      router.replace(fallback)
+    if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+      // Redirect unauthorized roles to dashboard
+      router.replace("/dashboard");
     }
-  }, [isLoading, isAuthenticated, role, allowedRoles, fallback, router])
+  }, [isLoading, isAuthenticated, user, allowedRoles, router, pathname]);
 
-  if (isLoading || !isAuthenticated || !role || !allowedRoles.includes(role)) {
-    return null
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="h-10 w-10 rounded-full bg-primary animate-pulse-glow" />
+      </div>
+    );
   }
 
-  return <>{children}</>
+  if (!isAuthenticated) return null;
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    return fallback ? (
+      <>{fallback}</>
+    ) : null;
+  }
+
+  return <>{children}</>;
 }

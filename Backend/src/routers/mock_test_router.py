@@ -1,16 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path
 
+from src.core.data_store import users_collection
 from src.core.models import (
     MockTestGenerationRequest,
     MockTestResponse,
-    MockTestQuestion,
     MockTestSubmission,
     MockTestAnalysisResponse,
     MockTestListResponse
 )
 from src.core.security import get_current_user
-from src.core.data_store import get_mock_test as fetch_mock_test_data
-from src.services.auth_service import get_user_by_email
 from src.services.mock_test_service import (
     generate_mock_test_service,
     analyze_mock_test_submission_service,
@@ -65,24 +63,17 @@ async def generate_mock_test(
                 detail="At least one question paper PDF ID is required"
             )
         
-        # Determine ownership / assignment
-        created_by = user_id
-        assigned_to = None
-
-        if request.student_email and request.student_email != user_id:
-            student = await get_user_by_email(request.student_email)
+        # Teachers can generate tests targeting a specific student under them
+        if request.student_email and user_id != request.student_email:
+            if users_collection is None:
+                raise HTTPException(status_code=503, detail="Database unavailable")
+            student = await users_collection.find_one({
+                "email": request.student_email,
+                "teacher_id": user_id,
+            })
             if not student:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Student not found"
-                )
-            if student.get("teacher_id") != user_id:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Not authorized to assign test to this student"
-                )
-            assigned_to = request.student_email
-
+                raise HTTPException(status_code=403, detail="You can only target students you manage")
+        
         # Generate mock test
         mock_test = await generate_mock_test_service(
             syllabus_pdf_id=request.syllabus_pdf_id,
@@ -92,12 +83,11 @@ async def generate_mock_test(
             num_text=request.num_text,
             total_marks=request.total_marks,
             difficulty_level=request.difficulty_level,
+            user_id=user_id,
             focus_topics=request.focus_topics,
             weak_topics=request.weak_topics,
             subject=request.subject,
-            user_id=user_id,
-            created_by=created_by,
-            assigned_to=assigned_to
+            student_email=request.student_email,
         )
         
         return mock_test
@@ -194,52 +184,19 @@ async def submit_mock_test(
                 detail="Test ID mismatch in submission"
             )
         
-        # Validate access to the mock test
-        test_check = await get_mock_test_service(test_id, user_id)
-        if not test_check:
+        # Get the mock test to validate it belongs to the user
+        test = await get_mock_test_service(test_id, user_id)
+        if not test:
             raise HTTPException(
                 status_code=404,
                 detail="Mock test not found"
             )
-
-        # Determine who is allowed to submit
-        submitter_email = user_id
-        if test_check.assigned_to:
-            if test_check.assigned_to != user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Only the assigned student can submit this test"
-                )
-            submitter_email = test_check.assigned_to
-
-        # Load the full test data (with correct answers) for grading
-        test_data = await fetch_mock_test_data(test_id)
-        if not test_data:
-            raise HTTPException(
-                status_code=404,
-                detail="Mock test not found"
-            )
-
-        questions = [MockTestQuestion(**q) for q in test_data["questions"]]
-        test = MockTestResponse(
-            test_id=test_data["test_id"],
-            title=test_data["title"],
-            questions=questions,
-            total_marks=test_data["total_marks"],
-            time_limit=test_data["time_limit"],
-            created_at=test_data["created_at"],
-            user_id=test_data["user_id"],
-            difficulty_level=test_data.get("difficulty_level", "medium"),
-            created_by=test_data.get("created_by"),
-            assigned_to=test_data.get("assigned_to")
-        )
-
+        
         # Analyze the submission
         analysis = await analyze_mock_test_submission_service(
             test=test,
             submission=submission,
-            user_id=user_id,
-            submitter_email=submitter_email
+            user_id=user_id
         )
         
         return analysis
@@ -267,37 +224,26 @@ async def get_mock_test_analysis(
     """
     try:
         # Get the submission analysis from database
-        from src.core.data_store import mock_test_submissions_collection, get_mock_test
-
+        from src.core.data_store import mock_test_submissions_collection
+        
         if mock_test_submissions_collection is None:
             raise HTTPException(
                 status_code=503,
                 detail="Database connection unavailable"
             )
-
-        # Find the submission by ID only, then authorize
+        
+        # Find the submission
         submission = await mock_test_submissions_collection.find_one({
-            "submission_id": submission_id
+            "submission_id": submission_id,
+            "user_id": user_id
         })
-
+        
         if not submission:
             raise HTTPException(
                 status_code=404,
                 detail="Mock test submission not found"
             )
-
-        test_data = await get_mock_test(submission["test_id"])
-        is_owner = submission.get("user_id") == user_id
-        is_creator = test_data is not None and (
-            test_data.get("created_by") == user_id or
-            test_data.get("user_id") == user_id
-        )
-        if not is_owner and not is_creator:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to view this submission"
-            )
-
+        
         # Convert MongoDB document to response model
         analysis_data = {
             "submission_id": submission["submission_id"],
@@ -313,9 +259,9 @@ async def get_mock_test_analysis(
             "study_recommendations": submission["study_recommendations"],
             "created_at": submission["created_at"]
         }
-
+        
         return MockTestAnalysisResponse(**analysis_data)
-
+        
     except HTTPException:
         raise
     except Exception as e:

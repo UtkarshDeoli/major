@@ -12,7 +12,6 @@ from src.core.data_store import (
     materials_collection,
     pdfs_collection,
 )
-from src.core.models import TeacherDashboardAnalytics, TeacherStudentAnalytics
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
@@ -36,6 +35,24 @@ class StudentAnalyticsResponse(BaseModel):
     total_time_spent_seconds: int
     subject_wise: List[SubjectAnalytics]
     recent_submissions: List[Dict]
+
+
+class TeacherStudentAnalytics(BaseModel):
+    email: str
+    name: Optional[str] = None
+    tests_taken: int
+    average_score: float
+    last_active_at: Optional[str] = None
+    strengths: List[str] = []
+    weaknesses: List[str] = []
+
+
+class TeacherDashboardAnalytics(BaseModel):
+    total_students: int
+    active_students: int
+    total_tests_taken: int
+    class_average: float
+    student_analytics: List[TeacherStudentAnalytics]
 
 
 @router.get("/student", response_model=StudentAnalyticsResponse)

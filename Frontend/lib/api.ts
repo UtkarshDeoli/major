@@ -47,11 +47,11 @@ export const authAPI = {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
     });
-
+    
     localStorage.setItem('token', response.data.access_token);
     return response.data;
   },
-
+  
   signup: async (email: string, password: string, name?: string) => {
     const response = await api.post('/auth/signup', { email, password, name });
     // Auto-login after signup if backend returns a token
@@ -60,19 +60,14 @@ export const authAPI = {
     }
     return response.data;
   },
-
+  
   logout: () => {
     localStorage.removeItem('token');
   },
-
+  
   isAuthenticated: () => {
     return !!localStorage.getItem('token');
-  },
-
-  getMe: async () => {
-    const response = await api.get('/auth/me');
-    return response.data;
-  },
+  }
 };
 
 // PDF APIs
@@ -80,27 +75,27 @@ export const pdfAPI = {
   uploadPDF: async (file: File, title?: string, description?: string, tags?: string[]) => {
     const formData = new FormData();
     formData.append('file', file);
-
+    
     if (title) {
       formData.append('title', title);
     }
-
+    
     if (description) {
       formData.append('description', description);
     }
-
+    
     // Add tags as repeated form fields so FastAPI collects them into List[str]
     if (tags && tags.length > 0) {
       tags.forEach(tag => formData.append('tags', tag));
     }
-
+    
     // IMPORTANT: Do NOT set Content-Type manually.
     // Axios will automatically set it to 'multipart/form-data' with the correct boundary.
     const response = await api.post('/pdfs/upload', formData);
-
+    
     return response.data;
   },
-
+  
   listPDFs: async () => {
     try {
       const response = await api.get('/pdfs/');
@@ -110,15 +105,15 @@ export const pdfAPI = {
       throw error;
     }
   },
-
+  
   getPDF: async (pdfId: string) => {
     const response = await api.get(`/pdfs/${pdfId}`);
     return response.data;
   },
-
+  
   downloadPDF: async (pdfId: string) => {
     const response = await api.get(
-      `/pdfs/${pdfId}/download`,
+      `/pdfs/${pdfId}/download`, 
       { responseType: 'blob' }
     );
     return response.data;
@@ -128,10 +123,10 @@ export const pdfAPI = {
 // Helper function to process SSE chunks
 const processSSEChunks = (text: string, onChunk?: (chunk: any) => void) => {
   if (!onChunk) return;
-
+  
   // Split the text by double newlines (standard SSE format)
   const chunks = text.split('\n\n').filter(chunk => chunk.trim() !== '');
-
+  
   // Process each chunk
   chunks.forEach(chunk => {
     // Get the data portion of the SSE event
@@ -151,18 +146,18 @@ const processSSEChunks = (text: string, onChunk?: (chunk: any) => void) => {
 export const chatAPI = {
   // Ask a question without saving to history
   askQuestion: async (question: string, pdfId?: string) => {
-    const response = await api.post('/questions/ask', {
-      question,
-      pdf_id: pdfId
+    const response = await api.post('/questions/ask', { 
+      question, 
+      pdf_id: pdfId 
     });
     return response.data;
   },
-
+  
   // Stream a question response without saving to history
   askQuestionStream: async (question: string, pdfId?: string, onChunk?: (chunk: any) => void) => {
-    const response = await api.post('/questions/ask/stream', {
-      question,
-      pdf_id: pdfId
+    const response = await api.post('/questions/ask/stream', { 
+      question, 
+      pdf_id: pdfId 
     }, {
       responseType: 'text',
       onDownloadProgress: (progressEvent) => {
@@ -173,27 +168,26 @@ export const chatAPI = {
     });
     return response.data;
   },
-
+  
   // Chat session management
-  createChatSession: async (title: string, pdfId?: string, docIds?: string[]) => {
-    const response = await api.post('/questions/sessions', {
-      title,
-      pdf_id: pdfId,
-      doc_ids: docIds
+  createChatSession: async (title: string, pdfId?: string) => {
+    const response = await api.post('/questions/sessions', { 
+      title, 
+      pdf_id: pdfId 
     });
     return response.data;
   },
-
+  
   listChatSessions: async () => {
     const response = await api.get('/questions/sessions');
     return response.data.sessions;
   },
-
+  
   getChatSession: async (sessionId: string) => {
     const response = await api.get(`/questions/sessions/${sessionId}`);
     return response.data;
   },
-
+  
   // Add a message to a chat session
   addMessageToChat: async (sessionId: string, content: string) => {
     const response = await api.post(`/questions/sessions/${sessionId}/messages`, {
@@ -201,7 +195,7 @@ export const chatAPI = {
     });
     return response.data;
   },
-
+  
   // Add a message to a chat session with streaming response
   addMessageToChatStream: async (sessionId: string, content: string, onChunk?: (chunk: any) => void) => {
     const response = await api.post(`/questions/sessions/${sessionId}/messages/stream`, {
@@ -234,17 +228,13 @@ export const analysisAPI = {
 export const mockTestAPI = {
   // Generate a new mock test
   generateMockTest: async (
-    syllabusId: string,
-    questionPaperIds: string[],
+    syllabusId: string, 
+    questionPaperIds: string[], 
     notesId?: string,
     numMcq: number = 15,
     numText: number = 5,
     totalMarks: number = 50,
-    difficultyLevel: string = "medium",
-    focusTopics?: string[],
-    weakTopics?: string[],
-    subject?: string,
-    studentEmail?: string,
+    difficultyLevel: string = "medium"
   ) => {
     const response = await api.post('/mock-tests/generate', {
       syllabus_pdf_id: syllabusId,
@@ -253,11 +243,7 @@ export const mockTestAPI = {
       num_mcq: numMcq,
       num_text: numText,
       total_marks: totalMarks,
-      difficulty_level: difficultyLevel,
-      focus_topics: focusTopics,
-      weak_topics: weakTopics,
-      subject,
-      student_email: studentEmail,
+      difficulty_level: difficultyLevel
     });
     return response.data;
   },
@@ -290,95 +276,6 @@ export const mockTestAPI = {
     const response = await api.get(`/mock-tests/submissions/${submissionId}/analysis`);
     return response.data;
   }
-};
-
-export const apiFetch = async (path: string, init?: RequestInit) => {
-  const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const headers = new Headers(init?.headers);
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-  return fetch(`${baseURL}${path}`, { ...init, headers });
-};
-
-// Analytics APIs
-export const analyticsAPI = {
-  getStudentAnalytics: async () => {
-    const response = await api.get('/analytics/student');
-    return response.data;
-  },
-
-  getTeacherAnalytics: async () => {
-    const response = await api.get('/analytics/teacher');
-    return response.data;
-  },
-};
-
-// Flashcard APIs
-export const flashcardAPI = {
-  generateFlashcards: async (docId: string, numCards: number = 10, focusTopics?: string[]) => {
-    const response = await api.post('/flashcards/generate', {
-      doc_id: docId,
-      num_cards: numCards,
-      focus_topics: focusTopics,
-    });
-    return response.data;
-  },
-};
-
-export const teacherAPI = {
-  manageStudent: async (studentEmail: string) => {
-    const response = await api.post('/teachers/students/manage', { student_email: studentEmail });
-    return response.data;
-  },
-
-  unmanageStudent: async (studentEmail: string) => {
-    const response = await api.post('/teachers/students/unmanage', { student_email: studentEmail });
-    return response.data;
-  },
-
-  listManagedStudents: async () => {
-    const response = await api.get('/teachers/students');
-    return response.data.students;
-  },
-
-  getAnalytics: async () => {
-    const response = await api.get('/teachers/analytics');
-    return response.data;
-  },
-};
-
-// Sub-admin APIs
-export const subadminAPI = {
-  createLicense: async (brandName: string, seats: number = 0, expiresAt?: string) => {
-    const response = await api.post('/subadmins/license', {
-      brand_name: brandName,
-      seats,
-      expires_at: expiresAt,
-    });
-    return response.data;
-  },
-
-  getLicense: async () => {
-    const response = await api.get('/subadmins/license');
-    return response.data;
-  },
-
-  enrollUser: async (email: string, password: string, role: 'teacher' | 'student', name?: string) => {
-    const response = await api.post('/subadmins/enroll', {
-      email,
-      password,
-      role,
-      name,
-    });
-    return response.data;
-  },
-
-  listEnrolledUsers: async () => {
-    const response = await api.get('/subadmins/users');
-    return response.data;
-  },
 };
 
 export default api;

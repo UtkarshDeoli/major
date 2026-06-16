@@ -32,11 +32,16 @@ try:
     # Collections
     users_collection = db.users
     pdfs_collection = db.pdfs
-    materials_collection = db.materials
     chat_sessions_collection = db.chat_sessions
     # Mock Test Collections
     mock_tests_collection = db.mock_tests
     mock_test_submissions_collection = db.mock_test_submissions
+    # Workspace Collections
+    exams_collection = db.exams
+    subjects_collection = db.subjects
+    collections_collection = db.collections
+    materials_collection = db.materials
+    document_chunks_collection = db.document_chunks
 except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     print(f"MongoDB connection error: {e}")
     print("WARNING: Data store service will not work until MongoDB is available")
@@ -45,12 +50,17 @@ except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     db = None
     users_collection = None
     pdfs_collection = None
-    materials_collection = None
     chat_sessions_collection = None
     # Mock Test Collections
     mock_tests_collection = None
     mock_test_submissions_collection = None
-
+    mock_test_submissions_collection = None
+    # Workspace Collections
+    exams_collection = None
+    subjects_collection = None
+    collections_collection = None
+    materials_collection = None
+    document_chunks_collection = None
 
 # Helper to convert ObjectId to string
 def object_id_to_str(obj):
@@ -149,8 +159,64 @@ async def get_pdf_metadata(pdf_id: str):
         return pdf
     return None
 
+# Document chunk operations
+async def store_document_chunks(chunks: List[Dict[str, Any]]):
+    """Store document chunks in MongoDB.
+    
+    Args:
+        chunks: List of dicts with keys matching document_chunks schema
+    """
+    if document_chunks_collection is None:
+        raise Exception("Database connection not available")
+    
+    if not chunks:
+        return
+    
+    result = await document_chunks_collection.insert_many(chunks)
+    return [str(id) for id in result.inserted_ids]
+
+async def get_chunks_by_chroma_ids(chroma_ids: List[str]):
+    """Fetch chunks by their ChromaDB IDs."""
+    if document_chunks_collection is None:
+        raise Exception("Database connection not available")
+    
+    cursor = document_chunks_collection.find({"chroma_id": {"$in": chroma_ids}})
+    chunks = await cursor.to_list(length=None)
+    
+    # Sort by the order of chroma_ids
+    chunk_map = {c["chroma_id"]: c for c in chunks}
+    ordered = [chunk_map.get(cid) for cid in chroma_ids if cid in chunk_map]
+    
+    return [c for c in ordered if c]
+
+async def get_user_chunks_for_bm25(user_id: str):
+    """Get all chunks for a user to build BM25 index."""
+    if document_chunks_collection is None:
+        raise Exception("Database connection not available")
+    
+    cursor = document_chunks_collection.find({"user_id": user_id})
+    chunks = await cursor.to_list(length=None)
+    return chunks
+
+async def delete_document_chunks(doc_id: str):
+    """Delete all chunks for a document."""
+    if document_chunks_collection is None:
+        raise Exception("Database connection not available")
+    
+    await document_chunks_collection.delete_many({"doc_id": doc_id})
+
+async def update_chunk_tags(doc_id: str, tags: List[str]):
+    """Update tags for all chunks of a document."""
+    if document_chunks_collection is None:
+        raise Exception("Database connection not available")
+    
+    await document_chunks_collection.update_many(
+        {"doc_id": doc_id},
+        {"$set": {"tags": tags}}
+    )
+
 # Chat history operations
-async def create_chat_session(user_id: str, title: str, pdf_id: Optional[str] = None):
+async def create_chat_session(user_id: str, title: str, pdf_id: Optional[str] = None, doc_ids: Optional[List[str]] = None):
     """Create a new chat session"""
     if chat_sessions_collection is None:
         raise Exception("Database connection not available")
@@ -159,6 +225,7 @@ async def create_chat_session(user_id: str, title: str, pdf_id: Optional[str] = 
     chat_data = {
         "user_id": user_id,
         "pdf_id": pdf_id,
+        "doc_ids": doc_ids,
         "title": title,
         "messages": [],
         "created_at": now,
@@ -274,13 +341,7 @@ async def get_user_mock_tests(user_id: str) -> List[Dict[str, Any]]:
         raise Exception("Database connection not available")
     
     try:
-        cursor = mock_tests_collection.find({
-            "$or": [
-                {"user_id": user_id},
-                {"assigned_to": user_id},
-                {"created_by": user_id}
-            ]
-        }).sort("created_at", -1)
+        cursor = mock_tests_collection.find({"user_id": user_id}).sort("created_at", -1)
         tests = await cursor.to_list(length=None)
         return [object_id_to_str(test) for test in tests]
     except Exception as e:
@@ -319,3 +380,13 @@ async def get_user_mock_test_submissions(user_id: str) -> List[Dict[str, Any]]:
         return [object_id_to_str(submission) for submission in submissions]
     except Exception as e:
         raise Exception(f"Error fetching user mock test submissions: {str(e)}")
+
+async def ensure_indexes():
+    """Create indexes for document_chunks collection."""
+    if document_chunks_collection is None:
+        return
+    
+    await document_chunks_collection.create_index([("user_id", 1), ("doc_id", 1)])
+    await document_chunks_collection.create_index([("user_id", 1), ("subject", 1)])
+    await document_chunks_collection.create_index([("user_id", 1), ("tags", 1)])
+    await document_chunks_collection.create_index("chroma_id", unique=True)
