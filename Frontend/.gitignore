@@ -1,0 +1,16 @@
+# Next.js generated files
+/.next/
+next-env.d.ts
+tsconfig.tsbuildinfo
+
+# Dependencies
+/node_modules/
+package-lock.json
+
+# Environment
+.env*.local
+
+# Misc
+.DS_Store
+*.log
+
