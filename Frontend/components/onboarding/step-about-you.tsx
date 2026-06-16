@@ -67,6 +67,7 @@ export function StepAboutYou({
             onKeyDown={(e) => {
               if (e.key === "Enter" && isNameFilled) handleNext();
             }}
+            className="rounded-md h-9 text-[13px]"
           />
         </div>
 
@@ -107,6 +108,7 @@ export function StepAboutYou({
             placeholder="School, college, or institution name"
             value={institute}
             onChange={(e) => setInstitute(e.target.value)}
+            className="rounded-md h-9 text-[13px]"
           />
         </div>
 

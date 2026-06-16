@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { MagicCard } from "@/components/ui/magic-card";
 import Container from "@/components/global/container";
 import { StepAboutYou } from "./step-about-you";
 import { StepStudyGoal } from "./step-study-goal";
@@ -95,7 +94,7 @@ export function OnboardingContainer() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <Container delay={0.1}>
-        <MagicCard className="w-full max-w-2xl p-6 sm:p-10">
+        <div className="rounded-md border bg-card p-8 max-w-md mx-auto">
           {/* Step dots */}
           <div className="flex items-center justify-center gap-2 mb-8">
             <div
@@ -111,7 +110,7 @@ export function OnboardingContainer() {
           </div>
 
           {isLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/50 rounded-xl z-20">
+            <div className="absolute inset-0 flex items-center justify-center bg-background/50 rounded-md z-20">
               <div className="h-8 w-8 rounded-full bg-primary animate-pulse-glow" />
             </div>
           )}
@@ -126,7 +125,7 @@ export function OnboardingContainer() {
           {step === 2 && (
             <StepStudyGoal onNext={handleStep2Next} onBack={() => setStep(1)} />
           )}
-        </MagicCard>
+        </div>
       </Container>
     </div>
   );
