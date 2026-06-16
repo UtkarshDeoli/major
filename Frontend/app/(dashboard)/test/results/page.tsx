@@ -91,8 +91,8 @@ export default function TestResultsPage() {
     const gradeColors: Record<string, string> = {
       'A+': 'bg-green-100 text-green-800',
       'A': 'bg-green-100 text-green-800',
-      'B+': 'bg-blue-100 text-blue-800',
-      'B': 'bg-blue-100 text-blue-800',
+      'B+': 'bg-primary/10 text-primary',
+      'B': 'bg-primary/10 text-primary',
       'C+': 'bg-yellow-100 text-yellow-800',
       'C': 'bg-yellow-100 text-yellow-800',
       'D': 'bg-orange-100 text-orange-800',
@@ -239,7 +239,7 @@ export default function TestResultsPage() {
                     
                     <div>
                       <p className="font-medium text-muted-foreground">Your Answer:</p>
-                      <p className="bg-[#333] p-3 rounded border">
+                      <p className="bg-secondary p-3 rounded-md border">
                         {feedback.user_answer || "No answer provided"}
                       </p>
                     </div>
@@ -247,7 +247,7 @@ export default function TestResultsPage() {
                     {feedback.correct_answer && (
                       <div>
                         <p className="font-medium text-muted-foreground">Correct Answer:</p>
-                        <p className="bg-[#333] p-3 rounded border border-green-200">
+                        <p className="bg-secondary p-3 rounded-md border border-green-200">
                           {feedback.correct_answer}
                         </p>
                       </div>
@@ -256,7 +256,7 @@ export default function TestResultsPage() {
                     {feedback.feedback && (
                       <div>
                         <p className="font-medium text-muted-foreground">AI Feedback:</p>
-                        <p className="bg-blue-800 p-3 rounded border border-blue-200">
+                        <p className="bg-primary text-primary-foreground p-3 rounded-md border border-primary/20">
                           {feedback.feedback}
                         </p>
                       </div>
@@ -321,7 +321,7 @@ export default function TestResultsPage() {
         <CardContent>
           <ul className="space-y-3">
             {analysis.study_recommendations.map((recommendation: string, index: number) => (
-              <li key={index} className="flex items-start gap-3 p-3 bg-[#222] rounded-lg border border-blue-200">
+              <li key={index} className="flex items-start gap-3 p-3 bg-secondary rounded-md border">
                 <Clock className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                 <span className="text-sm">{recommendation}</span>
               </li>
