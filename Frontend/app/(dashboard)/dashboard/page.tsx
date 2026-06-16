@@ -21,6 +21,9 @@ import { SubjectCard } from "@/components/dashboard/subject-card";
 import { CollectionsPanel } from "@/components/dashboard/collections-panel";
 import { ExamSetupDialog } from "@/components/dashboard/exam-setup-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/context/auth-context";
+import { mockTestAPI } from "@/lib/api";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function DashboardPage() {
   return <DashboardContent />;
@@ -29,6 +32,7 @@ export default function DashboardPage() {
 function DashboardContent() {
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useAuth();
   const { activeExam, refreshExams } = useDashboard();
 
   const [panelOpen, setPanelOpen] = useState(false);
@@ -36,10 +40,21 @@ function DashboardContent() {
   const [selectedSubject, setSelectedSubject] = useState<
     { id: string; name: string } | null
   >(null);
+  const [assignedTests, setAssignedTests] = useState<Array<{ test_id: string; title: string; created_at: string; created_by?: string }>>([]);
 
   useEffect(() => {
     refreshExams();
   }, [refreshExams]);
+
+  useEffect(() => {
+    if (!user?.email) return;
+    mockTestAPI.listMockTests()
+      .then((tests) => {
+        const mine = (tests || []).filter((t: any) => t.assigned_to === user.email);
+        setAssignedTests(mine);
+      })
+      .catch((err) => console.error("Failed to load assigned tests:", err));
+  }, [user?.email]);
 
   const handleAddExam = () => {
     setDialogOpen(true);
@@ -168,8 +183,34 @@ function DashboardContent() {
         </div>
       </Container>
 
-      {/* Zone 5: My Collections */}
-      <Container delay={0.6}>
+      {/* Zone 5: Assigned Tests */}
+      {assignedTests.length > 0 && (
+        <Container delay={0.6}>
+          <Card>
+            <CardHeader>
+              <CardTitle>Assigned Tests</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {assignedTests.map((test) => (
+                  <div key={test.test_id} className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium">{test.title}</p>
+                      <p className="text-xs text-muted-foreground">From {test.created_by}</p>
+                    </div>
+                    <Button size="sm" onClick={() => router.push(`/test/quiz?testId=${test.test_id}`)}>
+                      Start
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </Container>
+      )}
+
+      {/* Zone 6: My Collections */}
+      <Container delay={0.7}>
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">My Collections</h2>
           <div className="bg-muted/50 rounded-xl p-8 text-center">

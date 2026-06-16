@@ -26,7 +26,8 @@ import {
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { pdfAPI, analysisAPI, mockTestAPI } from '@/lib/api'
+import { pdfAPI, analysisAPI, mockTestAPI, teacherAPI } from '@/lib/api'
+import { useAuth } from '@/lib/context/auth-context'
 
 export default function TestPage() {
   const router = useRouter()
@@ -34,6 +35,8 @@ export default function TestPage() {
   const activeTabFromUrl = searchParams.get('tab') || 'analysis'
   const [activeTab, setActiveTab] = useState<'analysis' | 'mock'>(activeTabFromUrl as 'analysis' | 'mock')
   const { toast } = useToast()
+  const { user } = useAuth()
+  const isTeacher = user?.role === 'teacher'
 
   useEffect(() => {
     setActiveTab(activeTabFromUrl as 'analysis' | 'mock')
@@ -64,6 +67,20 @@ export default function TestPage() {
   })
   const [mockTests, setMockTests] = useState<any[]>([])
   const [isLoadingMockTests, setIsLoadingMockTests] = useState(false)
+
+  // Teacher-student integration controls
+  const [linkedStudents, setLinkedStudents] = useState<Array<{ email: string; name?: string }>>([])
+  const [selectedStudent, setSelectedStudent] = useState<string>(searchParams.get('student') || '')
+  const [subject, setSubject] = useState<string>('')
+  const [selectedTopics, setSelectedTopics] = useState<string>('')
+  const [targetWeaknesses, setTargetWeaknesses] = useState(false)
+
+  useEffect(() => {
+    if (!isTeacher) return
+    teacherAPI.listManagedStudents()
+      .then((students) => setLinkedStudents(students || []))
+      .catch((err) => console.error('Failed to load students:', err))
+  }, [isTeacher])
 
   // Function to fetch mock tests (can be called from refresh button)
   const fetchMockTests = async () => {
@@ -165,6 +182,12 @@ export default function TestPage() {
 
     setIsGeneratingMockTest(true)
     try {
+      const topicList = selectedTopics
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean)
+      const weakTopicsToSend = targetWeaknesses ? topicList : undefined
+
       const mockTest = await mockTestAPI.generateMockTest(
         selectedSyllabus,
         selectedQuestionPapers,
@@ -172,7 +195,11 @@ export default function TestPage() {
         mockTestSettings.numMcq,
         mockTestSettings.numText,
         mockTestSettings.totalMarks,
-        mockTestSettings.difficultyLevel
+        mockTestSettings.difficultyLevel,
+        topicList.length > 0 ? topicList : undefined,
+        weakTopicsToSend,
+        subject || undefined,
+        selectedStudent || undefined
       )
       
       toast({
@@ -796,8 +823,8 @@ export default function TestPage() {
                       
                       <div className="space-y-2">
                         <Label htmlFor="difficulty">Difficulty Level</Label>
-                        <Select 
-                          value={mockTestSettings.difficultyLevel} 
+                        <Select
+                          value={mockTestSettings.difficultyLevel}
                           onValueChange={(value) => setMockTestSettings(prev => ({
                             ...prev,
                             difficultyLevel: value
@@ -813,6 +840,62 @@ export default function TestPage() {
                           </SelectContent>
                         </Select>
                       </div>
+
+                      {isTeacher && (
+                        <div className="space-y-2 sm:col-span-2">
+                          <Label htmlFor="assign-student">Assign to Student</Label>
+                          <select
+                            id="assign-student"
+                            className="w-full border rounded px-3 py-2 text-sm bg-background"
+                            value={selectedStudent}
+                            onChange={(e) => setSelectedStudent(e.target.value)}
+                          >
+                            <option value="">Myself / No assignment</option>
+                            {linkedStudents.map((s) => (
+                              <option key={s.email} value={s.email}>
+                                {s.name || s.email}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="subject">Subject</Label>
+                        <Input
+                          id="subject"
+                          type="text"
+                          placeholder="e.g. Mathematics"
+                          value={subject}
+                          onChange={(e) => setSubject(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="focus-topics">Focus Topics (comma-separated)</Label>
+                        <Input
+                          id="focus-topics"
+                          type="text"
+                          placeholder="e.g. Calculus, Algebra"
+                          value={selectedTopics}
+                          onChange={(e) => setSelectedTopics(e.target.value)}
+                        />
+                      </div>
+
+                      {isTeacher && (
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="target-weaknesses"
+                            checked={targetWeaknesses}
+                            onCheckedChange={(checked) => setTargetWeaknesses(checked === true)}
+                          />
+                          <Label htmlFor="target-weaknesses" className="text-sm">
+                            Target weak topics
+                          </Label>
+                        </div>
+                      )}
                     </div>
 
                     <div className="p-4 bg-muted/30 rounded-lg">

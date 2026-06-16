@@ -5,7 +5,6 @@ from datetime import datetime
 from fastapi import HTTPException
 
 from src.services.gemini_service import gemini_service
-from src.services.web_search_agent import fetch_web_examples
 from src.core.data_store import (
     get_pdf_metadata,
     store_mock_test,
@@ -30,10 +29,11 @@ async def generate_mock_test_service(
     total_marks: int,
     difficulty_level: str,
     user_id: str,
+    created_by: Optional[str] = None,
+    assigned_to: Optional[str] = None,
     focus_topics: Optional[List[str]] = None,
     weak_topics: Optional[List[str]] = None,
-    subject: Optional[str] = None,
-    student_email: Optional[str] = None,
+    subject: Optional[str] = None
 ) -> MockTestResponse:
     """Generate a mock test using Gemini AI"""
     
@@ -74,64 +74,35 @@ async def generate_mock_test_service(
             if notes_metadata and notes_metadata["user_id"] == user_id:
                 notes_content = await gemini_service.extract_text_from_pdf(notes_metadata["file_path"])
         
-        # Pull student's historical weak topics from submissions if requested
-        resolved_weak_topics = weak_topics or []
-        if student_email and not weak_topics:
-            resolved_weak_topics = await _extract_weak_topics_for_student(student_email)
-        
-        # Optionally fetch real-world examples for weak/focus topics
-        web_examples = ""
-        search_terms = []
-        if subject:
-            search_terms.append(subject)
-        if focus_topics:
-            search_terms.extend(focus_topics)
-        if resolved_weak_topics:
-            search_terms.extend(resolved_weak_topics)
-        if search_terms:
-            web_examples = await fetch_web_examples(
-                topic=search_terms[0],
-                question_type="mcq",
-                subject=subject,
-                num_results=3,
-            )
-        
         # Generate mock test using Gemini
         mock_test_data = await _generate_mock_test_with_gemini(
-            syllabus_content,
-            question_papers_content,
-            notes_content,
-            num_mcq,
-            num_text,
-            total_marks,
-            difficulty_level,
+            syllabus_content=syllabus_content,
+            question_papers_content=question_papers_content,
+            notes_content=notes_content,
+            num_mcq=num_mcq,
+            num_text=num_text,
+            total_marks=total_marks,
+            difficulty_level=difficulty_level,
             focus_topics=focus_topics,
-            weak_topics=resolved_weak_topics,
-            subject=subject,
-            web_examples=web_examples,
+            weak_topics=weak_topics,
+            subject=subject
         )
         
         # Create mock test object
         test_id = str(uuid.uuid4())
         created_at = datetime.utcnow()
         
-        title_parts = ["Mock Test", created_at.strftime('%B %d, %Y')]
-        if subject:
-            title_parts.insert(1, f"- {subject}")
-        if resolved_weak_topics:
-            title_parts.append("(Weakness-focused)")
-        elif focus_topics:
-            title_parts.append("(Topic-focused)")
-        
         mock_test = MockTestResponse(
             test_id=test_id,
-            title=" ".join(title_parts),
+            title=f"Mock Test - {created_at.strftime('%B %d, %Y')}",
             questions=mock_test_data["questions"],
             total_marks=total_marks,
             time_limit=_calculate_time_limit(total_marks, num_mcq, num_text),
             created_at=created_at,
             user_id=user_id,
-            difficulty_level=difficulty_level
+            difficulty_level=difficulty_level,
+            created_by=created_by,
+            assigned_to=assigned_to
         )
         
         # Store in database
@@ -147,39 +118,6 @@ async def generate_mock_test_service(
             detail=f"Error generating mock test: {str(e)}"
         )
 
-
-async def _extract_weak_topics_for_student(student_email: str) -> List[str]:
-    """Inspect recent submissions and return topics the student struggles with."""
-    from src.core.data_store import mock_test_submissions_collection
-    
-    if mock_test_submissions_collection is None:
-        return []
-    
-    cursor = mock_test_submissions_collection.find({"user_id": student_email}).sort("created_at", -1).limit(20)
-    submissions = await cursor.to_list(length=None)
-    
-    topic_scores: Dict[str, List[float]] = {}
-    
-    for submission in submissions:
-        for feedback in submission.get("question_feedback", []):
-            topic = feedback.get("topic")
-            if not topic:
-                continue
-            marks_awarded = float(feedback.get("marks_awarded", 0))
-            max_marks = float(feedback.get("max_marks", 1))
-            ratio = marks_awarded / max_marks if max_marks > 0 else 0
-            topic_scores.setdefault(topic, []).append(ratio)
-    
-    weak_topics = []
-    for topic, scores in topic_scores.items():
-        avg = sum(scores) / len(scores)
-        if avg < 0.6:
-            weak_topics.append(topic)
-    
-    # Return the top 5 weakest topics
-    return weak_topics[:5]
-
-
 async def _generate_mock_test_with_gemini(
     syllabus_content: str,
     question_papers_content: List[str],
@@ -190,8 +128,7 @@ async def _generate_mock_test_with_gemini(
     difficulty_level: str,
     focus_topics: Optional[List[str]] = None,
     weak_topics: Optional[List[str]] = None,
-    subject: Optional[str] = None,
-    web_examples: str = "",
+    subject: Optional[str] = None
 ) -> Dict[str, Any]:
     """Use Gemini to generate mock test questions with enhanced pattern matching"""
     
@@ -201,22 +138,6 @@ async def _generate_mock_test_with_gemini(
     # Calculate marks distribution
     mcq_marks_per_question = 2
     text_marks_per_question = max(5, (total_marks - num_mcq * mcq_marks_per_question) // num_text) if num_text > 0 else 5
-    
-    focus_section = ""
-    if focus_topics:
-        focus_section = f"""
-FOCUS TOPICS (generate questions specifically targeting these):
-{', '.join(focus_topics)}
-"""
-    
-    weak_section = ""
-    if weak_topics:
-        weak_section = f"""
-WEAK TOPICS (the student has previously struggled with these; prioritize them):
-{', '.join(weak_topics)}
-"""
-    
-    subject_section = f"\nSUBJECT: {subject}\n" if subject else ""
     
     prompt = f"""You are an expert exam paper setter with years of experience. Create a realistic mock test paper.
 
@@ -234,7 +155,7 @@ INSTRUCTIONS:
    - Test conceptual understanding, application, and problem-solving
    - Have realistic difficulty levels
    - Cover different units proportionally
-{focus_section}{weak_section}{subject_section}
+
 SYLLABUS (PRIMARY REFERENCE):
 {syllabus_content[:3000]}
 
@@ -244,17 +165,24 @@ STUDY NOTES (For topic depth):
 PREVIOUS YEAR QUESTION PAPERS (For pattern matching):
 {combined_question_papers[:4000]}
 
-{web_examples}
+SUBJECT:
+{subject or "Not specified"}
+
+FOCUS TOPICS (emphasize these in the test when provided):
+{", ".join(focus_topics) if focus_topics else "None provided"}
+
+WEAK TOPICS (include more questions targeting these areas when provided):
+{", ".join(weak_topics) if weak_topics else "None provided"}
 
 REQUIREMENTS:
 - Generate {num_mcq} Multiple Choice Questions (MCQ) worth {mcq_marks_per_question} marks each
 - Generate {num_text} Descriptive/Text questions worth {text_marks_per_question} marks each
 - Difficulty level: {difficulty_level}
+- Subject: {subject or "the syllabus subject"}
 - ALL questions must be traceable to syllabus topics
+- Prioritize focus topics and weak topics when they are provided
 - MCQ should have 4 options with one correct answer
 - Follow question patterns from previous papers
-- If weak topics are listed, at least 60% of questions must target those weak topics
-- If focus topics are listed, at least 50% of questions must target those focus topics
 
 RESPOND ONLY WITH VALID JSON IN THIS EXACT FORMAT:
 {{
@@ -326,7 +254,7 @@ CRITICAL REQUIREMENTS:
             )
             questions.append(question)
         
-        return {"questions": questions, "topics": list(set(q.get("topic") for q in mock_test_data.get("questions", []) if q.get("topic")))}
+        return {"questions": questions}
         
     except json.JSONDecodeError as e:
         print(f"JSON parsing error in mock test generation: {str(e)}")
@@ -359,7 +287,7 @@ def _create_fallback_mock_test(num_mcq: int, num_text: int, mcq_marks: int, text
             marks=text_marks
         ))
     
-    return {"questions": questions, "topics": []}
+    return {"questions": questions}
 
 def _calculate_time_limit(total_marks: int, num_mcq: int, num_text: int) -> int:
     """Calculate appropriate time limit in minutes"""
@@ -379,13 +307,42 @@ async def get_user_mock_tests_service(user_id: str) -> List[MockTestResponse]:
         
         for test_data in tests_data:
             questions = [MockTestQuestion(**q) for q in test_data["questions"]]
-            
+
+            # Hide correct answers from the assigned student
+            if test_data.get("assigned_to") == user_id:
+                questions = [
+                    MockTestQuestion(
+                        id=q.id,
+                        type=q.type,
+                        question=q.question,
+                        options=q.options,
+                        correctAnswer=None,
+                        marks=q.marks
+                    )
+                    for q in questions
+                ]
+
             # Get the latest submission for this test
             latest_submission = None
             if mock_test_submissions_collection is not None:
                 try:
+                    # Teachers viewing an assigned test should see the assigned student's submission
+                    if test_data.get("assigned_to") and (
+                        test_data.get("created_by") == user_id or
+                        test_data.get("user_id") == user_id
+                    ):
+                        submission_query = {
+                            "test_id": test_data["test_id"],
+                            "user_id": test_data["assigned_to"]
+                        }
+                    else:
+                        submission_query = {
+                            "test_id": test_data["test_id"],
+                            "user_id": user_id
+                        }
+
                     submission = await mock_test_submissions_collection.find_one(
-                        {"test_id": test_data["test_id"], "user_id": user_id},
+                        submission_query,
                         sort=[("created_at", -1)]
                     )
                     if submission:
@@ -397,7 +354,7 @@ async def get_user_mock_tests_service(user_id: str) -> List[MockTestResponse]:
                         }
                 except Exception as e:
                     print(f"Error fetching submission for test {test_data['test_id']}: {e}")
-            
+
             # Create the test response with optional submission info
             test_dict = {
                 "test_id": test_data["test_id"],
@@ -407,7 +364,9 @@ async def get_user_mock_tests_service(user_id: str) -> List[MockTestResponse]:
                 "time_limit": test_data["time_limit"],
                 "created_at": test_data["created_at"],
                 "user_id": test_data["user_id"],
-                "difficulty_level": test_data.get("difficulty_level", "medium")
+                "difficulty_level": test_data.get("difficulty_level", "medium"),
+                "created_by": test_data.get("created_by"),
+                "assigned_to": test_data.get("assigned_to")
             }
             
             if latest_submission:
@@ -427,10 +386,28 @@ async def get_mock_test_service(test_id: str, user_id: str) -> Optional[MockTest
     """Get a specific mock test"""
     try:
         test_data = await get_mock_test(test_id)
-        if not test_data or test_data["user_id"] != user_id:
+        if not test_data:
             return None
-        
+        allowed = {test_data.get("user_id"), test_data.get("assigned_to"), test_data.get("created_by")}
+        if user_id not in allowed:
+            return None
+
         questions = [MockTestQuestion(**q) for q in test_data["questions"]]
+
+        # Hide correct answers from the assigned student
+        if test_data.get("assigned_to") == user_id:
+            questions = [
+                MockTestQuestion(
+                    id=q.id,
+                    type=q.type,
+                    question=q.question,
+                    options=q.options,
+                    correctAnswer=None,
+                    marks=q.marks
+                )
+                for q in questions
+            ]
+
         return MockTestResponse(
             test_id=test_data["test_id"],
             title=test_data["title"],
@@ -438,7 +415,10 @@ async def get_mock_test_service(test_id: str, user_id: str) -> Optional[MockTest
             total_marks=test_data["total_marks"],
             time_limit=test_data["time_limit"],
             created_at=test_data["created_at"],
-            user_id=test_data["user_id"]
+            user_id=test_data["user_id"],
+            difficulty_level=test_data.get("difficulty_level", "medium"),
+            created_by=test_data.get("created_by"),
+            assigned_to=test_data.get("assigned_to")
         )
     except Exception as e:
         raise HTTPException(
@@ -449,7 +429,8 @@ async def get_mock_test_service(test_id: str, user_id: str) -> Optional[MockTest
 async def analyze_mock_test_submission_service(
     test: MockTestResponse,
     submission: MockTestSubmission,
-    user_id: str
+    user_id: str,
+    submitter_email: Optional[str] = None
 ) -> MockTestAnalysisResponse:
     """Analyze a mock test submission using Gemini AI"""
     
@@ -529,9 +510,11 @@ async def analyze_mock_test_submission_service(
             created_at=created_at
         )
         
-        # Store submission in database
-        await store_mock_test_submission(analysis.dict())
-        
+        # Store submission in database, recording the actual submitter
+        submission_record = analysis.dict()
+        submission_record["user_id"] = submitter_email if submitter_email else user_id
+        await store_mock_test_submission(submission_record)
+
         return analysis
         
     except Exception as e:

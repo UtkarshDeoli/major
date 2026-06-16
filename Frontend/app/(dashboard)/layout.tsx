@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import AuthProtection from "@/components/auth/route-protection/auth-protection";
 import AppShell from "@/components/dashboard/app-shell";
 import { DashboardProvider } from "@/lib/context/dashboard-context";
+import { useAuth } from "@/lib/context/auth-context";
 
 export default function DashboardLayout({
   children,
@@ -12,6 +13,8 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const { user, isLoading: authLoading } = useAuth();
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [shouldRedirect, setShouldRedirect] = useState(false);
 
@@ -43,7 +46,13 @@ export default function DashboardLayout({
     }
   }, [shouldRedirect, router]);
 
-  if (!onboardingChecked || shouldRedirect) {
+  useEffect(() => {
+    if (!authLoading && user?.role === "teacher" && pathname === "/dashboard") {
+      router.replace("/teacher");
+    }
+  }, [authLoading, user, pathname, router]);
+
+  if (!onboardingChecked || shouldRedirect || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="h-10 w-10 rounded-full bg-primary animate-pulse-glow" />

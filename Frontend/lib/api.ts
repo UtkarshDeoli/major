@@ -67,6 +67,11 @@ export const authAPI = {
   
   isAuthenticated: () => {
     return !!localStorage.getItem('token');
+  },
+
+  getMe: async () => {
+    const response = await api.get('/auth/me');
+    return response.data;
   }
 };
 
@@ -228,13 +233,17 @@ export const analysisAPI = {
 export const mockTestAPI = {
   // Generate a new mock test
   generateMockTest: async (
-    syllabusId: string, 
-    questionPaperIds: string[], 
+    syllabusId: string,
+    questionPaperIds: string[],
     notesId?: string,
     numMcq: number = 15,
     numText: number = 5,
     totalMarks: number = 50,
-    difficultyLevel: string = "medium"
+    difficultyLevel: string = "medium",
+    focusTopics?: string[],
+    weakTopics?: string[],
+    subject?: string,
+    studentEmail?: string,
   ) => {
     const response = await api.post('/mock-tests/generate', {
       syllabus_pdf_id: syllabusId,
@@ -243,7 +252,11 @@ export const mockTestAPI = {
       num_mcq: numMcq,
       num_text: numText,
       total_marks: totalMarks,
-      difficulty_level: difficultyLevel
+      difficulty_level: difficultyLevel,
+      focus_topics: focusTopics,
+      weak_topics: weakTopics,
+      subject,
+      student_email: studentEmail,
     });
     return response.data;
   },
@@ -276,6 +289,42 @@ export const mockTestAPI = {
     const response = await api.get(`/mock-tests/submissions/${submissionId}/analysis`);
     return response.data;
   }
+};
+
+// Analytics APIs
+export const analyticsAPI = {
+  getStudentAnalytics: async () => {
+    const response = await api.get('/analytics/student');
+    return response.data;
+  },
+
+  getTeacherAnalytics: async () => {
+    const response = await api.get('/analytics/teacher');
+    return response.data;
+  },
+};
+
+// Teacher APIs
+export const teacherAPI = {
+  manageStudent: async (studentEmail: string) => {
+    const response = await api.post('/teachers/students/manage', { student_email: studentEmail });
+    return response.data;
+  },
+
+  unmanageStudent: async (studentEmail: string) => {
+    const response = await api.post('/teachers/students/unmanage', { student_email: studentEmail });
+    return response.data;
+  },
+
+  listManagedStudents: async () => {
+    const response = await api.get('/teachers/students');
+    return response.data.students;
+  },
+
+  getAnalytics: async () => {
+    const response = await api.get('/teachers/analytics');
+    return response.data;
+  },
 };
 
 export default api;

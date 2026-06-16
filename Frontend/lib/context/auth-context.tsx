@@ -99,10 +99,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
       const { access_token } = response.data as { access_token: string };
       localStorage.setItem("token", access_token);
-      await fetchMe();
-      router.replace("/dashboard");
+      const nextUser = (await api.get("/auth/me")).data as User;
+      setUser(nextUser);
+      setIsLoading(false);
+      if (nextUser.role === "teacher") {
+        router.replace("/teacher");
+      } else {
+        router.replace("/dashboard");
+      }
     },
-    [fetchMe, router]
+    [router]
   );
 
   const signup = useCallback(
@@ -111,11 +117,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { access_token } = response.data as { access_token: string };
       if (access_token) {
         localStorage.setItem("token", access_token);
-        await fetchMe();
-        router.replace("/onboarding");
+        const nextUser = (await api.get("/auth/me")).data as User;
+        setUser(nextUser);
+        setIsLoading(false);
+        if (nextUser.role === "teacher") {
+          router.replace("/teacher");
+        } else {
+          router.replace("/onboarding");
+        }
       }
     },
-    [fetchMe, router]
+    [router]
   );
 
   const logout = useCallback(() => {
