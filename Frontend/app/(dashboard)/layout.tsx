@@ -55,7 +55,7 @@ export default function DashboardLayout({
   if (!onboardingChecked || shouldRedirect || authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="h-10 w-10 rounded-full bg-primary animate-pulse-glow" />
+        <div className="h-8 w-8 rounded-md border-2 border-primary border-t-transparent animate-spin" />
       </div>
     );
   }
