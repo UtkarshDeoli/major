@@ -58,10 +58,8 @@ export function AuthForm({ type }: AuthFormProps) {
   };
 
   const handleGoogleSignIn = () => {
-    toast({
-      title: 'Google Sign In',
-      description: 'Google authentication coming soon!',
-    });
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+    window.location.href = `${apiUrl}/auth/google/login`;
   };
   
   return (
