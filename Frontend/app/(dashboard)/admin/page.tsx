@@ -29,6 +29,9 @@ function AdminDashboardContent() {
         <h1 className="text-2xl font-semibold tracking-tight">Admin Dashboard.</h1>
         <p className="text-sm text-muted-foreground mt-1">Manage users, roles, and licenses.</p>
       </div>
+      <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-muted-foreground mb-6">
+        Admin tooling is under construction. The figures below are placeholders.
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {statCards.map((stat) => (
           <div key={stat.label} className="rounded-md border bg-card p-4 space-y-2">

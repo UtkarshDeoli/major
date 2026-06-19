@@ -17,7 +17,6 @@ import {
   BookOpen,
   Sparkles,
   BarChart3,
-  Shield,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -97,7 +96,7 @@ function SidebarNavItem({
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const { user, hasRole, logout } = useAuth()
+  const { user, logout } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [collapsed, setCollapsedState] = useState(false)
@@ -128,7 +127,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const sidebarWidth = collapsed ? "w-12" : "w-60"
-  const allNav = hasRole("admin") ? [...nav, { href: "/admin", label: "Admin", icon: Shield }] : nav
+  const allNav = nav
 
   return (
     <div className="h-screen flex overflow-hidden bg-background">
