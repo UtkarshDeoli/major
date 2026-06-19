@@ -11,7 +11,13 @@ export function getErrorMessage(error: unknown): string {
     if (typeof detail === "string" && detail) return detail;
     if (Array.isArray(detail)) {
       const joined = detail
-        .map((d: any) => (typeof d?.message === "string" ? d.message : undefined))
+        .map((d: any) =>
+          typeof d?.msg === "string"
+            ? d.msg
+            : typeof d?.message === "string"
+            ? d.message
+            : undefined
+        )
         .filter(Boolean)
         .join(", ");
       if (joined) return joined;
