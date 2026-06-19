@@ -16,6 +16,7 @@ from src.routers import (
     subject_router,
     collection_router,
     material_router,
+    onboarding_router,
 )
 
 app = FastAPI()
@@ -42,6 +43,7 @@ app.include_router(exam_router)
 app.include_router(subject_router)
 app.include_router(collection_router)
 app.include_router(material_router)
+app.include_router(onboarding_router)
 
 @app.get("/")
 async def root():

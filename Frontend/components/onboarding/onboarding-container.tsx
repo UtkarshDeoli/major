@@ -6,9 +6,13 @@ import Container from "@/components/global/container";
 import { StepAboutYou } from "./step-about-you";
 import { StepStudyGoal } from "./step-study-goal";
 import { PRESET_EXAMS } from "@/lib/constants/exams";
+import { examAPI, onboardingAPI } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { getErrorMessage } from "@/lib/errors";
 
 export function OnboardingContainer() {
   const router = useRouter();
+  const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -20,15 +24,15 @@ export function OnboardingContainer() {
   }) => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error("Failed to save onboarding data");
+      await onboardingAPI.saveStep1(data);
       setStep(2);
     } catch (error) {
       console.error("Error saving onboarding data:", error);
+      toast({
+        title: "Couldn't save your details",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -36,10 +40,7 @@ export function OnboardingContainer() {
 
   const completeOnboarding = async () => {
     try {
-      await fetch("/api/onboarding/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
+      await onboardingAPI.complete();
     } catch (error) {
       console.error("Error completing onboarding:", error);
     }
@@ -53,27 +54,15 @@ export function OnboardingContainer() {
         if (!preset) throw new Error("Preset not found");
 
         // 1. Create exam
-        const examRes = await fetch("/api/exams", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: preset.name,
-            icon: preset.icon,
-            is_active: true,
-          }),
+        const exam = await examAPI.createExam({
+          name: preset.name,
+          icon: preset.icon,
+          is_active: true,
         });
-        if (!examRes.ok) throw new Error("Failed to create exam");
-        const exam = await examRes.json();
 
         // 2. Create subjects
         await Promise.all(
-          preset.subjects.map((subjectName) =>
-            fetch(`/api/exams/${exam.id}/subjects`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name: subjectName }),
-            })
-          )
+          preset.subjects.map((subjectName) => examAPI.createSubject(exam.id, subjectName))
         );
       }
 
@@ -81,6 +70,11 @@ export function OnboardingContainer() {
       router.push("/dashboard");
     } catch (error) {
       console.error("Error in step 2:", error);
+      toast({
+        title: "Couldn't set up your study goal",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
       setIsLoading(false);
     }
   };

@@ -327,4 +327,46 @@ export const teacherAPI = {
   },
 };
 
+
+// ─── Exams / Subjects ─────────────────────────────────────────────────────────
+export const examAPI = {
+  async listExams(): Promise<any> {
+    const res = await api.get("/api/exams/");
+    return res.data;
+  },
+  async createExam(payload: { name: string; icon?: string; is_active?: boolean }): Promise<any> {
+    const res = await api.post("/api/exams/", payload);
+    return res.data;
+  },
+  async setActiveExam(examId: string): Promise<any> {
+    const res = await api.patch(`/api/exams/${examId}/active`);
+    return res.data;
+  },
+  async createSubject(examId: string, name: string): Promise<any> {
+    const res = await api.post(`/api/exams/${examId}/subjects`, { name });
+    return res.data;
+  },
+};
+
+// ─── Onboarding ───────────────────────────────────────────────────────────────
+export const onboardingAPI = {
+  async getStatus(): Promise<{ onboarding_completed: boolean }> {
+    const res = await api.get("/api/onboarding/");
+    return res.data;
+  },
+  async saveStep1(data: {
+    name: string;
+    role: string;
+    institute: string;
+    language: string;
+  }): Promise<any> {
+    const res = await api.post("/api/onboarding/", data);
+    return res.data;
+  },
+  async complete(): Promise<any> {
+    const res = await api.post("/api/onboarding/complete");
+    return res.data;
+  },
+};
+
 export default api;

@@ -13,6 +13,9 @@ import { MagicCard } from "@/components/ui/magic-card";
 import { PRESET_EXAMS } from "@/lib/constants/exams";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { examAPI } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { getErrorMessage } from "@/lib/errors";
 
 interface ExamSetupDialogProps {
   open: boolean;
@@ -27,38 +30,30 @@ export function ExamSetupDialog({
 }: ExamSetupDialogProps) {
   const [customName, setCustomName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
   const handlePresetClick = async (preset: (typeof PRESET_EXAMS)[0]) => {
     setIsLoading(true);
     try {
-      // 1. Create exam
-      const examRes = await fetch("/api/exams", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: preset.name,
-          icon: preset.icon,
-          is_active: true,
-        }),
+      const exam = await examAPI.createExam({
+        name: preset.name,
+        icon: preset.icon,
+        is_active: true,
       });
-      if (!examRes.ok) throw new Error("Failed to create exam");
-      const exam = await examRes.json();
 
-      // 2. Create subjects
       await Promise.all(
-        preset.subjects.map((subjectName) =>
-          fetch(`/api/exams/${exam.id}/subjects`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: subjectName }),
-          })
-        )
+        preset.subjects.map((subjectName) => examAPI.createSubject(exam.id, subjectName))
       );
 
       onExamCreated(exam.id);
       onOpenChange(false);
     } catch (error) {
       console.error("Error creating exam:", error);
+      toast({
+        title: "Couldn't create exam",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -68,21 +63,20 @@ export function ExamSetupDialog({
     if (!customName.trim()) return;
     setIsLoading(true);
     try {
-      const examRes = await fetch("/api/exams", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: customName.trim(),
-          is_active: true,
-        }),
+      const exam = await examAPI.createExam({
+        name: customName.trim(),
+        is_active: true,
       });
-      if (!examRes.ok) throw new Error("Failed to create exam");
-      const exam = await examRes.json();
 
       onExamCreated(exam.id);
       onOpenChange(false);
     } catch (error) {
       console.error("Error creating custom exam:", error);
+      toast({
+        title: "Couldn't create exam",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }

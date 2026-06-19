@@ -6,6 +6,7 @@ import React, {
   useState,
   useCallback,
 } from "react";
+import api from "@/lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -79,11 +80,8 @@ export function DashboardProvider({
   const refreshExams = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/exams");
-      if (!res.ok) {
-        throw new Error(`Failed to fetch exams: ${res.status}`);
-      }
-      const data: Exam[] = await res.json();
+      const res = await api.get("/api/exams/");
+      const data: Exam[] = (res.data.exams ?? res.data) as Exam[];
       setExams(data);
       setActiveExam((prev) => {
         if (prev) {
@@ -92,6 +90,8 @@ export function DashboardProvider({
         }
         return data.find((e) => e.isActive) || data[0] || null;
       });
+    } catch (error) {
+      console.error("Failed to fetch exams:", error);
     } finally {
       setIsLoading(false);
     }

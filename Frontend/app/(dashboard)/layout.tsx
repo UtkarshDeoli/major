@@ -6,6 +6,7 @@ import AuthProtection from "@/components/auth/route-protection/auth-protection";
 import AppShell from "@/components/dashboard/app-shell";
 import { DashboardProvider } from "@/lib/context/dashboard-context";
 import { useAuth } from "@/lib/context/auth-context";
+import { onboardingAPI } from "@/lib/api";
 
 export default function DashboardLayout({
   children,
@@ -21,12 +22,7 @@ export default function DashboardLayout({
   useEffect(() => {
     const checkOnboarding = async () => {
       try {
-        const res = await fetch("/api/onboarding");
-        if (!res.ok) {
-          setOnboardingChecked(true);
-          return;
-        }
-        const data = await res.json();
+        const data = await onboardingAPI.getStatus();
         if (data.onboarding_completed === false) {
           setShouldRedirect(true);
         }
