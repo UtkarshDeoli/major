@@ -18,6 +18,8 @@ function CallbackHandler() {
         invalid_state: "Security check failed. Please try again.",
         no_email: "Google account has no email associated. Please use a different account.",
         exchange_failed: "Failed to sign in with Google. Please try again.",
+        invalid_request: "Invalid request. Please try again.",
+        access_denied: "Google sign-in was denied. Please try again or use email.",
       };
       setError(messages[errorParam] || "An unknown error occurred.");
       return;
