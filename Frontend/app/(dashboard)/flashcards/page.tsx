@@ -50,10 +50,14 @@ export default function FlashcardsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Flashcards.</h1>
           <p className="text-sm text-muted-foreground mt-1">Review key concepts with spaced repetition.</p>
         </div>
-        <Button size="sm" className="rounded-md h-8 text-[13px]" onClick={handleGenerateDeck} disabled={isGenerating}>
+        <Button size="sm" className="rounded-md h-8 text-[13px]" onClick={handleGenerateDeck} disabled title="AI flashcard generation coming soon">
           <Sparkles className="h-3.5 w-3.5 mr-1.5" />
           Generate Deck
         </Button>
+      </div>
+      <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">Flashcards are in beta.</span>{" "}
+        AI-generated decks arrive in a future update. The decks below are sample content.
       </div>
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">Deck:</span>
