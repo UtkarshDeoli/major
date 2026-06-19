@@ -5,7 +5,11 @@ exchange the authorization code for tokens, and verify/ decode the ID token.
 """
 
 from typing import Optional
+
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 from google_auth_oauthlib.flow import Flow
+
 from src.core.config import GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
 
 # Scopes requested during Google OAuth
@@ -75,6 +79,8 @@ def exchange_code_for_tokens(code: str, state: str) -> dict:
     """
     flow = _create_flow(state=state)
     flow.fetch_token(code=code)
-    id_token = flow.credentials.id_token
-    # id_token is already a decoded dict when using google-auth-oauthlib's Flow
-    return id_token
+    raw_id_token = flow.credentials.id_token
+    decoded = id_token.verify_oauth2_token(
+        raw_id_token, google_requests.Request(), audience=GOOGLE_CLIENT_ID
+    )
+    return decoded

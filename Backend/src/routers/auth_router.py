@@ -132,12 +132,31 @@ async def google_login():
 
 
 @router.get("/google/callback")
-async def google_callback(code: str, state: str, request: Request):
+async def google_callback(
+    request: Request,
+    code: Optional[str] = None,
+    state: Optional[str] = None,
+    error: Optional[str] = None,
+):
     """Handle the OAuth callback from Google.
 
     Exchanges the authorization code for tokens, finds or creates a user,
     issues a JWT, and redirects the frontend with the token.
     """
+    # If Google returned an error (e.g., user denied consent)
+    if error:
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/auth/callback?error={error}",
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    if not code or not state:
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/auth/callback?error=invalid_request",
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    # Verify CSRF state cookie matches
     stored_state = request.cookies.get("oauth_state")
     if not stored_state or stored_state != state:
         return RedirectResponse(
