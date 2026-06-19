@@ -55,6 +55,15 @@ function DashboardContent() {
           chatAPI.listChatSessions(),
           mockTestAPI.listMockTests(),
         ])
+        const failed = [pdfs, sessions, tests].filter((r) => r.status === "rejected")
+        if (failed.length > 0) {
+          console.error("Dashboard stats fetch failures:", failed)
+          toast({
+            title: "Some stats failed to load",
+            description: "Parts of your dashboard may appear incomplete.",
+            variant: "destructive",
+          })
+        }
         const docCount = pdfs.status === "fulfilled" ? (pdfs.value as any[])?.length || 0 : 0
         const sessionCount = sessions.status === "fulfilled" ? (sessions.value as any[])?.length || 0 : 0
         const testList = tests.status === "fulfilled" ? (tests.value as any[]) || [] : []

@@ -5,6 +5,8 @@ import { SubjectChart } from "@/components/dashboard/analytics/subject-chart"
 import { WeaknessRadar } from "@/components/dashboard/analytics/weakness-radar"
 import { analyticsAPI, mockTestAPI } from "@/lib/api"
 import { TrendingUp } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { getErrorMessage } from "@/lib/errors"
 
 export default function AnalyticsPage() {
   const [isLoading, setIsLoading] = useState(true)
@@ -12,6 +14,7 @@ export default function AnalyticsPage() {
   const [weaknessData, setWeaknessData] = useState<Array<{ topic: string; score: number; fullMark: number }>>([])
   const [totalTests, setTotalTests] = useState(0)
   const [avgScore, setAvgScore] = useState(0)
+  const { toast } = useToast()
 
   useEffect(() => {
     const fetchData = async () => {
@@ -51,6 +54,11 @@ export default function AnalyticsPage() {
         }
       } catch (err) {
         console.error("Failed to load analytics:", err)
+        toast({
+          title: "Couldn't load analytics",
+          description: getErrorMessage(err),
+          variant: "destructive",
+        })
       } finally {
         setIsLoading(false)
       }
