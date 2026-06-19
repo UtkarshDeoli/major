@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import nltk
 
+from src.core.config import FRONTEND_URL
+
 # Import our routers
 from src.routers import (
     auth_router,
@@ -21,10 +23,10 @@ from src.routers import (
 
 app = FastAPI()
 
-# Allow CORS for all origins (you can restrict this to specific origins if needed)
+# Allow CORS for the frontend origin
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=[FRONTEND_URL],
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
