@@ -14,3 +14,7 @@ package-lock.json
 .DS_Store
 *.log
 
+# Build output
+out
+coverage
+
