@@ -279,7 +279,9 @@ class User(BaseModel):
     id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
     email: str
     name: Optional[str] = None
-    password_hash: str
+    password_hash: Optional[str] = None
+    auth_provider: Optional[str] = None  # "email" or "google"
+    provider_uid: Optional[str] = None   # Google "sub" ID, or None for email users
     role: Literal["student", "teacher", "subadmin", "admin"] = "student"
     institute: Optional[str] = None
     preferred_language: str = "en"
