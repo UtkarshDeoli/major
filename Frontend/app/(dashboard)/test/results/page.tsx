@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { mockTestAPI } from '@/lib/api'
 import { MockTestAnalysis, AnswerFeedback } from '@/lib/data'
+import { getErrorMessage } from '@/lib/errors'
 
 export default function TestResultsPage() {
   const router = useRouter()
@@ -45,27 +46,24 @@ export default function TestResultsPage() {
       }
 
       try {
-        // First, try to get analysis data from sessionStorage (fresh submission)
-        const storedAnalysis = sessionStorage.getItem('testAnalysis')
-        if (storedAnalysis) {
-          const analysisData = JSON.parse(storedAnalysis)
-          setAnalysis(analysisData)
-          // Clear the stored data after use
-          sessionStorage.removeItem('testAnalysis')
+        // 1. Try the per-submission sessionStorage cache (fast path; not deleted on read).
+        const cached = submissionId ? sessionStorage.getItem(`testAnalysis:${submissionId}`) : null
+        if (cached) {
+          setAnalysis(JSON.parse(cached) as MockTestAnalysis)
+          setLoading(false)
           return
         }
 
-        // If no stored data, try to fetch from backend API
+        // 2. Otherwise fetch the authoritative copy from the backend.
         const analysisData = await mockTestAPI.getAnalysisBySubmissionId(submissionId)
         setAnalysis(analysisData)
-        console.log("Fetched analysis from API:", analysisData)
-        
+        sessionStorage.setItem(`testAnalysis:${submissionId}`, JSON.stringify(analysisData))
       } catch (error) {
-        console.error('Error fetching results:', error)
+        console.error("Error fetching results:", error)
         toast({
           title: "Error",
-          description: error instanceof Error ? error.message : "Failed to load test results",
-          variant: "destructive"
+          description: getErrorMessage(error),
+          variant: "destructive",
         })
       } finally {
         setLoading(false)
