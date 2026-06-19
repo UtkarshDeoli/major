@@ -360,7 +360,12 @@ export const onboardingAPI = {
     institute: string;
     language: string;
   }): Promise<any> {
-    const res = await api.post("/api/onboarding/", data);
+    const res = await api.post("/api/onboarding/", {
+      name: data.name,
+      role: data.role,
+      institute: data.institute,
+      preferred_language: data.language,
+    });
     return res.data;
   },
   async complete(): Promise<any> {

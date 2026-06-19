@@ -6,7 +6,7 @@ import React, {
   useState,
   useCallback,
 } from "react";
-import api from "@/lib/api";
+import { examAPI } from "@/lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -80,8 +80,8 @@ export function DashboardProvider({
   const refreshExams = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await api.get("/api/exams/");
-      const data: Exam[] = (res.data.exams ?? res.data) as Exam[];
+      const res = await examAPI.listExams();
+      const data: Exam[] = (res?.exams ?? res) as Exam[];
       setExams(data);
       setActiveExam((prev) => {
         if (prev) {
