@@ -1,18 +1,24 @@
 from datetime import timedelta
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
 
+from src.core.config import ACCESS_TOKEN_EXPIRE_MINUTES, FRONTEND_URL
 from src.core.models import SubscriptionInfo
 from src.core.security import get_current_user
 from src.services.auth_service import (
-    ACCESS_TOKEN_EXPIRE_MINUTES,
     authenticate_user,
     create_access_token,
     create_user,
+    find_or_create_google_user,
     get_user_by_email,
+)
+from src.services.google_oauth_service import (
+    exchange_code_for_tokens,
+    get_authorization_url,
 )
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -51,22 +57,16 @@ class SignupResponse(BaseModel):
 
 @router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
 async def signup(user_data: UserCreate):
-    """Register a new user with email and password and return an access token.
-
-    Public signup always creates a student. Privileged roles must be assigned
-    through admin/sub-admin enrollment flows.
-    """
+    """Register a new user with email and password and return an access token."""
     user = await create_user(
         email=user_data.email,
         password=user_data.password,
         name=user_data.name,
     )
-
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user["email"]}, expires_delta=access_token_expires
     )
-
     return {
         "email": user["email"],
         "access_token": access_token,
@@ -84,12 +84,10 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user["email"]}, expires_delta=access_token_expires
     )
-
     return {"access_token": access_token, "token_type": "bearer"}
 
 
@@ -115,3 +113,65 @@ async def get_me(user_email: str = Depends(get_current_user)):
         license_id=user.get("license_id"),
         subscription=user.get("subscription"),
     )
+
+
+@router.get("/google/login")
+async def google_login():
+    """Redirect the user to Google's OAuth consent screen."""
+    authorization_url, state = get_authorization_url()
+    response = RedirectResponse(url=authorization_url, status_code=status.HTTP_302_FOUND)
+    response.set_cookie(
+        key="oauth_state",
+        value=state,
+        max_age=600,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+    )
+    return response
+
+
+@router.get("/google/callback")
+async def google_callback(code: str, state: str, request: Request):
+    """Handle the OAuth callback from Google.
+
+    Exchanges the authorization code for tokens, finds or creates a user,
+    issues a JWT, and redirects the frontend with the token.
+    """
+    stored_state = request.cookies.get("oauth_state")
+    if not stored_state or stored_state != state:
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/auth/callback?error=invalid_state",
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    try:
+        id_info = exchange_code_for_tokens(code, state)
+        email = id_info.get("email")
+        if not email:
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/auth/callback?error=no_email",
+                status_code=status.HTTP_302_FOUND,
+            )
+        name = id_info.get("name")
+        google_sub = id_info.get("sub")
+        user = await find_or_create_google_user(
+            email=email,
+            name=name,
+            google_sub=google_sub,
+        )
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": user["email"]}, expires_delta=access_token_expires
+        )
+        response = RedirectResponse(
+            url=f"{FRONTEND_URL}/auth/callback?token={access_token}",
+            status_code=status.HTTP_302_FOUND,
+        )
+        response.delete_cookie("oauth_state")
+        return response
+    except Exception:
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/auth/callback?error=exchange_failed",
+            status_code=status.HTTP_302_FOUND,
+        )
