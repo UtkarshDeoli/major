@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   User,
   Menu,
@@ -45,6 +45,18 @@ const bottomNav = [
   { href: "/settings", label: "Settings", icon: Settings },
 ]
 
+/**
+ * Determine if a nav item is active. Tab items (/test?tab=analysis) only
+ * match when the current ?tab= matches; plain items match their path only.
+ */
+export function isNavItemActive(href: string, pathname: string, tab: string | null): boolean {
+  const [itemPath, query] = href.split("?");
+  if (itemPath !== pathname) return false;
+  if (!query) return true;
+  const itemTab = new URLSearchParams(query).get("tab");
+  return itemTab === tab;
+}
+
 function SidebarNavItem({
   item,
   collapsed,
@@ -57,8 +69,9 @@ function SidebarNavItem({
   setMobileOpen: (v: boolean) => void
 }) {
   const pathname = usePathname()
-  const basePath = item.href.split("?")[0]
-  const isActive = pathname === basePath
+  const searchParams = useSearchParams()
+  const tab = searchParams.get("tab")
+  const isActive = isNavItemActive(item.href, pathname, tab)
 
   return (
     <Link
