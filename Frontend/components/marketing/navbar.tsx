@@ -36,7 +36,7 @@ const Navbar = () => {
                                 Log in
                             </Button>
                         </Link>
-                        <Link href="/dashboard" className="hidden lg:block">
+                        <Link href="/signup" className="hidden lg:block">
                             <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground">
                                 Get Started
                             </Button>

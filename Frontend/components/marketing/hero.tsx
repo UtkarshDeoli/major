@@ -75,7 +75,7 @@ const Hero = () => {
                     </Container>
                     <Container eager delay={0.25} className="z-20">
                         <div className="flex items-center justify-center mt-6 gap-x-4">
-                            <Link href="/dashboard" className="flex items-center gap-2 group">
+                            <Link href="/signup" className="flex items-center gap-2 group">
                                 <Button size="lg">
                                     Start Learning Free
                                     <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-all duration-300" />
