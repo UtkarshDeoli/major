@@ -97,7 +97,7 @@ function SidebarNavItem({
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const { user, hasRole } = useAuth()
+  const { user, hasRole, logout } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [collapsed, setCollapsedState] = useState(false)
@@ -124,8 +124,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [])
 
   const handleSignOut = () => {
-    localStorage.removeItem("token")
-    router.push("/")
+    logout()
   }
 
   const sidebarWidth = collapsed ? "w-12" : "w-60"
