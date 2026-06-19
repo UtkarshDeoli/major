@@ -10,8 +10,17 @@ import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { Clock, ChevronLeft, ChevronRight, Save, Loader2 } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { mockTestAPI } from '@/lib/api'
 import { MockTest, MockTestQuestion } from '@/lib/data'
+import { getErrorMessage } from "@/lib/errors"
 
 export default function TestPage() {
   const router = useRouter()
@@ -25,7 +34,10 @@ export default function TestPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [timeRemaining, setTimeRemaining] = useState(3600)
   const { toast } = useToast()
-  
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false)
+  const [warnedAt5, setWarnedAt5] = useState(false)
+  const [warnedAt1, setWarnedAt1] = useState(false)
+
   // Fetch mock test data
   useEffect(() => {
     const fetchMockTest = async () => {
@@ -62,15 +74,52 @@ export default function TestPage() {
   const question = mockTest?.questions[currentQuestion]
   const progress = mockTest ? Math.round(((currentQuestion + 1) / mockTest.questions.length) * 100) : 0
   
+  const performSubmit = async () => {
+    if (!mockTest || submitting) return
+    setSubmitting(true)
+    try {
+      const timeTaken = (mockTest.time_limit * 60) - timeRemaining
+      const result = await mockTestAPI.submitMockTest(mockTest.test_id, answers, timeTaken)
+
+      toast({ title: "Test submitted successfully", description: "Your answers have been analyzed." })
+
+      // Cache the analysis keyed by submissionId so refresh/back still works (see Task 0.7).
+      sessionStorage.setItem(
+        `testAnalysis:${result.submission_id}`,
+        JSON.stringify(result)
+      )
+
+      router.push(`/test/results?testId=${mockTest.test_id}&submissionId=${result.submission_id}`)
+    } catch (error) {
+      console.error("Error submitting test:", error)
+      toast({
+        title: "Error",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleSubmit = () => {
+    setShowSubmitConfirm(true)
+  }
+
+  const confirmSubmit = () => {
+    setShowSubmitConfirm(false)
+    void performSubmit()
+  }
+
   // Timer effect
   useEffect(() => {
     if (!mockTest || timeRemaining <= 0) return
-    
+
     const timer = setInterval(() => {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
           clearInterval(timer)
-          handleSubmit() // Auto-submit when time runs out
+          performSubmit() // Auto-submit when time runs out
           return 0
         }
         return prev - 1
@@ -79,7 +128,37 @@ export default function TestPage() {
 
     return () => clearInterval(timer)
   }, [mockTest, timeRemaining])
-  
+
+  // Time-limit warnings (5 min and 1 min remaining)
+  useEffect(() => {
+    if (!mockTest || timeRemaining <= 0) return
+    const fiveMin = 5 * 60
+    const oneMin = 1 * 60
+    if (!warnedAt5 && timeRemaining <= fiveMin && timeRemaining > oneMin) {
+      setWarnedAt5(true)
+      toast({ title: "5 minutes remaining", description: "Your test will auto-submit soon." })
+    }
+    if (!warnedAt1 && timeRemaining <= oneMin && timeRemaining > 0) {
+      setWarnedAt1(true)
+      toast({
+        title: "1 minute remaining!",
+        description: "Submitting your answers now is recommended.",
+        variant: "destructive",
+      })
+    }
+  }, [timeRemaining, mockTest, warnedAt5, warnedAt1, toast])
+
+  // Guard against accidental navigation away while a test is in progress
+  useEffect(() => {
+    if (!mockTest || submitting) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ""
+    }
+    window.addEventListener("beforeunload", onBeforeUnload)
+    return () => window.removeEventListener("beforeunload", onBeforeUnload)
+  }, [mockTest, submitting])
+
   const handleAnswer = (answer: string) => {
     if (!question) return
     setAnswers(prev => ({
@@ -87,46 +166,16 @@ export default function TestPage() {
       [question.id]: answer
     }))
   }
-  
+
   const handleNext = () => {
     if (mockTest && currentQuestion < mockTest.questions.length - 1) {
       setCurrentQuestion(prev => prev + 1)
     }
   }
-  
+
   const handlePrevious = () => {
     if (currentQuestion > 0) {
       setCurrentQuestion(prev => prev - 1)
-    }
-  }
-  
-  const handleSubmit = async () => {
-    if (!mockTest || submitting) return
-    
-    setSubmitting(true)
-    try {
-      const timeTaken = (mockTest.time_limit * 60) - timeRemaining // Calculate time taken
-      const result = await mockTestAPI.submitMockTest(mockTest.test_id, answers, timeTaken)
-      
-      toast({
-        title: "Test submitted successfully",
-        description: "Your answers have been analyzed."
-      })
-      
-      // Store the analysis result in sessionStorage for the results page
-      sessionStorage.setItem('testAnalysis', JSON.stringify(result))
-      
-      // Navigate to results page
-      router.push(`/test/results?testId=${mockTest.test_id}&submissionId=${result.submission_id}`)
-    } catch (error) {
-      console.error('Error submitting test:', error)
-      toast({
-        title: "Error",
-        description: "Failed to submit test. Please try again.",
-        variant: "destructive"
-      })
-    } finally {
-      setSubmitting(false)
     }
   }
   
@@ -268,6 +317,33 @@ export default function TestPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Submit confirmation */}
+      <Dialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Submit test?</DialogTitle>
+            <DialogDescription>
+              You have answered{" "}
+              {Object.keys(answers).length} of {mockTest.questions.length} questions.
+              {Object.keys(answers).length < mockTest.questions.length &&
+                ` ${mockTest.questions.length - Object.keys(answers).length} unanswered question${
+                  mockTest.questions.length - Object.keys(answers).length > 1 ? "s" : ""
+                } will be marked blank.`}{" "}
+              You cannot change your answers after submitting.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowSubmitConfirm(false)}>
+              Keep working
+            </Button>
+            <Button onClick={confirmSubmit} disabled={submitting} className="gap-2">
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Submit now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
