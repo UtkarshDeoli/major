@@ -11,3 +11,4 @@ from .exam_router import router as exam_router
 from .subject_router import router as subject_router
 from .collection_router import router as collection_router
 from .material_router import router as material_router
+from .onboarding_router import router as onboarding_router
