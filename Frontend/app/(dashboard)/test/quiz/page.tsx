@@ -47,7 +47,7 @@ export default function TestPage() {
           description: "No test ID provided",
           variant: "destructive"
         })
-        router.push('/test')
+        router.push('/mock-tests')
         return
       }
 
@@ -62,7 +62,7 @@ export default function TestPage() {
           description: "Failed to load test",
           variant: "destructive"
         })
-        router.push('/test')
+        router.push('/mock-tests')
       } finally {
         setLoading(false)
       }
@@ -119,7 +119,6 @@ export default function TestPage() {
       setTimeRemaining((prev) => {
         if (prev <= 1) {
           clearInterval(timer)
-          performSubmit() // Auto-submit when time runs out
           return 0
         }
         return prev - 1
@@ -128,6 +127,14 @@ export default function TestPage() {
 
     return () => clearInterval(timer)
   }, [mockTest, timeRemaining])
+
+  // Auto-submit when timer hits zero (separate from the state updater to keep it pure)
+  useEffect(() => {
+    if (mockTest && timeRemaining === 0 && !submitting) {
+      performSubmit()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timeRemaining])
 
   // Time-limit warnings (5 min and 1 min remaining)
   useEffect(() => {
@@ -201,7 +208,7 @@ export default function TestPage() {
     return (
       <div className="container mx-auto py-8 px-4 text-center">
         <p>Test not found</p>
-        <Button onClick={() => router.push('/test')} className="mt-4">
+        <Button onClick={() => router.push('/mock-tests')} className="mt-4">
           Back to Tests
         </Button>
       </div>

@@ -41,7 +41,7 @@ export default function TestResultsPage() {
           description: "Missing test or submission information",
           variant: "destructive"
         })
-        router.push('/test')
+        router.push('/mock-tests')
         return
       }
 
@@ -114,7 +114,7 @@ export default function TestResultsPage() {
     return (
       <div className="container mx-auto py-8 px-4 text-center">
         <p>Test results not found</p>
-        <Button onClick={() => router.push('/test')} className="mt-4">
+        <Button onClick={() => router.push('/mock-tests')} className="mt-4">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Tests
         </Button>
@@ -142,7 +142,7 @@ export default function TestResultsPage() {
         <div className="flex items-center gap-4">
           <Button
             variant="outline"
-            onClick={() => router.push('/test')}
+            onClick={() => router.push('/mock-tests')}
             className="gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -330,7 +330,7 @@ export default function TestResultsPage() {
 
       {/* Action Buttons */}
       <div className="flex gap-4 mt-8 justify-center">
-        <Button onClick={() => router.push('/test')} variant="outline">
+        <Button onClick={() => router.push('/mock-tests')} variant="outline">
           Take Another Test
         </Button>
         <Button onClick={() => router.push('/dashboard')}>
