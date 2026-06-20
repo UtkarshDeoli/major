@@ -34,8 +34,8 @@ import { useAuth } from "@/lib/context/auth-context"
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/test?tab=analysis", label: "Analysis", icon: FileBarChart },
-  { href: "/test?tab=mock", label: "Mock Tests", icon: BookOpen },
+  { href: "/analysis", label: "Analysis", icon: FileBarChart },
+  { href: "/mock-tests", label: "Mock Tests", icon: BookOpen },
   { href: "/flashcards", label: "Flashcards", icon: Sparkles },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
 ]
