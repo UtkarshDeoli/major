@@ -5,7 +5,7 @@ import jwt
 from fastapi import HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorClient
 from passlib.context import CryptContext
-from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from pymongo.errors import ConnectionFailure, DuplicateKeyError, ServerSelectionTimeoutError
 
 # Import settings from config
 from src.core.config import MONGODB_URL, MONGODB_DB_NAME, MONGODB_CONNECT_TIMEOUT, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
@@ -34,6 +34,9 @@ def _ensure_auth_db():
         )
         db = client[MONGODB_DB_NAME]
         users_collection = db.users
+        # Ensure a unique index on email to prevent duplicate users (TOCTOU race)
+        import asyncio
+        asyncio.ensure_future(users_collection.create_index("email", unique=True, background=True))
     except (ConnectionFailure, ServerSelectionTimeoutError, ValueError) as e:
         print(f"MongoDB connection error: {e}")
         print("WARNING: Authentication service will not work until MongoDB is available")
@@ -199,6 +202,9 @@ async def find_or_create_google_user(email: str, name: Optional[str], google_sub
 
     except HTTPException:
         raise
+    except DuplicateKeyError:
+        # TOCTOU race: another request created this user between our check and insert
+        return await get_user_by_email(email)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

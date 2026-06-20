@@ -20,6 +20,7 @@ function CallbackHandler() {
         exchange_failed: "Failed to sign in with Google. Please try again.",
         invalid_request: "Invalid request. Please try again.",
         access_denied: "Google sign-in was denied. Please try again or use email.",
+        email_not_verified: "Your Google email is not verified. Please verify your email with Google first.",
       };
       setError(messages[errorParam] || "An unknown error occurred.");
       return;

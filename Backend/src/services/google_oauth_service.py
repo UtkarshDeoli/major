@@ -57,7 +57,7 @@ def get_authorization_url() -> tuple[str, str]:
     """
     flow = _create_flow()
     authorization_url, state = flow.authorization_url(
-        access_type="offline",
+        access_type="online",
         include_granted_scopes="true",
         prompt="select_account",
     )

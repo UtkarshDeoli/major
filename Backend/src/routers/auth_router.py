@@ -1,5 +1,7 @@
 from datetime import timedelta
+import logging
 from typing import Literal, Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
@@ -21,6 +23,7 @@ from src.services.google_oauth_service import (
     get_authorization_url,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
@@ -145,8 +148,9 @@ async def google_callback(
     """
     # If Google returned an error (e.g., user denied consent)
     if error:
+        logger.warning("Google OAuth error: %s", error)
         return RedirectResponse(
-            url=f"{FRONTEND_URL}/auth/callback?error={error}",
+            url=f"{FRONTEND_URL}/auth/callback?error={quote(error)}",
             status_code=status.HTTP_302_FOUND,
         )
 
@@ -159,6 +163,7 @@ async def google_callback(
     # Verify CSRF state cookie matches
     stored_state = request.cookies.get("oauth_state")
     if not stored_state or stored_state != state:
+        logger.warning("OAuth state mismatch: stored=%s received=%s", stored_state, state)
         return RedirectResponse(
             url=f"{FRONTEND_URL}/auth/callback?error=invalid_state",
             status_code=status.HTTP_302_FOUND,
@@ -172,8 +177,24 @@ async def google_callback(
                 url=f"{FRONTEND_URL}/auth/callback?error=no_email",
                 status_code=status.HTTP_302_FOUND,
             )
+
+        # Verify Google has confirmed the email
+        if not id_info.get("email_verified"):
+            logger.warning("Google email not verified: %s", email)
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/auth/callback?error=email_not_verified",
+                status_code=status.HTTP_302_FOUND,
+            )
+
         name = id_info.get("name")
         google_sub = id_info.get("sub")
+        if not google_sub:
+            logger.warning("Google sub (user ID) missing for email: %s", email)
+            return RedirectResponse(
+                url=f"{FRONTEND_URL}/auth/callback?error=exchange_failed",
+                status_code=status.HTTP_302_FOUND,
+            )
+
         user = await find_or_create_google_user(
             email=email,
             name=name,
@@ -188,8 +209,10 @@ async def google_callback(
             status_code=status.HTTP_302_FOUND,
         )
         response.delete_cookie("oauth_state")
+        logger.info("Google OAuth success: email=%s sub=%s", email, google_sub)
         return response
-    except Exception:
+    except Exception as e:
+        logger.exception("Google OAuth exchange failed: %s", e)
         return RedirectResponse(
             url=f"{FRONTEND_URL}/auth/callback?error=exchange_failed",
             status_code=status.HTTP_302_FOUND,
