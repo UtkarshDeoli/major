@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { analysisAPI } from "@/lib/api"
+import { getErrorMessage } from "@/lib/errors"
 import { PdfSelector, type PdfSelection } from "@/components/dashboard/test/pdf-selector"
 import {
   Brain,
@@ -49,17 +50,11 @@ export default function AnalysisPage() {
         title: "Analysis Complete",
         description: "Question paper analysis has been generated successfully",
       })
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Analysis error:", error)
-      let errorMessage = "Failed to analyze question papers. Please try again."
-      if (error.response?.data?.detail) {
-        errorMessage = error.response.data.detail
-      } else if (error.message) {
-        errorMessage = error.message
-      }
       toast({
         title: "Analysis Failed",
-        description: errorMessage,
+        description: getErrorMessage(error),
         variant: "destructive",
       })
     } finally {

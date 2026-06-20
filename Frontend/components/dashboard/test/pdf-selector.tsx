@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useToast } from "@/hooks/use-toast"
 import { pdfAPI } from "@/lib/api"
-import { FileUp, Book, FileText, Brain } from "lucide-react"
+import { FileUp, Book, FileText } from "lucide-react"
 
 export interface PdfSelection {
   syllabusId: string

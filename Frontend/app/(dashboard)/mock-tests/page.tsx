@@ -10,8 +10,10 @@ import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
 import { mockTestAPI, teacherAPI } from "@/lib/api"
 import { useAuth } from "@/lib/context/auth-context"
+import { getErrorMessage } from "@/lib/errors"
+import { MockTest } from "@/lib/data"
 import { PdfSelector, type PdfSelection } from "@/components/dashboard/test/pdf-selector"
-import { Target, Clock, FileUp, Book, FileText } from "lucide-react"
+import { Target, Clock } from "lucide-react"
 
 export default function MockTestsPage() {
   const router = useRouter()
@@ -31,7 +33,7 @@ export default function MockTestsPage() {
     totalMarks: 50,
     difficultyLevel: "medium",
   })
-  const [mockTests, setMockTests] = useState<any[]>([])
+  const [mockTests, setMockTests] = useState<MockTest[]>([])
   const [isLoadingMockTests, setIsLoadingMockTests] = useState(false)
   const [linkedStudents, setLinkedStudents] = useState<Array<{ email: string; name?: string }>>([])
   const [selectedStudent, setSelectedStudent] = useState("")
@@ -113,17 +115,11 @@ export default function MockTestsPage() {
       })
 
       router.push(`/test/quiz?testId=${mockTest.test_id}`)
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Mock test generation error:", error)
-      let errorMessage = "Failed to generate mock test. Please try again."
-      if (error.response?.data?.detail) {
-        errorMessage = error.response.data.detail
-      } else if (error.message) {
-        errorMessage = error.message
-      }
       toast({
         title: "Generation Failed",
-        description: errorMessage,
+        description: getErrorMessage(error),
         variant: "destructive",
       })
     } finally {
