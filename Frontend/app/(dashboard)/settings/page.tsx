@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/context/auth-context"
-import { User, Mail, Lock, Bell, Palette } from "lucide-react"
+import { User, Mail, Bell, Palette, Save } from "lucide-react"
 
 export default function SettingsPage() {
   const { toast } = useToast()
@@ -57,12 +57,47 @@ export default function SettingsPage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem("orbit:preferences");
+    if (!stored) return;
+    try {
+      const prefs = JSON.parse(stored) as {
+        emailNotifications: boolean;
+        browserNotifications: boolean;
+        soundNotifications: boolean;
+        publicProfile: boolean;
+        fullName?: string;
+      };
+      setEmailNotifications(prefs.emailNotifications);
+      setBrowserNotifications(prefs.browserNotifications);
+      setSoundNotifications(prefs.soundNotifications);
+      setPublicProfile(prefs.publicProfile);
+      if (prefs.fullName) setFullName(prefs.fullName);
+    } catch {
+      // ignore malformed prefs
+    }
+  }, []);
+
   const handleSave = () => {
+    // Phase 0 interim: persist the preferences we can store client-side.
+    // Full profile/account sync (name, email, password) arrives in Phase 3.
+    localStorage.setItem(
+      "orbit:preferences",
+      JSON.stringify({
+        emailNotifications,
+        browserNotifications,
+        soundNotifications,
+        publicProfile,
+        fullName: fullName || user?.name || "",
+      })
+    );
     toast({
-      title: "Settings saved",
-      description: "Your preferences have been updated.",
-    })
-  }
+      title: "Preferences saved",
+      description:
+        "Notification and profile preferences saved to this browser. Account sync coming soon.",
+    });
+  };
 
   return (
     <div className="p-6 lg:p-8 max-w-4xl mx-auto space-y-8">
@@ -218,7 +253,7 @@ export default function SettingsPage() {
 
         <div className="flex justify-end">
           <Button onClick={handleSave} className="rounded-md gap-2">
-            <Lock className="h-4 w-4" />
+            <Save className="h-4 w-4" />
             Save Changes
           </Button>
         </div>

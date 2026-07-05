@@ -37,6 +37,9 @@ api.interceptors.response.use(
 );
 
 // Authentication APIs
+// NOTE: The AuthContext is the single owner of token + user state.
+// These helpers perform the HTTP call only; callers are responsible for
+// updating localStorage and context state.
 export const authAPI = {
   login: async (email: string, password: string) => {
     const response = await api.post('/auth/login', new URLSearchParams({
@@ -47,24 +50,18 @@ export const authAPI = {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
     });
-    
-    localStorage.setItem('token', response.data.access_token);
     return response.data;
   },
-  
+
   signup: async (email: string, password: string, name?: string) => {
     const response = await api.post('/auth/signup', { email, password, name });
-    // Auto-login after signup if backend returns a token
-    if (response.data?.access_token) {
-      localStorage.setItem('token', response.data.access_token);
-    }
     return response.data;
   },
-  
+
   logout: () => {
     localStorage.removeItem('token');
   },
-  
+
   isAuthenticated: () => {
     return !!localStorage.getItem('token');
   },
@@ -175,10 +172,11 @@ export const chatAPI = {
   },
   
   // Chat session management
-  createChatSession: async (title: string, pdfId?: string) => {
-    const response = await api.post('/questions/sessions', { 
-      title, 
-      pdf_id: pdfId 
+  createChatSession: async (title: string, pdfId?: string, docIds?: string[]) => {
+    const response = await api.post('/questions/sessions', {
+      title,
+      pdf_id: pdfId,
+      doc_ids: docIds,
     });
     return response.data;
   },
@@ -244,6 +242,8 @@ export const mockTestAPI = {
     weakTopics?: string[],
     subject?: string,
     studentEmail?: string,
+    gradingMode: "auto" | "teacher" = "auto",
+    sourceMaterialIds?: string[],
   ) => {
     const response = await api.post('/mock-tests/generate', {
       syllabus_pdf_id: syllabusId,
@@ -257,6 +257,8 @@ export const mockTestAPI = {
       weak_topics: weakTopics,
       subject,
       student_email: studentEmail,
+      grading_mode: gradingMode,
+      source_material_ids: sourceMaterialIds,
     });
     return response.data;
   },
@@ -273,6 +275,12 @@ export const mockTestAPI = {
     return response.data;
   },
 
+  // List all attempts for a test (student sees own; teacher sees assigned)
+  listSubmissions: async (testId: string) => {
+    const response = await api.get(`/mock-tests/${testId}/submissions`);
+    return response.data.submissions;
+  },
+
   // Submit a mock test and get analysis
   submitMockTest: async (testId: string, answers: Record<string, string>, timeTaken: number) => {
     const response = await api.post(`/mock-tests/${testId}/submit`, {
@@ -281,6 +289,12 @@ export const mockTestAPI = {
       time_taken: timeTaken,
       submitted_at: new Date().toISOString()
     });
+    return response.data;
+  },
+
+  // Teacher grades a pending-review submission
+  gradeSubmission: async (submissionId: string, grades: { question_id: string; marks_awarded: number; feedback?: string }[]) => {
+    const response = await api.post(`/mock-tests/submissions/${submissionId}/grade`, { grades });
     return response.data;
   },
 
@@ -324,6 +338,187 @@ export const teacherAPI = {
   getAnalytics: async () => {
     const response = await api.get('/teachers/analytics');
     return response.data;
+  },
+
+  assignMockTest: async (testId: string, studentEmail: string) => {
+    const response = await api.post(`/mock-tests/${encodeURIComponent(testId)}/assign`, null, {
+      params: { student_email: studentEmail },
+    });
+    return response.data;
+  },
+};
+
+// ─── Exams / Subjects ─────────────────────────────────────────────────────────
+export const examAPI = {
+  async listExams(): Promise<any> {
+    const res = await api.get("/api/exams/");
+    return res.data;
+  },
+  async createExam(payload: { name: string; icon?: string; is_active?: boolean }): Promise<any> {
+    const res = await api.post("/api/exams/", payload);
+    return res.data;
+  },
+  async setActiveExam(examId: string): Promise<any> {
+    const res = await api.patch(`/api/exams/${examId}/active`);
+    return res.data;
+  },
+  async createSubject(examId: string, name: string): Promise<any> {
+    const res = await api.post(`/api/exams/${examId}/subjects`, { name });
+    return res.data;
+  },
+};
+
+// ─── Onboarding ───────────────────────────────────────────────────────────────
+export const onboardingAPI = {
+  async getStatus(): Promise<{ onboarding_completed: boolean }> {
+    const res = await api.get("/api/onboarding/");
+    return res.data;
+  },
+  async saveStep1(data: {
+    name: string;
+    role: string;
+    institute: string;
+    language: string;
+  }): Promise<any> {
+    const res = await api.post("/api/onboarding/", {
+      name: data.name,
+      role: data.role,
+      institute: data.institute,
+      preferred_language: data.language,
+    });
+    return res.data;
+  },
+  async complete(): Promise<any> {
+    const res = await api.post("/api/onboarding/complete");
+    return res.data;
+  },
+};
+
+// ─── Subjects / Collections / Materials (the "books" tree) ───────────────────
+export const subjectAPI = {
+  async listSubjects(examId: string): Promise<any[]> {
+    const res = await api.get(`/api/exams/${examId}/subjects`);
+    return res.data.subjects ?? res.data ?? [];
+  },
+};
+
+export const collectionAPI = {
+  async listCollections(subjectId: string): Promise<any[]> {
+    const res = await api.get(`/api/subjects/${subjectId}/collections`);
+    return res.data.collections ?? res.data ?? [];
+  },
+  async createCollection(subjectId: string, name: string, description?: string): Promise<any> {
+    const res = await api.post(`/api/subjects/${subjectId}/collections`, { name, description });
+    return res.data;
+  },
+};
+
+export const materialAPI = {
+  async listMaterials(collectionId: string): Promise<any[]> {
+    const res = await api.get(`/api/collections/${collectionId}/materials`);
+    return res.data.materials ?? res.data ?? [];
+  },
+  async uploadMaterial(collectionId: string, file: File): Promise<any> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await api.post(`/api/collections/${collectionId}/materials`, formData);
+    return res.data;
+  },
+  async deleteMaterial(materialId: string): Promise<any> {
+    const res = await api.delete(`/api/materials/${materialId}`);
+    return res.data;
+  },
+};
+
+// ─── Flashcards ───────────────────────────────────────────────────────────────
+export const flashcardAPI = {
+  async generate(req: { material_ids?: string[]; doc_ids?: string[]; subject?: string; title?: string; num_cards?: number }): Promise<{ deck_id: string; card_count: number }> {
+    const res = await api.post('/flashcards/generate', {
+      material_ids: req.material_ids ?? [],
+      doc_ids: req.doc_ids ?? [],
+      subject: req.subject,
+      title: req.title,
+      num_cards: req.num_cards ?? 15,
+    });
+    return res.data;
+  },
+  async listDecks(): Promise<any[]> {
+    const res = await api.get('/flashcards/decks');
+    return res.data.decks ?? [];
+  },
+  async getDeck(deckId: string): Promise<any> {
+    const res = await api.get(`/flashcards/decks/${deckId}`);
+    return res.data;
+  },
+  async reviewCard(cardId: string, grade: "again" | "hard" | "good" | "easy"): Promise<any> {
+    const res = await api.post(`/flashcards/cards/${cardId}/review`, { grade });
+    return res.data;
+  },
+  async deleteDeck(deckId: string): Promise<any> {
+    const res = await api.delete(`/flashcards/decks/${deckId}`);
+    return res.data;
+  },
+};
+
+// ─── AI study materials (summaries — right sidebar) ─────────────────────────
+export const aiMaterialAPI = {
+  async summarize(req: { material_ids?: string[]; doc_ids?: string[]; subject?: string; title?: string; style?: "brief" | "detailed" | "bullet" }): Promise<any> {
+    const res = await api.post('/ai-materials/summarize', {
+      material_ids: req.material_ids ?? [],
+      doc_ids: req.doc_ids ?? [],
+      subject: req.subject,
+      title: req.title,
+      style: req.style ?? "detailed",
+    });
+    return res.data;
+  },
+  async list(): Promise<any[]> {
+    const res = await api.get('/ai-materials/');
+    return res.data.materials ?? [];
+  },
+  async get(id: string): Promise<any> {
+    const res = await api.get(`/ai-materials/${id}`);
+    return res.data;
+  },
+  async delete(id: string): Promise<any> {
+    const res = await api.delete(`/ai-materials/${id}`);
+    return res.data;
+  },
+};
+
+// ─── Sample material (NCERT/PYQ for unenrolled students) ────────────────────
+export const sampleMaterialAPI = {
+  async seed(): Promise<any> {
+    const res = await api.post("/api/sample-material/seed");
+    return res.data;
+  },
+};
+
+// ─── Teacher classes / batches ───────────────────────────────────────────────
+export const classAPI = {
+  async createClass(req: { name: string; description?: string; exam_preset?: string }): Promise<any> {
+    const res = await api.post('/classes/', req);
+    return res.data;
+  },
+  async listClasses(): Promise<any[]> {
+    const res = await api.get('/classes/');
+    return res.data.classes ?? [];
+  },
+  async getClass(classId: string): Promise<any> {
+    const res = await api.get(`/classes/${classId}`);
+    return res.data;
+  },
+  async previewEnroll(code: string): Promise<any> {
+    const res = await api.get(`/classes/enroll/${encodeURIComponent(code)}`);
+    return res.data;
+  },
+  async enroll(enrollCode: string): Promise<any> {
+    const res = await api.post('/classes/enroll', { enroll_code: enrollCode });
+    return res.data;
+  },
+  async removeStudent(classId: string, studentEmail: string): Promise<any> {
+    const res = await api.delete(`/classes/${classId}/students/${encodeURIComponent(studentEmail)}`);
+    return res.data;
   },
 };
 

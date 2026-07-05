@@ -5,7 +5,7 @@ import jwt
 from fastapi import HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorClient
 from passlib.context import CryptContext
-from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from pymongo.errors import ConnectionFailure, DuplicateKeyError, ServerSelectionTimeoutError
 
 # Import settings from config
 from src.core.config import MONGODB_URL, MONGODB_DB_NAME, MONGODB_CONNECT_TIMEOUT, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
@@ -34,6 +34,9 @@ def _ensure_auth_db():
         )
         db = client[MONGODB_DB_NAME]
         users_collection = db.users
+        # Ensure a unique index on email to prevent duplicate users (TOCTOU race)
+        import asyncio
+        asyncio.ensure_future(users_collection.create_index("email", unique=True, background=True))
     except (ConnectionFailure, ServerSelectionTimeoutError, ValueError) as e:
         print(f"MongoDB connection error: {e}")
         print("WARNING: Authentication service will not work until MongoDB is available")
@@ -109,6 +112,7 @@ async def create_user(
             role=role,  # type: ignore[arg-type]
             institute=institute,
             preferred_language=preferred_language or "en",
+            auth_provider="email",
         )
 
         result = await users_collection.insert_one(user.model_dump(by_alias=True))
@@ -136,12 +140,71 @@ async def authenticate_user(email: str, password: str):
         user = await get_user_by_email(email)
         if not user:
             return False
+        # If user has no password_hash (Google-only account), password auth fails
+        if not user.get("password_hash"):
+            return False
         if not verify_password(password, user["password_hash"]):
             return False
         return user
     except HTTPException:
         # Re-raise HTTP exceptions
         raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error: {str(e)}"
+        )
+
+
+async def find_or_create_google_user(email: str, name: Optional[str], google_sub: str):
+    """Find a user by email and link Google auth, or create a new Google user.
+
+    - If a user with this email exists: update provider_uid and auth_provider (merge).
+    - If no user exists: create a new one with auth_provider="google".
+
+    Returns the user document dict.
+    """
+    _ensure_auth_db()
+    if users_collection is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database connection not available"
+        )
+
+    try:
+        existing = await get_user_by_email(email)
+
+        if existing:
+            # Merge: link Google auth to existing account
+            update_fields = {
+                "auth_provider": "google",
+                "provider_uid": google_sub,
+                "updated_at": datetime.now(timezone.utc),
+            }
+            if name and not existing.get("name"):
+                update_fields["name"] = name
+            await users_collection.update_one(
+                {"_id": existing["_id"]},
+                {"$set": update_fields}
+            )
+            return await users_collection.find_one({"_id": existing["_id"]})
+
+        # Create new Google user
+        user = User(
+            email=email,
+            name=name,
+            auth_provider="google",
+            provider_uid=google_sub,
+            role="student",
+        )
+        result = await users_collection.insert_one(user.model_dump(by_alias=True))
+        return await users_collection.find_one({"_id": result.inserted_id})
+
+    except HTTPException:
+        raise
+    except DuplicateKeyError:
+        # TOCTOU race: another request created this user between our check and insert
+        return await get_user_by_email(email)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

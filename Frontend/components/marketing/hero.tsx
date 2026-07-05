@@ -75,7 +75,7 @@ const Hero = () => {
                     </Container>
                     <Container eager delay={0.25} className="z-20">
                         <div className="flex items-center justify-center mt-6 gap-x-4">
-                            <Link href="/dashboard" className="flex items-center gap-2 group">
+                            <Link href="/signup" className="flex items-center gap-2 group">
                                 <Button size="lg">
                                     Start Learning Free
                                     <ArrowRightIcon className="size-4 group-hover:translate-x-1 transition-all duration-300" />
@@ -84,17 +84,17 @@ const Hero = () => {
                         </div>
                     </Container>
                     <Container eager delay={0.3} className="relative">
-                        <div className="relative rounded-xl lg:rounded-[32px] border border-border p-2 backdrop-blur-lg mt-10 max-w-6xl mx-auto">
+                        <div className="relative rounded-2xl lg:rounded-[36px] border border-border p-2 backdrop-blur-lg mt-10 max-w-6xl mx-auto">
                             <div className="absolute top-1/8 left-1/2 -z-10 bg-gradient-to-r from-sky-500 to-blue-600 w-1/2 lg:w-3/4 -translate-x-1/2 h-1/4 -translate-y-1/2 inset-0 blur-[4rem] lg:blur-[10rem] animate-image-glow"></div>
                             <div className="hidden lg:block absolute -top-1/8 left-1/2 -z-20 bg-blue-600 w-1/4 -translate-x-1/2 h-1/4 -translate-y-1/2 inset-0 blur-[10rem] animate-image-glow"></div>
 
-                            <div className="rounded-lg lg:rounded-[22px] border border-border bg-background">
+                            <div className="rounded-xl lg:rounded-[26px] border border-border bg-background">
                                 <Image
                                     src="/images/dashboard.png"
                                     alt="Orbit Dashboard"
                                     width={1920}
                                     height={1080}
-                                    className="rounded-lg lg:rounded-[20px]"
+                                    className="rounded-xl lg:rounded-[24px]"
                                 />
                             </div>
 

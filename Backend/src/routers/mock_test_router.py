@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from pydantic import BaseModel
+from typing import Dict, List, Optional
 
 from src.core.models import (
     MockTestGenerationRequest,
@@ -8,7 +10,7 @@ from src.core.models import (
     MockTestAnalysisResponse,
     MockTestListResponse
 )
-from src.core.security import get_current_user
+from src.core.security import get_current_user, require_role
 from src.core.data_store import get_mock_test as fetch_mock_test_data
 from src.services.auth_service import get_user_by_email
 from src.services.mock_test_service import (
@@ -17,6 +19,7 @@ from src.services.mock_test_service import (
     get_user_mock_tests_service,
     get_mock_test_service
 )
+from src.core.data_store import update_mock_test_assignment
 
 router = APIRouter(prefix="/mock-tests", tags=["Mock Tests"])
 
@@ -97,7 +100,9 @@ async def generate_mock_test(
             subject=request.subject,
             user_id=user_id,
             created_by=created_by,
-            assigned_to=assigned_to
+            assigned_to=assigned_to,
+            grading_mode=request.grading_mode,
+            source_material_ids=request.source_material_ids
         )
         
         return mock_test
@@ -231,7 +236,10 @@ async def submit_mock_test(
             user_id=test_data["user_id"],
             difficulty_level=test_data.get("difficulty_level", "medium"),
             created_by=test_data.get("created_by"),
-            assigned_to=test_data.get("assigned_to")
+            assigned_to=test_data.get("assigned_to"),
+            subject=test_data.get("subject"),
+            grading_mode=test_data.get("grading_mode", "auto"),
+            status=test_data.get("status"),
         )
 
         # Analyze the submission
@@ -251,6 +259,54 @@ async def submit_mock_test(
             status_code=500,
             detail=f"Error analyzing mock test submission: {str(e)}"
         )
+
+@router.post(
+    "/{test_id}/assign",
+    summary="Assign Existing Mock Test",
+    description="Assign an existing mock test to a managed student"
+)
+async def assign_mock_test(
+    test_id: str = Path(..., description="The ID of the mock test"),
+    student_email: str = Query(..., description="The email of the student to assign"),
+    teacher=Depends(require_role("teacher")),
+):
+    """
+    Assign an already-created mock test to a managed student.
+    """
+    try:
+        user_id = teacher["email"]
+        test = await get_mock_test_service(test_id, user_id)
+        if not test:
+            raise HTTPException(status_code=404, detail="Mock test not found")
+
+        is_owner = test.user_id == user_id or test.created_by == user_id
+        if not is_owner:
+            raise HTTPException(status_code=403, detail="Not authorized to assign this test")
+
+        if test.assigned_to:
+            raise HTTPException(status_code=400, detail="Test is already assigned to a student")
+
+        student = await get_user_by_email(student_email)
+        if not student:
+            raise HTTPException(status_code=404, detail="Student not found")
+
+        teacher_ids = student.get("teacher_ids") or ([student["teacher_id"]] if student.get("teacher_id") else [])
+        if user_id not in teacher_ids:
+            raise HTTPException(status_code=403, detail="Not authorized to assign test to this student")
+
+        updated = await update_mock_test_assignment(test_id, student_email)
+        if not updated:
+            raise HTTPException(
+                status_code=400, detail="Test is already assigned or could not be updated"
+            )
+
+        return {"test_id": test_id, "assigned_to": student_email}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error assigning mock test: {str(e)}")
+
 
 @router.get(
     "/submissions/{submission_id}/analysis",
@@ -323,3 +379,144 @@ async def get_mock_test_analysis(
             status_code=500,
             detail=f"Error fetching mock test analysis: {str(e)}"
         )
+
+
+class SubmissionSummary(BaseModel):
+    submission_id: str
+    test_id: str
+    user_id: str
+    total_score: float
+    max_score: float
+    percentage: float
+    time_taken: int
+    status: Optional[str] = None
+    grading_mode: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class SubmissionListResponse(BaseModel):
+    submissions: List[SubmissionSummary]
+
+
+@router.get(
+    "/{test_id}/submissions",
+    response_model=SubmissionListResponse,
+    summary="List attempts for a mock test",
+)
+async def list_test_submissions(
+    test_id: str = Path(...),
+    user_id: str = Depends(get_current_user),
+):
+    """List all attempts for a test. Students see their own; teachers see the
+    assigned student's attempts (so both can track attempts)."""
+    from src.core.data_store import mock_test_submissions_collection
+
+    if mock_test_submissions_collection is None:
+        raise HTTPException(status_code=503, detail="Database connection not available")
+    test = await get_mock_test_service(test_id, user_id)
+    if not test:
+        raise HTTPException(status_code=404, detail="Mock test not found")
+
+    # Whose submissions to show: assigned student's if teacher/owner viewing an assigned test, else own
+    target_user = test.assigned_to if test.assigned_to and test.assigned_to != user_id else user_id
+    # A student may only view their own submissions
+    if test.assigned_to and user_id == test.assigned_to:
+        target_user = user_id
+    # If the caller is neither the assigned student nor the creator/owner, deny
+    allowed = {test.user_id, test.created_by, test.assigned_to}
+    if user_id not in allowed:
+        raise HTTPException(status_code=403, detail="Not authorized to view these submissions")
+
+    cursor = mock_test_submissions_collection.find({"test_id": test_id, "user_id": target_user}).sort("created_at", -1)
+    subs = await cursor.to_list(length=None)
+    out = []
+    for s in subs:
+        ca = s.get("created_at")
+        out.append(SubmissionSummary(
+            submission_id=s.get("submission_id"), test_id=s.get("test_id"),
+            user_id=s.get("user_id"), total_score=s.get("total_score", 0),
+            max_score=s.get("max_score", 0), percentage=s.get("percentage", 0),
+            time_taken=s.get("time_taken", 0), status=s.get("status"),
+            grading_mode=s.get("grading_mode"),
+            created_at=ca.isoformat() if hasattr(ca, "isoformat") else (str(ca) if ca else None),
+        ))
+    return SubmissionListResponse(submissions=out)
+
+
+class GradeItem(BaseModel):
+    question_id: str
+    marks_awarded: float
+    feedback: Optional[str] = None
+
+
+class GradeRequest(BaseModel):
+    grades: List[GradeItem]
+
+
+@router.post(
+    "/submissions/{submission_id}/grade",
+    response_model=MockTestAnalysisResponse,
+    summary="Teacher grades a pending-review submission",
+)
+async def grade_submission(
+    submission_id: str = Path(...),
+    request: GradeRequest = ...,
+    teacher=Depends(require_role("teacher")),
+):
+    """Teacher grades the text answers of a pending-review (teacher-marked) test."""
+    from src.core.data_store import mock_test_submissions_collection, get_mock_test
+
+    if mock_test_submissions_collection is None:
+        raise HTTPException(status_code=503, detail="Database connection not available")
+    teacher_email = teacher["email"]
+
+    submission = await mock_test_submissions_collection.find_one({"submission_id": submission_id})
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    test_data = await get_mock_test(submission["test_id"])
+    if not test_data:
+        raise HTTPException(status_code=404, detail="Test not found")
+    if test_data.get("created_by") != teacher_email and test_data.get("user_id") != teacher_email:
+        raise HTTPException(status_code=403, detail="Not authorized to grade this submission")
+
+    grade_map = {g.question_id: g for g in request.grades}
+    qf = submission.get("question_feedback", []) or []
+    total_score = 0.0
+    for item in qf:
+        gid = item.get("question_id")
+        if gid in grade_map:
+            g = grade_map[gid]
+            item["marks_awarded"] = g.marks_awarded
+            if g.feedback is not None:
+                item["feedback"] = g.feedback
+        total_score += float(item.get("marks_awarded", 0) or 0)
+
+    max_score = float(submission.get("max_score", 0) or 0)
+    percentage = (total_score / max_score) * 100 if max_score > 0 else 0
+    await mock_test_submissions_collection.update_one(
+        {"submission_id": submission_id},
+        {"$set": {
+            "question_feedback": qf,
+            "total_score": total_score,
+            "percentage": percentage,
+            "status": "graded",
+            "graded_by": teacher_email,
+            "graded_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+        }},
+    )
+
+    return MockTestAnalysisResponse(
+        submission_id=submission["submission_id"],
+        test_id=submission["test_id"],
+        total_score=total_score,
+        max_score=max_score,
+        percentage=percentage,
+        time_taken=submission.get("time_taken", 0),
+        feedback_summary=submission.get("feedback_summary", "Graded by teacher."),
+        question_feedback=qf,
+        strengths=submission.get("strengths", []),
+        improvements=submission.get("improvements", []),
+        study_recommendations=submission.get("study_recommendations", []),
+        created_at=submission.get("created_at"),
+    )

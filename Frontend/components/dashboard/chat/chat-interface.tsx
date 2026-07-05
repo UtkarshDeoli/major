@@ -93,7 +93,8 @@ export function ChatInterface({ document, initialMessages = [], initialChatId, o
     if (!document) return;
     try {
       const title = `Chat about ${document.title}`;
-      const sessionData = await chatAPI.createChatSession(title, document.id);
+      const docIds = document.doc_id ? [document.doc_id] : undefined;
+      const sessionData = await chatAPI.createChatSession(title, document.id, docIds);
       const session = convertApiSessionToSession(sessionData);
       setChatSession(session);
       

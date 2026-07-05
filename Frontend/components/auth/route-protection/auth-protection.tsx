@@ -1,32 +1,30 @@
 "use client"
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
+import { useAuth } from '@/lib/context/auth-context'
 
 export default function AuthProtection({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
-  
+  const router = useRouter()
+  const pathname = usePathname()
+  const { user, isLoading } = useAuth()
+
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    
-    if (!token) {
-      // Prevent infinite loops: only redirect if not already on login
-      if (!window.location.pathname.startsWith('/login')) {
-        window.location.replace('/login')
-      }
-    } else {
-      setIsAuthenticated(true)
+    // Avoid redirect loops if we're already heading to the login page.
+    if (!isLoading && !user && !pathname.startsWith('/login')) {
+      router.replace('/login')
     }
-  }, [])
-  
-  // Show nothing while checking authentication to prevent flashing content
-  if (isAuthenticated === null) {
+  }, [isLoading, user, pathname, router])
+
+  // While loading or unauthenticated (but not yet redirected), render nothing
+  // to prevent protected UI from flashing.
+  if (isLoading || !user) {
     return null
   }
-  
-  return isAuthenticated ? <>{children}</> : null
+
+  return <>{children}</>
 }

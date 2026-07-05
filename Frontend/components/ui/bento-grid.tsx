@@ -45,7 +45,7 @@ export function BentoItem({
   return (
     <div
       className={cn(
-        "rounded-2xl border bg-card p-6 shadow-sm",
+        "rounded-3xl border bg-card p-6 shadow-sm",
         span === 2 && "sm:col-span-2",
         className
       )}

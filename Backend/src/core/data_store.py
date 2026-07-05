@@ -1,5 +1,6 @@
 from typing import Dict, List, Any, Optional
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import ReturnDocument
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from bson import ObjectId
 from datetime import datetime
@@ -42,6 +43,11 @@ try:
     subjects_collection = db.subjects
     collections_collection = db.collections
     document_chunks_collection = db.document_chunks
+    # NotebookLM-style feature collections
+    flashcard_decks_collection = db.flashcard_decks
+    flashcards_collection = db.flashcards
+    ai_materials_collection = db.ai_materials
+    classes_collection = db.classes
 except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     print(f"MongoDB connection error: {e}")
     print("WARNING: Data store service will not work until MongoDB is available")
@@ -60,6 +66,11 @@ except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     subjects_collection = None
     collections_collection = None
     document_chunks_collection = None
+    # NotebookLM-style feature collections
+    flashcard_decks_collection = None
+    flashcards_collection = None
+    ai_materials_collection = None
+    classes_collection = None
 
 
 # Helper to convert ObjectId to string
@@ -308,6 +319,25 @@ async def get_mock_test(test_id: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         raise Exception(f"Error fetching mock test: {str(e)}")
 
+async def update_mock_test_assignment(test_id: str, assigned_to: str) -> Optional[Dict[str, Any]]:
+    """Atomically assign a mock test to a student.
+
+    The filter requires the test to be currently unassigned, so concurrent
+    assign calls cannot both succeed — only the first wins, others return None.
+    """
+    if mock_tests_collection is None:
+        raise Exception("Database connection not available")
+
+    try:
+        result = await mock_tests_collection.find_one_and_update(
+            {"test_id": test_id, "assigned_to": {"$in": [None, ""]}},
+            {"$set": {"assigned_to": assigned_to, "updated_at": datetime.now()}},
+            return_document=ReturnDocument.AFTER,
+        )
+        return object_id_to_str(result) if result else None
+    except Exception as e:
+        raise Exception(f"Error updating mock test assignment: {str(e)}")
+
 async def store_mock_test_submission(submission_data: Dict[str, Any]) -> str:
     """Store a mock test submission in the database"""
     if mock_test_submissions_collection is None:
@@ -382,7 +412,7 @@ async def update_chunk_tags(doc_id: str, tags: List[str]):
     )
 
 async def ensure_indexes():
-    """Create indexes for document_chunks collection."""
+    """Create indexes for document_chunks + workspace collections."""
     if document_chunks_collection is None:
         return
 
@@ -390,3 +420,146 @@ async def ensure_indexes():
     await document_chunks_collection.create_index([("user_id", 1), ("subject", 1)])
     await document_chunks_collection.create_index([("user_id", 1), ("tags", 1)])
     await document_chunks_collection.create_index("chroma_id", unique=True)
+    if users_collection is not None:
+        await users_collection.create_index("email", unique=True)
+    if classes_collection is not None:
+        await classes_collection.create_index("enroll_code", unique=True)
+        await classes_collection.create_index("teacher_id")
+    if flashcard_decks_collection is not None:
+        await flashcard_decks_collection.create_index([("user_id", 1), ("created_at", -1)])
+    if ai_materials_collection is not None:
+        await ai_materials_collection.create_index([("user_id", 1), ("created_at", -1)])
+
+
+# --- Flashcard helpers -------------------------------------------------------
+async def store_flashcard_deck(deck_data: Dict[str, Any]) -> str:
+    if flashcard_decks_collection is None:
+        raise Exception("Database connection not available")
+    result = await flashcard_decks_collection.insert_one(deck_data)
+    return str(result.inserted_id)
+
+
+async def get_user_flashcard_decks(user_id: str) -> List[Dict[str, Any]]:
+    if flashcard_decks_collection is None:
+        raise Exception("Database connection not available")
+    cursor = flashcard_decks_collection.find({"user_id": user_id}).sort("created_at", -1)
+    decks = await cursor.to_list(length=None)
+    return [object_id_to_str(d) for d in decks]
+
+
+async def get_flashcard_deck(deck_id: str) -> Optional[Dict[str, Any]]:
+    if flashcard_decks_collection is None:
+        raise Exception("Database connection not available")
+    deck = await flashcard_decks_collection.find_one({"_id": ObjectId(deck_id)})
+    return object_id_to_str(deck) if deck else None
+
+
+async def store_flashcards(cards: List[Dict[str, Any]]) -> List[str]:
+    if flashcards_collection is None or not cards:
+        return []
+    result = await flashcards_collection.insert_many(cards)
+    return [str(i) for i in result.inserted_ids]
+
+
+async def get_flashcards_for_deck(deck_id: str) -> List[Dict[str, Any]]:
+    if flashcards_collection is None:
+        raise Exception("Database connection not available")
+    cursor = flashcards_collection.find({"deck_id": deck_id}).sort("created_at", 1)
+    cards = await cursor.to_list(length=None)
+    return [object_id_to_str(c) for c in cards]
+
+
+async def update_flashcard(card_id: str, update_data: Dict[str, Any]):
+    if flashcards_collection is None:
+        raise Exception("Database connection not available")
+    update_data["updated_at"] = datetime.now()
+    await flashcards_collection.update_one({"_id": ObjectId(card_id)}, {"$set": update_data})
+
+
+async def delete_flashcard_deck(deck_id: str):
+    if flashcard_decks_collection is None:
+        raise Exception("Database connection not available")
+    await flashcard_decks_collection.delete_one({"_id": ObjectId(deck_id)})
+    if flashcards_collection is not None:
+        await flashcards_collection.delete_many({"deck_id": deck_id})
+
+
+# --- AI study material helpers ----------------------------------------------
+async def store_ai_material(material_data: Dict[str, Any]) -> str:
+    if ai_materials_collection is None:
+        raise Exception("Database connection not available")
+    result = await ai_materials_collection.insert_one(material_data)
+    return str(result.inserted_id)
+
+
+async def get_user_ai_materials(user_id: str) -> List[Dict[str, Any]]:
+    if ai_materials_collection is None:
+        raise Exception("Database connection not available")
+    cursor = ai_materials_collection.find({"user_id": user_id}).sort("created_at", -1)
+    mats = await cursor.to_list(length=None)
+    return [object_id_to_str(m) for m in mats]
+
+
+async def get_ai_material(material_id: str) -> Optional[Dict[str, Any]]:
+    if ai_materials_collection is None:
+        raise Exception("Database connection not available")
+    mat = await ai_materials_collection.find_one({"_id": ObjectId(material_id)})
+    return object_id_to_str(mat) if mat else None
+
+
+async def delete_ai_material(material_id: str):
+    if ai_materials_collection is None:
+        raise Exception("Database connection not available")
+    await ai_materials_collection.delete_one({"_id": ObjectId(material_id)})
+
+
+# --- Class / batch helpers --------------------------------------------------
+async def store_class(class_data: Dict[str, Any]) -> str:
+    if classes_collection is None:
+        raise Exception("Database connection not available")
+    result = await classes_collection.insert_one(class_data)
+    return str(result.inserted_id)
+
+
+async def get_class_by_id(class_id: str) -> Optional[Dict[str, Any]]:
+    if classes_collection is None:
+        raise Exception("Database connection not available")
+    cls = await classes_collection.find_one({"_id": ObjectId(class_id)})
+    return object_id_to_str(cls) if cls else None
+
+
+async def get_class_by_enroll_code(code: str) -> Optional[Dict[str, Any]]:
+    if classes_collection is None:
+        raise Exception("Database connection not available")
+    cls = await classes_collection.find_one({"enroll_code": code})
+    return object_id_to_str(cls) if cls else None
+
+
+async def get_teacher_classes(teacher_id: str) -> List[Dict[str, Any]]:
+    if classes_collection is None:
+        raise Exception("Database connection not available")
+    cursor = classes_collection.find({"teacher_id": teacher_id}).sort("created_at", -1)
+    classes = await cursor.to_list(length=None)
+    return [object_id_to_str(c) for c in classes]
+
+
+async def add_student_to_class(class_id: str, student_email: str, teacher_id: str) -> Optional[Dict[str, Any]]:
+    """Atomically add a student to a class if not already present."""
+    if classes_collection is None:
+        raise Exception("Database connection not available")
+    result = await classes_collection.find_one_and_update(
+        {"_id": ObjectId(class_id)},
+        {"$addToSet": {"student_emails": student_email}, "$set": {"updated_at": datetime.now()}},
+        return_document=ReturnDocument.AFTER,
+    )
+    return object_id_to_str(result) if result else None
+
+
+async def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+    if users_collection is None:
+        raise Exception("Database connection not available")
+    user = await users_collection.find_one({"email": email})
+    if user:
+        user["id"] = str(user["_id"])
+        del user["_id"]
+    return user

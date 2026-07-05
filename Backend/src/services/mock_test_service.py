@@ -1,7 +1,7 @@
 import json
 import uuid
 from typing import List, Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import HTTPException
 
 from src.services.gemini_service import gemini_service
@@ -33,7 +33,9 @@ async def generate_mock_test_service(
     assigned_to: Optional[str] = None,
     focus_topics: Optional[List[str]] = None,
     weak_topics: Optional[List[str]] = None,
-    subject: Optional[str] = None
+    subject: Optional[str] = None,
+    grading_mode: str = "auto",
+    source_material_ids: Optional[List[str]] = None
 ) -> MockTestResponse:
     """Generate a mock test using Gemini AI"""
     
@@ -90,8 +92,8 @@ async def generate_mock_test_service(
         
         # Create mock test object
         test_id = str(uuid.uuid4())
-        created_at = datetime.utcnow()
-        
+        created_at = datetime.now(timezone.utc)
+
         mock_test = MockTestResponse(
             test_id=test_id,
             title=f"Mock Test - {created_at.strftime('%B %d, %Y')}",
@@ -102,12 +104,15 @@ async def generate_mock_test_service(
             user_id=user_id,
             difficulty_level=difficulty_level,
             created_by=created_by,
-            assigned_to=assigned_to
+            assigned_to=assigned_to,
+            subject=subject,
+            grading_mode=grading_mode,
+            status="pending_review" if grading_mode == "teacher" else None
         )
-        
+
         # Store in database
-        await store_mock_test(mock_test.dict())
-        
+        await store_mock_test(mock_test.model_dump())
+
         return mock_test
         
     except HTTPException:
@@ -250,10 +255,13 @@ CRITICAL REQUIREMENTS:
                 question=q_data.get("question", f"Sample question {i + 1}"),
                 options=q_data.get("options") if q_data.get("type") == "mcq" else None,
                 correctAnswer=q_data.get("correctAnswer") if q_data.get("type") == "mcq" else None,
-                marks=q_data.get("marks", mcq_marks_per_question if q_data.get("type") == "mcq" else text_marks_per_question)
+                marks=q_data.get("marks", mcq_marks_per_question if q_data.get("type") == "mcq" else text_marks_per_question),
+                unit=q_data.get("unit"),
+                topic=q_data.get("topic"),
+                syllabus_reference=q_data.get("syllabus_reference")
             )
             questions.append(question)
-        
+
         return {"questions": questions}
         
     except json.JSONDecodeError as e:
@@ -289,6 +297,22 @@ def _create_fallback_mock_test(num_mcq: int, num_text: int, mcq_marks: int, text
     
     return {"questions": questions}
 
+def _normalize_mcq_answer(answer: Optional[str]) -> str:
+    """Normalize an MCQ answer for robust comparison.
+
+    Gemini often returns options like 'A) Option 1' while the client may store
+    just 'A) Option 1' or the bare letter 'A'. Compare on the leading letter
+    when present, else fall back to a trimmed full-string compare.
+    """
+    if not answer:
+        return ""
+    a = answer.strip()
+    # Match an optional letter/number label at the start: "A)", "A.", "A)", "1)", "a."
+    if len(a) >= 2 and a[0].isalnum() and a[1] in ").-:":
+        return a[0].lower()
+    return a.lower()
+
+
 def _calculate_time_limit(total_marks: int, num_mcq: int, num_text: int) -> int:
     """Calculate appropriate time limit in minutes"""
     # 1 minute per MCQ mark + 2 minutes per text question mark
@@ -317,7 +341,10 @@ async def get_user_mock_tests_service(user_id: str) -> List[MockTestResponse]:
                         question=q.question,
                         options=q.options,
                         correctAnswer=None,
-                        marks=q.marks
+                        marks=q.marks,
+                        unit=q.unit,
+                        topic=q.topic,
+                        syllabus_reference=q.syllabus_reference,
                     )
                     for q in questions
                 ]
@@ -366,7 +393,10 @@ async def get_user_mock_tests_service(user_id: str) -> List[MockTestResponse]:
                 "user_id": test_data["user_id"],
                 "difficulty_level": test_data.get("difficulty_level", "medium"),
                 "created_by": test_data.get("created_by"),
-                "assigned_to": test_data.get("assigned_to")
+                "assigned_to": test_data.get("assigned_to"),
+                "subject": test_data.get("subject"),
+                "grading_mode": test_data.get("grading_mode", "auto"),
+                "status": test_data.get("status"),
             }
             
             if latest_submission:
@@ -403,7 +433,10 @@ async def get_mock_test_service(test_id: str, user_id: str) -> Optional[MockTest
                     question=q.question,
                     options=q.options,
                     correctAnswer=None,
-                    marks=q.marks
+                    marks=q.marks,
+                    unit=q.unit,
+                    topic=q.topic,
+                    syllabus_reference=q.syllabus_reference,
                 )
                 for q in questions
             ]
@@ -418,7 +451,10 @@ async def get_mock_test_service(test_id: str, user_id: str) -> Optional[MockTest
             user_id=test_data["user_id"],
             difficulty_level=test_data.get("difficulty_level", "medium"),
             created_by=test_data.get("created_by"),
-            assigned_to=test_data.get("assigned_to")
+            assigned_to=test_data.get("assigned_to"),
+            subject=test_data.get("subject"),
+            grading_mode=test_data.get("grading_mode", "auto"),
+            status=test_data.get("status"),
         )
     except Exception as e:
         raise HTTPException(
@@ -445,17 +481,19 @@ async def analyze_mock_test_submission_service(
         total_score = 0.0
         max_score = test.total_marks
         question_feedback = []
-        
+        grading_mode = getattr(test, "grading_mode", "auto") or "auto"
+        teacher_graded_pending = grading_mode == "teacher"
+
         for question in test.questions:
             user_answer = submission.answers.get(question.id, "")
             feedback = None
-            
+
             if question.type == "mcq":
-                # Automatic grading for MCQ
-                is_correct = user_answer == question.correctAnswer
+                # Automatic grading for MCQ (robust to "A) ..." vs "A" differences)
+                is_correct = _normalize_mcq_answer(user_answer) == _normalize_mcq_answer(question.correctAnswer)
                 marks_awarded = question.marks if is_correct else 0
                 total_score += marks_awarded
-                
+
                 feedback = AnswerFeedback(
                     question_id=question.id,
                     question=question.question,
@@ -466,6 +504,16 @@ async def analyze_mock_test_submission_service(
                     marks_awarded=marks_awarded,
                     max_marks=question.marks
                 )
+            elif teacher_graded_pending:
+                # Teacher-marked test: do not auto-grade text answers; leave for teacher review
+                feedback = AnswerFeedback(
+                    question_id=question.id,
+                    question=question.question,
+                    user_answer=user_answer,
+                    feedback="Pending teacher review.",
+                    marks_awarded=0,
+                    max_marks=question.marks
+                )
             else:
                 # AI-powered grading for text questions
                 ai_feedback = await _analyze_text_answer_with_gemini(
@@ -474,7 +522,7 @@ async def analyze_mock_test_submission_service(
                     question.marks
                 )
                 total_score += ai_feedback["marks_awarded"]
-                
+
                 feedback = AnswerFeedback(
                     question_id=question.id,
                     question=question.question,
@@ -483,24 +531,33 @@ async def analyze_mock_test_submission_service(
                     marks_awarded=ai_feedback["marks_awarded"],
                     max_marks=question.marks
                 )
-            
+
             question_feedback.append(feedback)
-        
-        # Generate overall analysis using Gemini
-        overall_analysis = await _generate_overall_analysis_with_gemini(
-            test, submission, question_feedback, total_score, max_score
-        )
-        
+
+        # Generate overall analysis using Gemini (skip heavy LLM analysis for pending-review tests)
+        if teacher_graded_pending:
+            overall_analysis = {
+                "feedback_summary": "Submitted. Awaiting teacher grading for descriptive answers.",
+                "strengths": [],
+                "improvements": [],
+                "study_recommendations": [],
+            }
+        else:
+            overall_analysis = await _generate_overall_analysis_with_gemini(
+                test, submission, question_feedback, total_score, max_score
+            )
+
         # Create submission record
         submission_id = str(uuid.uuid4())
-        created_at = datetime.utcnow()
-        
+        created_at = datetime.now(timezone.utc)
+
+        percentage = (total_score / max_score) * 100 if max_score > 0 else 0
         analysis = MockTestAnalysisResponse(
             submission_id=submission_id,
             test_id=test.test_id,
             total_score=total_score,
             max_score=max_score,
-            percentage=(total_score / max_score) * 100 if max_score > 0 else 0,
+            percentage=percentage,
             time_taken=submission.time_taken,
             feedback_summary=overall_analysis["feedback_summary"],
             question_feedback=question_feedback,
@@ -509,10 +566,13 @@ async def analyze_mock_test_submission_service(
             study_recommendations=overall_analysis["study_recommendations"],
             created_at=created_at
         )
-        
-        # Store submission in database, recording the actual submitter
-        submission_record = analysis.dict()
+
+        # Store submission in database, recording the actual submitter + subject + grading status
+        submission_record = analysis.model_dump()
         submission_record["user_id"] = submitter_email if submitter_email else user_id
+        submission_record["subject"] = getattr(test, "subject", None) or submission.subject
+        submission_record["grading_mode"] = grading_mode
+        submission_record["status"] = "pending_review" if teacher_graded_pending else "graded"
         await store_mock_test_submission(submission_record)
 
         return analysis

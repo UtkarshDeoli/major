@@ -27,7 +27,7 @@ export function TestimonialsCarousel({ testimonials }: TestimonialsCarouselProps
             key={`${testimonial.name}-${index}`}
             className="flex-shrink-0 w-[350px] md:w-[400px] px-4"
           >
-            <div className="relative p-6 rounded-2xl bg-card/50 transition-all duration-300 h-full">
+            <div className="relative p-6 rounded-3xl bg-card/50 transition-all duration-300 h-full">
               <div className="relative z-10">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-1">
@@ -60,7 +60,7 @@ export function TestimonialsCarousel({ testimonials }: TestimonialsCarouselProps
             key={`duplicate-${testimonial.name}-${index}`}
             className="flex-shrink-0 w-[350px] md:w-[400px] px-4"
           >
-            <div className="relative p-6 rounded-2xl bg-card/50 transition-all duration-300 h-full">
+            <div className="relative p-6 rounded-3xl bg-card/50 transition-all duration-300 h-full">
               <div className="relative z-10">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-1">

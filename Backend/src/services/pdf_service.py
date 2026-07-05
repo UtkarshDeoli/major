@@ -2,6 +2,7 @@ import os
 import io
 import re
 import json
+import nltk
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
 import PyPDF2

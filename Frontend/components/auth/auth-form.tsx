@@ -10,6 +10,7 @@ import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/lib/context/auth-context'
+import { getErrorMessage } from '@/lib/errors'
 
 interface AuthFormProps {
   type: 'login' | 'signup'
@@ -48,7 +49,7 @@ export function AuthForm({ type }: AuthFormProps) {
       console.error('Authentication error:', error);
       toast({
         title: 'Authentication failed',
-        description: error instanceof Error ? error.message : 'Please try again',
+        description: getErrorMessage(error),
         variant: 'destructive'
       });
     } finally {
@@ -57,10 +58,8 @@ export function AuthForm({ type }: AuthFormProps) {
   };
 
   const handleGoogleSignIn = () => {
-    toast({
-      title: 'Google Sign In',
-      description: 'Google authentication coming soon!',
-    });
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+    window.location.href = `${apiUrl}/auth/google/login`;
   };
   
   return (

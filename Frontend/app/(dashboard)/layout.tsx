@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import AuthProtection from "@/components/auth/route-protection/auth-protection";
 import AppShell from "@/components/dashboard/app-shell";
 import { DashboardProvider } from "@/lib/context/dashboard-context";
 import { useAuth } from "@/lib/context/auth-context";
+import { getRoleHomeRoute } from "@/lib/auth/redirects";
 
 export default function DashboardLayout({
   children,
@@ -15,44 +16,27 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const { user, isLoading: authLoading } = useAuth();
-  const [onboardingChecked, setOnboardingChecked] = useState(false);
-  const [shouldRedirect, setShouldRedirect] = useState(false);
+
+  // If a student needs to finish onboarding, don't render the protected page
+  // even for a single frame — redirect immediately while showing a spinner.
+  const needsOnboarding =
+    user?.role === "student" && !user.onboarding_completed && !pathname.startsWith("/onboarding");
+  const needsRoleHome = pathname === "/dashboard" && user && getRoleHomeRoute(user.role) !== "/dashboard";
 
   useEffect(() => {
-    const checkOnboarding = async () => {
-      try {
-        const res = await fetch("/api/onboarding");
-        if (!res.ok) {
-          setOnboardingChecked(true);
-          return;
-        }
-        const data = await res.json();
-        if (data.onboarding_completed === false) {
-          setShouldRedirect(true);
-        }
-      } catch (error) {
-        console.error("Error checking onboarding status:", error);
-      } finally {
-        setOnboardingChecked(true);
-      }
-    };
+    if (authLoading || !user) return;
 
-    checkOnboarding();
-  }, []);
-
-  useEffect(() => {
-    if (shouldRedirect) {
-      router.push("/onboarding");
+    if (needsOnboarding) {
+      router.replace("/onboarding");
+      return;
     }
-  }, [shouldRedirect, router]);
 
-  useEffect(() => {
-    if (!authLoading && user?.role === "teacher" && pathname === "/dashboard") {
-      router.replace("/teacher");
+    if (needsRoleHome) {
+      router.replace(getRoleHomeRoute(user.role));
     }
-  }, [authLoading, user, pathname, router]);
+  }, [authLoading, user, pathname, router, needsOnboarding, needsRoleHome]);
 
-  if (!onboardingChecked || shouldRedirect || authLoading) {
+  if (authLoading || needsOnboarding || needsRoleHome) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="h-8 w-8 rounded-md border-2 border-primary border-t-transparent animate-spin" />

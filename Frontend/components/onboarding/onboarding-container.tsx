@@ -6,9 +6,15 @@ import Container from "@/components/global/container";
 import { StepAboutYou } from "./step-about-you";
 import { StepStudyGoal } from "./step-study-goal";
 import { PRESET_EXAMS } from "@/lib/constants/exams";
+import { examAPI, onboardingAPI } from "@/lib/api";
+import { useAuth } from "@/lib/context/auth-context";
+import { useToast } from "@/hooks/use-toast";
+import { getErrorMessage } from "@/lib/errors";
 
 export function OnboardingContainer() {
   const router = useRouter();
+  const { refreshUser } = useAuth();
+  const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -20,29 +26,25 @@ export function OnboardingContainer() {
   }) => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      if (!res.ok) throw new Error("Failed to save onboarding data");
+      await onboardingAPI.saveStep1(data);
       setStep(2);
     } catch (error) {
       console.error("Error saving onboarding data:", error);
+      toast({
+        title: "Couldn't save your details",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   const completeOnboarding = async () => {
-    try {
-      await fetch("/api/onboarding/complete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-    } catch (error) {
-      console.error("Error completing onboarding:", error);
-    }
+    // Throws on failure so callers can surface the error and avoid navigating
+    // to /dashboard while onboarding_completed is still false (which would
+    // bounce the user back to /onboarding in a loop).
+    await onboardingAPI.complete();
   };
 
   const handleStep2Next = async (presetId: string | null) => {
@@ -53,42 +55,47 @@ export function OnboardingContainer() {
         if (!preset) throw new Error("Preset not found");
 
         // 1. Create exam
-        const examRes = await fetch("/api/exams", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: preset.name,
-            icon: preset.icon,
-            is_active: true,
-          }),
+        const exam = await examAPI.createExam({
+          name: preset.name,
+          icon: preset.icon,
+          is_active: true,
         });
-        if (!examRes.ok) throw new Error("Failed to create exam");
-        const exam = await examRes.json();
 
-        // 2. Create subjects
+        // 2. Create subjects (premade per-exam subjects, e.g. JEE -> Physics/Chemistry/Maths)
         await Promise.all(
-          preset.subjects.map((subjectName) =>
-            fetch(`/api/exams/${exam.id}/subjects`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ name: subjectName }),
-            })
-          )
+          preset.subjects.map((subjectName) => examAPI.createSubject(exam.id, subjectName))
         );
       }
 
       await completeOnboarding();
+      await refreshUser();
       router.push("/dashboard");
     } catch (error) {
       console.error("Error in step 2:", error);
+      toast({
+        title: "Couldn't set up your study goal",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
       setIsLoading(false);
     }
   };
 
   const handleSkip = async () => {
     setIsLoading(true);
-    await completeOnboarding();
-    router.push("/dashboard");
+    try {
+      await completeOnboarding();
+      await refreshUser();
+      router.push("/dashboard");
+    } catch (error) {
+      console.error("Error completing onboarding:", error);
+      toast({
+        title: "Couldn't finish onboarding",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
   };
 
   return (

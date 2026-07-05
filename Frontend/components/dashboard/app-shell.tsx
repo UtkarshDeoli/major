@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import {
   User,
   Menu,
@@ -17,7 +17,6 @@ import {
   BookOpen,
   Sparkles,
   BarChart3,
-  Shield,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -35,8 +34,8 @@ import { useAuth } from "@/lib/context/auth-context"
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/chat", label: "Chat", icon: MessageSquare },
-  { href: "/test?tab=analysis", label: "Analysis", icon: FileBarChart },
-  { href: "/test?tab=mock", label: "Mock Tests", icon: BookOpen },
+  { href: "/analysis", label: "Analysis", icon: FileBarChart },
+  { href: "/mock-tests", label: "Mock Tests", icon: BookOpen },
   { href: "/flashcards", label: "Flashcards", icon: Sparkles },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
 ]
@@ -44,6 +43,18 @@ const nav = [
 const bottomNav = [
   { href: "/settings", label: "Settings", icon: Settings },
 ]
+
+/**
+ * Determine if a nav item is active. Tab items (/test?tab=analysis) only
+ * match when the current ?tab= matches; plain items match their path only.
+ */
+export function isNavItemActive(href: string, pathname: string, tab: string | null): boolean {
+  const [itemPath, query] = href.split("?");
+  if (itemPath !== pathname) return false;
+  if (!query) return true;
+  const itemTab = new URLSearchParams(query).get("tab");
+  return itemTab === tab;
+}
 
 function SidebarNavItem({
   item,
@@ -57,8 +68,9 @@ function SidebarNavItem({
   setMobileOpen: (v: boolean) => void
 }) {
   const pathname = usePathname()
-  const basePath = item.href.split("?")[0]
-  const isActive = pathname === basePath
+  const searchParams = useSearchParams()
+  const tab = searchParams.get("tab")
+  const isActive = isNavItemActive(item.href, pathname, tab)
 
   return (
     <Link
@@ -84,7 +96,7 @@ function SidebarNavItem({
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const { user, hasRole } = useAuth()
+  const { user, logout } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [collapsed, setCollapsedState] = useState(false)
@@ -111,12 +123,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [])
 
   const handleSignOut = () => {
-    localStorage.removeItem("token")
-    router.push("/")
+    logout()
   }
 
   const sidebarWidth = collapsed ? "w-12" : "w-60"
-  const allNav = hasRole("admin") ? [...nav, { href: "/admin", label: "Admin", icon: Shield }] : nav
+  const allNav = nav
 
   return (
     <div className="h-screen flex overflow-hidden bg-background">

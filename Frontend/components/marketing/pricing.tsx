@@ -66,14 +66,14 @@ const Pricing = () => {
 const Plan = ({ plan, billPlan }: { plan: PLAN, billPlan: Plan }) => {
     return (
         <div className={cn(
-            "flex flex-col relative rounded-2xl lg:rounded-3xl transition-all bg-background/ items-start w-full border border-foreground/10 overflow-hidden h-full",
+            "flex flex-col relative rounded-3xl lg:rounded-[32px] transition-all bg-background/ items-start w-full border border-foreground/10 overflow-hidden h-full",
             plan.title === "Pro" && "border-blue-500"
         )}>
             {plan.title === "Pro" && (
-                <div className="absolute top-1/2 inset-x-0 mx-auto h-12 -rotate-45 w-full bg-blue-600 rounded-2xl lg:rounded-3xl blur-[8rem] -z-10"></div>
+                <div className="absolute top-1/2 inset-x-0 mx-auto h-12 -rotate-45 w-full bg-blue-600 rounded-3xl lg:rounded-[32px] blur-[8rem] -z-10"></div>
             )}
 
-            <div className="p-4 md:p-8 flex rounded-t-2xl lg:rounded-t-3xl flex-col items-start w-full relative">
+            <div className="p-4 md:p-8 flex rounded-t-3xl lg:rounded-t-[32px] flex-col items-start w-full relative">
                 <h2 className="font-medium text-xl text-foreground pt-5">
                     {plan.title}
                 </h2>

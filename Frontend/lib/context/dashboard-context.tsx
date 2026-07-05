@@ -6,6 +6,7 @@ import React, {
   useState,
   useCallback,
 } from "react";
+import { examAPI } from "@/lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,7 @@ export interface Material {
   url: string;
   uploadedAt: string;
   ragIndexed: boolean;
+  docId?: string;
 }
 
 export interface Collection {
@@ -79,11 +81,8 @@ export function DashboardProvider({
   const refreshExams = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch("/api/exams");
-      if (!res.ok) {
-        throw new Error(`Failed to fetch exams: ${res.status}`);
-      }
-      const data: Exam[] = await res.json();
+      const res = await examAPI.listExams();
+      const data: Exam[] = (res?.exams ?? res) as Exam[];
       setExams(data);
       setActiveExam((prev) => {
         if (prev) {
@@ -92,6 +91,8 @@ export function DashboardProvider({
         }
         return data.find((e) => e.isActive) || data[0] || null;
       });
+    } catch (error) {
+      console.error("Failed to fetch exams:", error);
     } finally {
       setIsLoading(false);
     }
