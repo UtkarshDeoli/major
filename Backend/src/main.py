@@ -26,6 +26,7 @@ from src.routers import (
     class_router,
     sample_material_router,
     subscription_router,
+    webhook_router,
 )
 
 
@@ -70,6 +71,7 @@ app.include_router(ai_material_router)
 app.include_router(class_router)
 app.include_router(sample_material_router)
 app.include_router(subscription_router)
+app.include_router(webhook_router)
 
 @app.get("/")
 async def root():
