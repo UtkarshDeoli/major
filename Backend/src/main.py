@@ -28,6 +28,7 @@ from src.routers import (
     subscription_router,
     webhook_router,
     org_router,
+    admin_router,
 )
 
 
@@ -74,6 +75,7 @@ app.include_router(sample_material_router)
 app.include_router(subscription_router)
 app.include_router(webhook_router)
 app.include_router(org_router)
+app.include_router(admin_router)
 
 @app.get("/")
 async def root():
