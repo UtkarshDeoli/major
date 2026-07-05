@@ -109,3 +109,8 @@ uvloop==0.21.0
 watchfiles==1.1.0
 websockets==15.0.1
 yarl==1.20.0
+
+# Phase 1 — billing + rate limiting
+razorpay==1.4.2
+slowapi==0.1.9
+pytest-asyncio==0.23.8

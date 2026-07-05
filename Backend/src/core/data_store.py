@@ -48,6 +48,12 @@ try:
     flashcards_collection = db.flashcards
     ai_materials_collection = db.ai_materials
     classes_collection = db.classes
+    # Billing / multi-tenant collections
+    subscriptions_collection = db.subscriptions
+    payments_collection = db.payments
+    organizations_collection = db.organizations
+    org_invites_collection = db.org_invites
+    usage_events_collection = db.usage_events
 except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     print(f"MongoDB connection error: {e}")
     print("WARNING: Data store service will not work until MongoDB is available")
@@ -71,6 +77,12 @@ except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     flashcards_collection = None
     ai_materials_collection = None
     classes_collection = None
+    # Billing / multi-tenant collections
+    subscriptions_collection = None
+    payments_collection = None
+    organizations_collection = None
+    org_invites_collection = None
+    usage_events_collection = None
 
 
 # Helper to convert ObjectId to string
@@ -429,6 +441,22 @@ async def ensure_indexes():
         await flashcard_decks_collection.create_index([("user_id", 1), ("created_at", -1)])
     if ai_materials_collection is not None:
         await ai_materials_collection.create_index([("user_id", 1), ("created_at", -1)])
+    # Billing / multi-tenant indexes
+    if subscriptions_collection is not None:
+        await subscriptions_collection.create_index([("user_id", 1), ("status", 1)])
+        await subscriptions_collection.create_index("razorpay_subscription_id", unique=True, sparse=True)
+    if payments_collection is not None:
+        await payments_collection.create_index("razorpay_payment_id", unique=True, sparse=True)
+        await payments_collection.create_index([("user_id", 1), ("created_at", -1)])
+    if organizations_collection is not None:
+        await organizations_collection.create_index("owner_user_id", unique=True)
+        await organizations_collection.create_index("status")
+    if org_invites_collection is not None:
+        await org_invites_collection.create_index("code", unique=True)
+    if usage_events_collection is not None:
+        await usage_events_collection.create_index(
+            [("user_id", 1), ("resource", 1), ("period_key", 1)], unique=True
+        )
 
 
 # --- Flashcard helpers -------------------------------------------------------
