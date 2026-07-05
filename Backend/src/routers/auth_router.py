@@ -9,6 +9,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, EmailStr
 
 from src.core.config import ACCESS_TOKEN_EXPIRE_MINUTES, FRONTEND_URL
+from src.core.limiter import limiter
 from src.core.models import SubscriptionInfo
 from src.core.security import get_current_user
 from src.services.auth_service import (
@@ -87,7 +88,8 @@ def _build_user_response(user: dict) -> UserResponse:
 
 
 @router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
-async def signup(user_data: UserCreate):
+@limiter.limit("5/minute")
+async def signup(request: Request, user_data: UserCreate):
     """Register a new user with email and password and return an access token."""
     user = await create_user(
         email=user_data.email,
@@ -107,7 +109,8 @@ async def signup(user_data: UserCreate):
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+@limiter.limit("5/minute")
+async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
     """Authenticate and get access token with user profile."""
     user = await authenticate_user(form_data.username, form_data.password)
     if not user:

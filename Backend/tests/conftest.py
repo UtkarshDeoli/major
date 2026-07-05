@@ -13,3 +13,13 @@ def event_loop():
     """Provide the module-scoped event loop for async tests."""
     yield _loop
     _loop.close()
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Clear slowapi's in-memory counters before each test so rate-limit state
+    never leaks between tests (TestClient presents a single client IP)."""
+    from src.core.limiter import limiter
+    limiter.reset()
+    yield
+    limiter.reset()
