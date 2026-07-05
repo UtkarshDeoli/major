@@ -7,11 +7,13 @@ import { StepAboutYou } from "./step-about-you";
 import { StepStudyGoal } from "./step-study-goal";
 import { PRESET_EXAMS } from "@/lib/constants/exams";
 import { examAPI, onboardingAPI } from "@/lib/api";
+import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorMessage } from "@/lib/errors";
 
 export function OnboardingContainer() {
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const { toast } = useToast();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -39,11 +41,10 @@ export function OnboardingContainer() {
   };
 
   const completeOnboarding = async () => {
-    try {
-      await onboardingAPI.complete();
-    } catch (error) {
-      console.error("Error completing onboarding:", error);
-    }
+    // Throws on failure so callers can surface the error and avoid navigating
+    // to /dashboard while onboarding_completed is still false (which would
+    // bounce the user back to /onboarding in a loop).
+    await onboardingAPI.complete();
   };
 
   const handleStep2Next = async (presetId: string | null) => {
@@ -60,13 +61,14 @@ export function OnboardingContainer() {
           is_active: true,
         });
 
-        // 2. Create subjects
+        // 2. Create subjects (premade per-exam subjects, e.g. JEE -> Physics/Chemistry/Maths)
         await Promise.all(
           preset.subjects.map((subjectName) => examAPI.createSubject(exam.id, subjectName))
         );
       }
 
       await completeOnboarding();
+      await refreshUser();
       router.push("/dashboard");
     } catch (error) {
       console.error("Error in step 2:", error);
@@ -81,8 +83,19 @@ export function OnboardingContainer() {
 
   const handleSkip = async () => {
     setIsLoading(true);
-    await completeOnboarding();
-    router.push("/dashboard");
+    try {
+      await completeOnboarding();
+      await refreshUser();
+      router.push("/dashboard");
+    } catch (error) {
+      console.error("Error completing onboarding:", error);
+      toast({
+        title: "Couldn't finish onboarding",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
   };
 
   return (

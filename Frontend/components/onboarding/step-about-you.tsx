@@ -40,7 +40,7 @@ export function StepAboutYou({
     if (!isNameFilled) return;
     onNext({
       name: name.trim(),
-      role,
+      role: role.toLowerCase(),
       institute: institute.trim(),
       language,
     });

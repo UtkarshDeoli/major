@@ -40,6 +40,28 @@ def client(monkeypatch):
     return TestClient(app)
 
 
+def test_login_returns_user_profile(client):
+    """Login must return the full user profile alongside the token."""
+    unique = uuid.uuid4().hex
+    payload = {
+        "email": f"login-user-{unique}@example.com",
+        "password": "password123",
+        "name": "Login User",
+    }
+    signup = client.post("/auth/signup", json=payload)
+    assert signup.status_code == 201
+
+    response = client.post(
+        "/auth/login",
+        data={"username": payload["email"], "password": payload["password"]},
+    )
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert "user" in data
+    assert data["user"]["email"] == payload["email"]
+    assert data["user"]["role"] == "student"
+
+
 def test_signup_defaults_to_student_role(client):
     """Public signup must always create a student, never a privileged role."""
     unique = uuid.uuid4().hex
@@ -52,6 +74,9 @@ def test_signup_defaults_to_student_role(client):
     assert response.status_code == 201, response.text
     data = response.json()
     assert data["email"] == payload["email"]
+    assert "user" in data
+    assert data["user"]["role"] == "student"
+    assert data["user"]["onboarding_completed"] is False
 
     me = client.get("/auth/me", headers={"Authorization": f"Bearer {data['access_token']}"})
     assert me.status_code == 200

@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -9,10 +9,13 @@ from src.core.data_store import users_collection
 
 router = APIRouter(tags=["Onboarding"])
 
+# Roles a user may self-select during onboarding. subadmin/admin are invite-only.
+_SELF_SELECTABLE_ROLES = {"student", "teacher"}
+
 
 class OnboardingData(BaseModel):
     name: Optional[str] = None
-    role: Optional[str] = None
+    role: Optional[Literal["student", "teacher"]] = None
     institute: Optional[str] = None
     preferred_language: Optional[str] = None
 
@@ -45,8 +48,10 @@ async def save_onboarding(
         update_fields = {}
         if data.name is not None:
             update_fields["name"] = data.name.strip()
-        # Ignore any role sent from onboarding; roles are assigned through
-        # admin/sub-admin enrollment or during the signup flow.
+        # Honor a self-selected student/teacher role. subadmin/admin remain
+        # invite-only and cannot be set through onboarding.
+        if data.role is not None and data.role in _SELF_SELECTABLE_ROLES:
+            update_fields["role"] = data.role
         if data.institute is not None:
             update_fields["institute"] = data.institute.strip()
         if data.preferred_language is not None:

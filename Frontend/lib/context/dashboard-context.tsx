@@ -19,6 +19,7 @@ export interface Material {
   url: string;
   uploadedAt: string;
   ragIndexed: boolean;
+  docId?: string;
 }
 
 export interface Collection {

@@ -37,7 +37,7 @@ export function FAQAccordion({ items, isLoaded }: FAQAccordionProps) {
         <div
           key={index}
           className={cn(
-            "rounded-xl transition-all duration-500 overflow-hidden",
+            "rounded-2xl transition-all duration-500 overflow-hidden",
             isLoaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4",
             openIndex === index
               ? "bg-card"

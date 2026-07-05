@@ -34,11 +34,11 @@ const Features = () => {
                         <MagicCard
                             gradientFrom="#38bdf8"
                             gradientTo="#3b82f6"
-                            className="p-5 lg:p-7 rounded-2xl lg:rounded-3xl h-full flex flex-col"
+                            className="p-5 lg:p-7 rounded-3xl lg:rounded-[32px] h-full flex flex-col"
                             gradientColor="rgba(59,130,246,0.1)"
                         >
                             <div className={cn("flex items-center space-x-4 mb-4")}>
-                                <div className="flex items-center justify-center size-10 rounded-xl bg-primary/10 shrink-0">
+                                <div className="flex items-center justify-center size-10 rounded-2xl bg-primary/10 shrink-0">
                                     <feature.icon className="size-5 text-primary" />
                                 </div>
                                 <h3 className="text-lg lg:text-xl font-semibold">

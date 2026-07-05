@@ -20,3 +20,8 @@ skills.json
 DESIGN.md
 .mcp.*
 .worktrees/
+
+# Backend user data & local DB — must never be committed
+Backend/uploads/
+Backend/processed/
+Backend/chroma_db/

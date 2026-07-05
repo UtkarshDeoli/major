@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { useDashboard } from "@/lib/context/dashboard-context"
 import { CollectionsPanel } from "@/components/dashboard/collections-panel"
 import { ExamSetupDialog } from "@/components/dashboard/exam-setup-dialog"
+import { EnrollClassDialog } from "@/components/dashboard/student/enroll-class-dialog"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/context/auth-context"
 import { mockTestAPI, pdfAPI, chatAPI } from "@/lib/api"
@@ -143,6 +144,7 @@ function DashboardContent() {
           </p>
         </div>
         <div className="flex gap-2">
+          {user?.role === "student" && <EnrollClassDialog />}
           <Button variant="outline" size="sm" className="rounded-lg h-8 text-[13px]" onClick={() => router.push("/chat")}>
             <MessageSquare className="h-3.5 w-3.5 mr-1.5" />
             Chat

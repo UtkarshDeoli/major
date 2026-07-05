@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import nltk
@@ -19,9 +21,25 @@ from src.routers import (
     collection_router,
     material_router,
     onboarding_router,
+    flashcard_router,
+    ai_material_router,
+    class_router,
+    sample_material_router,
 )
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Ensure MongoDB indexes exist on startup (best-effort)."""
+    from src.core.data_store import ensure_indexes
+    try:
+        await ensure_indexes()
+    except Exception as e:  # pragma: no cover - best-effort index creation
+        print(f"Startup ensure_indexes failed: {e}")
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 # Allow CORS for the frontend origin
 app.add_middleware(
@@ -46,6 +64,10 @@ app.include_router(subject_router)
 app.include_router(collection_router)
 app.include_router(material_router)
 app.include_router(onboarding_router)
+app.include_router(flashcard_router)
+app.include_router(ai_material_router)
+app.include_router(class_router)
+app.include_router(sample_material_router)
 
 @app.get("/")
 async def root():

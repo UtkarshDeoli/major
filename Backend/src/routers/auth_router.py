@@ -47,15 +47,43 @@ class UserResponse(BaseModel):
     onboarding_completed: bool = False
     active_exam_id: Optional[str] = None
     teacher_id: Optional[str] = None
+    teacher_ids: list[str] = []
     managed_by: Optional[str] = None
+    class_ids: list[str] = []
     license_id: Optional[str] = None
     subscription: Optional[SubscriptionInfo] = None
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserResponse
 
 
 class SignupResponse(BaseModel):
     email: str
     access_token: str
     token_type: str
+    user: UserResponse
+
+
+def _build_user_response(user: dict) -> UserResponse:
+    """Build a UserResponse from a MongoDB user document."""
+    return UserResponse(
+        email=user["email"],
+        name=user.get("name"),
+        role=user.get("role", "student"),
+        institute=user.get("institute"),
+        preferred_language=user.get("preferred_language", "en"),
+        onboarding_completed=user.get("onboarding_completed", False),
+        active_exam_id=user.get("active_exam_id"),
+        teacher_id=user.get("teacher_id"),
+        teacher_ids=user.get("teacher_ids") or [],
+        managed_by=user.get("managed_by"),
+        class_ids=user.get("class_ids") or [],
+        license_id=user.get("license_id"),
+        subscription=user.get("subscription"),
+    )
 
 
 @router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
@@ -74,12 +102,13 @@ async def signup(user_data: UserCreate):
         "email": user["email"],
         "access_token": access_token,
         "token_type": "bearer",
+        "user": _build_user_response(user),
     }
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=LoginResponse)
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    """Authenticate and get access token"""
+    """Authenticate and get access token with user profile."""
     user = await authenticate_user(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -91,7 +120,11 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     access_token = create_access_token(
         data={"sub": user["email"]}, expires_delta=access_token_expires
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": _build_user_response(user),
+    }
 
 
 @router.get("/me", response_model=UserResponse)
@@ -112,7 +145,9 @@ async def get_me(user_email: str = Depends(get_current_user)):
         onboarding_completed=user.get("onboarding_completed", False),
         active_exam_id=user.get("active_exam_id"),
         teacher_id=user.get("teacher_id"),
+        teacher_ids=user.get("teacher_ids") or [],
         managed_by=user.get("managed_by"),
+        class_ids=user.get("class_ids") or [],
         license_id=user.get("license_id"),
         subscription=user.get("subscription"),
     )

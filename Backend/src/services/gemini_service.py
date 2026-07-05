@@ -1,5 +1,5 @@
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from fastapi import HTTPException
 from src.core.config import GEMINI_API_KEY
 
@@ -445,3 +445,90 @@ try:
 except Exception as e:
     print(f"✗ Failed to initialize Gemini service: {str(e)}")
     gemini_service = None
+
+
+def _extract_json(text: str) -> Dict[str, Any]:
+    """Best-effort extraction of the first {...} JSON object from a model response."""
+    if not text:
+        return {}
+    start = text.find('{')
+    end = text.rfind('}')
+    if start == -1 or end == -1 or end <= start:
+        return {}
+    try:
+        return json.loads(text[start:end + 1])
+    except json.JSONDecodeError:
+        return {}
+
+
+async def generate_flashcards(content: str, num_cards: int = 15, subject: Optional[str] = None) -> List[Dict[str, str]]:
+    """Generate flashcards (front/back) from text content using Gemini."""
+    if not gemini_service:
+        raise HTTPException(status_code=503, detail="Gemini service is not available")
+    if not content or not content.strip():
+        return []
+
+    prompt = f"""You are an expert tutor creating study flashcards from source material.
+Create exactly {num_cards} high-quality flashcards. Each card should test a single, specific concept.
+
+SUBJECT: {subject or "General"}
+
+SOURCE MATERIAL:
+{content[:6000]}
+
+RESPOND ONLY WITH VALID JSON in this exact format:
+{{
+    "cards": [
+        {{"front": "A clear, specific question or prompt", "back": "A concise, accurate answer"}}
+    ]
+}}
+
+Rules:
+- Front: a question, term, or prompt (one sentence).
+- Back: a concise but complete answer (1-3 sentences).
+- Cover the most important concepts in the material.
+- Return ONLY the JSON object, no extra text."""
+
+    try:
+        response = gemini_service.model.generate_content(prompt)
+        data = _extract_json(response.text if response else "")
+        cards = data.get("cards", [])
+        if not isinstance(cards, list):
+            return []
+        return [{"front": c.get("front", ""), "back": c.get("back", "")}
+                for c in cards if c.get("front") and c.get("back")][:num_cards]
+    except Exception as e:
+        print(f"Error generating flashcards: {e}")
+        return []
+
+
+async def generate_summary(content: str, style: str = "detailed", subject: Optional[str] = None) -> str:
+    """Generate a markdown study summary from text content using Gemini."""
+    if not gemini_service:
+        raise HTTPException(status_code=503, detail="Gemini service is not available")
+    if not content or not content.strip():
+        return ""
+
+    style_guides = {
+        "brief": "a concise overview (3-5 short paragraphs) covering only the key ideas",
+        "bullet": "a structured bullet-point summary grouped by topic, with sub-bullets for detail",
+        "detailed": "a comprehensive study summary with headings, key definitions, important formulas/facts, and worked examples where relevant",
+    }
+    guide = style_guides.get(style, style_guides["detailed"])
+
+    prompt = f"""You are an expert tutor. Produce {guide} from the source material below.
+Use markdown formatting (## headings, **bold**, bullet lists, numbered steps where useful).
+
+SUBJECT: {subject or "General"}
+
+SOURCE MATERIAL:
+{content[:8000]}
+
+Return ONLY the markdown summary, no preamble."""
+
+    try:
+        response = gemini_service.model.generate_content(prompt)
+        return (response.text if response and response.text else "").strip()
+    except Exception as e:
+        print(f"Error generating summary: {e}")
+        return ""

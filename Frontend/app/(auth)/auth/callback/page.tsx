@@ -2,11 +2,22 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import api from "@/lib/api";
+import { useAuth } from "@/lib/context/auth-context";
+import { getPostAuthRedirect } from "@/lib/auth/redirects";
+
+const ERROR_MESSAGES: Record<string, string> = {
+  invalid_state: "Security check failed. Please try again.",
+  no_email: "Google account has no email associated. Please use a different account.",
+  exchange_failed: "Failed to sign in with Google. Please try again.",
+  invalid_request: "Invalid request. Please try again.",
+  access_denied: "Google sign-in was denied. Please try again or use email.",
+  email_not_verified: "Your Google email is not verified. Please verify your email with Google first.",
+};
 
 function CallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { hydrateFromToken } = useAuth();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -14,38 +25,33 @@ function CallbackHandler() {
     const errorParam = searchParams.get("error");
 
     if (errorParam) {
-      const messages: Record<string, string> = {
-        invalid_state: "Security check failed. Please try again.",
-        no_email: "Google account has no email associated. Please use a different account.",
-        exchange_failed: "Failed to sign in with Google. Please try again.",
-        invalid_request: "Invalid request. Please try again.",
-        access_denied: "Google sign-in was denied. Please try again or use email.",
-        email_not_verified: "Your Google email is not verified. Please verify your email with Google first.",
-      };
-      setError(messages[errorParam] || "An unknown error occurred.");
+      setError(ERROR_MESSAGES[errorParam] || "An unknown error occurred.");
       return;
     }
 
-    if (token) {
-      localStorage.setItem("token", token);
-
-      api
-        .get("/auth/me")
-        .then((response) => {
-          const user = response.data as { role: string };
-          if (user.role === "teacher") {
-            router.replace("/teacher");
-          } else {
-            router.replace("/dashboard");
-          }
-        })
-        .catch(() => {
-          router.replace("/dashboard");
-        });
-    } else {
+    if (!token) {
       setError("No token received from authentication.");
+      return;
     }
-  }, [router, searchParams]);
+
+    let cancelled = false;
+
+    hydrateFromToken(token)
+      .then((user) => {
+        if (!cancelled) {
+          router.replace(getPostAuthRedirect(user));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError("We couldn't verify your account. Please sign in again.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, searchParams, hydrateFromToken]);
 
   if (error) {
     return (

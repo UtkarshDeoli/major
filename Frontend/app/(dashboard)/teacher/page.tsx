@@ -31,6 +31,7 @@ import RoleGuard from "@/components/auth/route-protection/role-guard"
 import { StatsCard } from "@/components/dashboard/analytics/stats-card"
 import { ProgressRing } from "@/components/dashboard/analytics/progress-ring"
 import { ClassChart } from "@/components/dashboard/analytics/class-chart"
+import { TeacherClassesPanel } from "@/components/dashboard/teacher/teacher-classes-panel"
 import { cn } from "@/lib/utils"
 
 interface StudentAnalytics {
@@ -440,6 +441,15 @@ function TeacherDashboardContent() {
           <ClassChart data={classChartData} />
         </motion.div>
       )}
+
+      {/* Classes / Batches */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+      >
+        <TeacherClassesPanel />
+      </motion.div>
 
       {/* Assign Existing Test */}
       {!isLoadingTests && teacherTests.length > 0 && (

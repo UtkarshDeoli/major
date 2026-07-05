@@ -36,6 +36,7 @@ export interface Document {
   page_count?: number;
   description?: string;
   vector_db_path?: string;
+  doc_id?: string; // RAG doc scope id (pdfs metadata id) for retrieval
 }
 
 // Chat Message Types

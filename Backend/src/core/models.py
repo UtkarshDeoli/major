@@ -5,11 +5,15 @@ from bson import ObjectId
 
 class QuestionRequest(BaseModel):
     question: str
-    pdf_id: Optional[str] = None
+    pdf_id: Optional[str] = None  # deprecated, kept for backward compat
+    doc_ids: Optional[List[str]] = None  # multi-doc scope
+    subject: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 class QuestionResponse(BaseModel):
     answer: str
     context: Optional[str] = None
+    sources: Optional[List[Any]] = None
 
 class StatusResponse(BaseModel):
     status: str
@@ -72,15 +76,17 @@ class ChatSession(BaseModel):
     id: str
     user_id: str
     pdf_id: Optional[str] = None
+    doc_ids: Optional[List[str]] = None
     title: str
-    messages: List[Message]
+    messages: List[Message] = []
     created_at: datetime
     updated_at: datetime
-    
+
 class ChatSessionResponse(BaseModel):
     id: str
     title: str
     pdf_id: Optional[str] = None
+    doc_ids: Optional[List[str]] = None
     created_at: datetime
     updated_at: datetime
     message_count: int
@@ -133,6 +139,9 @@ class MockTestQuestion(BaseModel):
     options: Optional[List[str]] = None
     correctAnswer: Optional[str] = None
     marks: int
+    unit: Optional[str] = None       # chapter/unit tag for section-level analytics
+    topic: Optional[str] = None      # topic tag for section-level analytics
+    syllabus_reference: Optional[str] = None
 
 class MockTestGenerationRequest(BaseModel):
     syllabus_pdf_id: str
@@ -146,6 +155,8 @@ class MockTestGenerationRequest(BaseModel):
     focus_topics: Optional[List[str]] = None
     weak_topics: Optional[List[str]] = None
     subject: Optional[str] = None
+    grading_mode: Literal["auto", "teacher"] = "auto"  # auto = AI/MCQ graded, teacher = teacher marks
+    source_material_ids: Optional[List[str]] = None  # materials to ground generation on
 
 class MockTestResponse(BaseModel):
     test_id: str
@@ -158,6 +169,9 @@ class MockTestResponse(BaseModel):
     created_by: Optional[str] = None
     assigned_to: Optional[str] = None
     difficulty_level: Optional[str] = "medium"
+    subject: Optional[str] = None
+    grading_mode: Literal["auto", "teacher"] = "auto"
+    status: Optional[str] = None  # for teacher-marked tests: "pending_review" | "graded"
     latest_submission: Optional[Dict[str, Any]] = None
 
 class MockTestSubmission(BaseModel):
@@ -165,6 +179,7 @@ class MockTestSubmission(BaseModel):
     answers: Dict[str, str]  # question_id -> answer
     time_taken: int  # in seconds
     submitted_at: datetime
+    subject: Optional[str] = None
 
 class AnswerFeedback(BaseModel):
     question_id: str
@@ -287,5 +302,112 @@ class User(BaseModel):
     preferred_language: str = "en"
     onboarding_completed: bool = False
     active_exam_id: Optional[str] = None
+    # Teacher/student linkage (loose Mongo fields, now on the model)
+    teacher_ids: List[str] = []          # students: teachers who manage this student (multiple allowed)
+    teacher_id: Optional[str] = None     # legacy single-teacher link (kept for backward compat)
+    managed_by: Optional[str] = None     # teacher -> sub-admin email
+    class_ids: List[str] = []            # students: classes (batches) they belong to
+    license_id: Optional[str] = None
+    subscription: Optional[SubscriptionInfo] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# Teacher Class / Batch model — a teacher groups students (e.g. "JEE 2026 Batch")
+class Class(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
+    teacher_id: str                      # teacher email who owns the class
+    name: str                            # e.g. "JEE 2026 Batch"
+    description: Optional[str] = None
+    exam_preset: Optional[str] = None    # e.g. "jee-mains" — drives default subjects
+    enroll_code: str                     # short shareable code
+    student_emails: List[str] = []
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# Flashcard models
+class Flashcard(BaseModel):
+    id: str
+    deck_id: str
+    front: str
+    back: str
+    # Spaced-repetition lite
+    ease: int = 2
+    interval_days: int = 0
+    reps: int = 0
+    due_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class FlashcardDeck(BaseModel):
+    id: str
+    user_id: str
+    title: str
+    subject: Optional[str] = None
+    source_material_ids: List[str] = []
+    source_type: Optional[str] = None   # "student" | "teacher" | "ai"
+    created_by: Optional[str] = None    # teacher email if teacher-created
+    card_count: int = 0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class FlashcardDeckResponse(BaseModel):
+    deck: FlashcardDeck
+    cards: List[Flashcard] = []
+
+
+class FlashcardDeckListResponse(BaseModel):
+    decks: List[FlashcardDeck]
+
+
+class GenerateFlashcardsRequest(BaseModel):
+    material_ids: List[str] = []
+    doc_ids: List[str] = []              # alternative: raw document ids
+    subject: Optional[str] = None
+    title: Optional[str] = None
+    num_cards: int = 15
+
+
+# AI-generated study material (summaries, notes) — shown in the right sidebar
+class AIStudyMaterial(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
+    user_id: str                         # owner (student who generated, or assigned student)
+    created_by: Optional[str] = None     # teacher email if teacher-created for student
+    kind: Literal["summary", "notes", "flashcard_deck", "mock_test"] = "summary"
+    title: str
+    subject: Optional[str] = None
+    source_material_ids: List[str] = []
+    content: str = ""                    # markdown text for summary/notes
+    ref_id: Optional[str] = None         # linked deck_id / test_id for flashcard/mock
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class AIStudyMaterialResponse(BaseModel):
+    id: str
+    user_id: str
+    created_by: Optional[str] = None
+    kind: str
+    title: str
+    subject: Optional[str] = None
+    source_material_ids: List[str] = []
+    content: str = ""
+    ref_id: Optional[str] = None
+    created_at: datetime
+
+
+class AIStudyMaterialListResponse(BaseModel):
+    materials: List[AIStudyMaterialResponse]
+
+
+class GenerateSummaryRequest(BaseModel):
+    material_ids: List[str] = []
+    doc_ids: List[str] = []
+    subject: Optional[str] = None
+    title: Optional[str] = None
+    style: Literal["brief", "detailed", "bullet"] = "detailed"

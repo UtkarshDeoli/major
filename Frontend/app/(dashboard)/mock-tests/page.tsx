@@ -7,19 +7,23 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { mockTestAPI, teacherAPI } from "@/lib/api"
 import { useAuth } from "@/lib/context/auth-context"
+import { useDashboard } from "@/lib/context/dashboard-context"
 import { getErrorMessage } from "@/lib/errors"
 import { MockTest } from "@/lib/data"
 import { PdfSelector, type PdfSelection } from "@/components/dashboard/test/pdf-selector"
-import { Target, Clock } from "lucide-react"
+import { MockTestAttemptsDialog } from "@/components/dashboard/mock-test-attempts-dialog"
+import { Target, Clock, History } from "lucide-react"
 
 export default function MockTestsPage() {
   const router = useRouter()
   const { toast } = useToast()
   const { user } = useAuth()
   const isTeacher = user?.role === "teacher"
+  const { activeExam } = useDashboard()
+  const examSubjects = activeExam?.subjects ?? []
 
   const [selection, setSelection] = useState<PdfSelection>({
     syllabusId: "",
@@ -40,10 +44,24 @@ export default function MockTestsPage() {
   const [subject, setSubject] = useState("")
   const [selectedTopics, setSelectedTopics] = useState("")
   const [targetWeaknesses, setTargetWeaknesses] = useState(false)
+  const [gradingMode, setGradingMode] = useState<"auto" | "teacher">("auto")
+  const [attemptsTestId, setAttemptsTestId] = useState<string | null>(null)
 
   const handleSelectionChange = useCallback((s: PdfSelection) => {
     setSelection(s)
   }, [])
+
+  // Prefill subject + focus topics from query (e.g. arriving from chat "Mock Test"
+  // or analytics "practice weak areas" actions).
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    const subj = searchParams.get("subject")
+    if (subj) setSubject(subj)
+    const focus = searchParams.get("focus")
+    if (focus) setSelectedTopics(focus)
+    const weak = searchParams.get("weak")
+    if (weak === "1") setTargetWeaknesses(true)
+  }, [searchParams])
 
   // Fetch managed students for teachers
   useEffect(() => {
@@ -106,7 +124,8 @@ export default function MockTestsPage() {
         topicList.length > 0 ? topicList : undefined,
         weakTopicsToSend,
         subject || undefined,
-        selectedStudent || undefined
+        selectedStudent || undefined,
+        gradingMode
       )
 
       toast({
@@ -258,15 +277,45 @@ export default function MockTestsPage() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="subject">Subject</Label>
-                    <Input
-                      id="subject"
-                      type="text"
-                      placeholder="e.g. Mathematics"
-                      value={subject}
-                      onChange={(e) => setSubject(e.target.value)}
-                      className="rounded-md h-9 text-[13px]"
-                    />
+                    {examSubjects.length > 0 ? (
+                      <Select value={subject} onValueChange={setSubject}>
+                        <SelectTrigger id="subject">
+                          <SelectValue placeholder="Select a subject" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {examSubjects.map((s) => (
+                            <SelectItem key={s.id} value={s.name}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        id="subject"
+                        type="text"
+                        placeholder="Set up an exam with subjects first"
+                        value={subject}
+                        onChange={(e) => setSubject(e.target.value)}
+                        className="rounded-md h-9 text-[13px]"
+                      />
+                    )}
                   </div>
+
+                  {isTeacher && (
+                    <div className="space-y-2">
+                      <Label htmlFor="grading-mode">Grading</Label>
+                      <Select value={gradingMode} onValueChange={(v) => setGradingMode(v as "auto" | "teacher")}>
+                        <SelectTrigger id="grading-mode">
+                          <SelectValue placeholder="Grading mode" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">Auto (AI / MCQ graded)</SelectItem>
+                          <SelectItem value="teacher">Teacher-marked (you grade answers)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label htmlFor="focus-topics">Focus Topics (comma-separated)</Label>
@@ -421,6 +470,15 @@ export default function MockTestsPage() {
                           {test.latest_submission.percentage.toFixed(0)}%
                         </Button>
                       )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="rounded-md h-7 text-xs"
+                        title="Attempts"
+                        onClick={() => setAttemptsTestId(test.test_id)}
+                      >
+                        <History className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -429,6 +487,13 @@ export default function MockTestsPage() {
           </div>
         </div>
       </div>
+
+      <MockTestAttemptsDialog
+        testId={attemptsTestId}
+        isTeacher={isTeacher}
+        open={!!attemptsTestId}
+        onOpenChange={(o) => !o && setAttemptsTestId(null)}
+      />
     </div>
   )
 }
