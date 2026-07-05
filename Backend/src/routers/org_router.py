@@ -1,0 +1,70 @@
+from typing import Literal, Optional
+
+from fastapi import APIRouter, Depends, Path, HTTPException, status
+from pydantic import BaseModel
+
+from src.core.security import require_role, get_current_user_with_role
+from src.services import org_service as svc
+
+router = APIRouter(prefix="/orgs", tags=["Organizations"])
+
+
+class OrgCreateRequest(BaseModel):
+    name: str
+    brand_name: Optional[str] = None
+    tier: Literal["pro", "premium"]
+    seats_total: int = 1
+    billing_cycle: Literal["monthly", "yearly"] = "monthly"
+
+
+class InviteRequest(BaseModel):
+    member_role: Literal["teacher", "student"]
+    email: Optional[str] = None
+
+
+class SeatsRequest(BaseModel):
+    add_seats: int
+
+
+@router.post("/", status_code=status.HTTP_201_CREATED)
+async def create_org(req: OrgCreateRequest, user=Depends(require_role("subadmin", "admin"))):
+    return await svc.create_org(user["email"], req.name, req.brand_name,
+                                req.tier, req.seats_total, req.billing_cycle)
+
+
+@router.get("/me")
+async def my_org(user=Depends(require_role("subadmin"))):
+    org = await svc.get_org_by_owner(user["email"])
+    if not org:
+        raise HTTPException(404, "No organization found")
+    members = await svc.list_members(user["email"])
+    return {
+        "org": org,
+        "members": members,
+        "seats": {"used": org.get("seats_used", 0), "total": org.get("seats_total", 0)},
+    }
+
+
+@router.post("/invite")
+async def invite(req: InviteRequest, user=Depends(require_role("subadmin"))):
+    return await svc.create_invite(user["email"], req.member_role, req.email)
+
+
+@router.post("/enroll/{code}")
+async def enroll(code: str = Path(...), user=Depends(get_current_user_with_role)):
+    return await svc.enroll(user["email"], code)
+
+
+@router.get("/members")
+async def members(user=Depends(require_role("subadmin"))):
+    return {"members": await svc.list_members(user["email"])}
+
+
+@router.delete("/members/{member_email}")
+async def remove_member(member_email: str = Path(...), user=Depends(require_role("subadmin"))):
+    return await svc.remove_member(user["email"], member_email)
+
+
+@router.post("/seats")
+async def add_seats(req: SeatsRequest, user=Depends(require_role("subadmin"))):
+    return await svc.add_seats(user["email"], req.add_seats)

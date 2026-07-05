@@ -309,6 +309,10 @@ class User(BaseModel):
     class_ids: List[str] = []            # students: classes (batches) they belong to
     license_id: Optional[str] = None
     subscription: Optional[SubscriptionInfo] = None
+    # Multi-tenant (org / coaching license) linkage
+    org_id: Optional[str] = None
+    member_role: Optional[Literal["teacher", "student"]] = None
+    org_joined_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
