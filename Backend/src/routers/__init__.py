@@ -16,3 +16,4 @@ from .flashcard_router import router as flashcard_router
 from .ai_material_router import router as ai_material_router
 from .class_router import router as class_router
 from .sample_material_router import router as sample_material_router
+from .subscription_router import router as subscription_router

@@ -25,6 +25,7 @@ from src.routers import (
     ai_material_router,
     class_router,
     sample_material_router,
+    subscription_router,
 )
 
 
@@ -68,6 +69,7 @@ app.include_router(flashcard_router)
 app.include_router(ai_material_router)
 app.include_router(class_router)
 app.include_router(sample_material_router)
+app.include_router(subscription_router)
 
 @app.get("/")
 async def root():
