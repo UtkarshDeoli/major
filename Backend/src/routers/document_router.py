@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 from src.core.models import DocumentUploadResponse, DocumentListResponse, PDFMetadata
 from src.core.security import get_current_user
+from src.core.plan_enforcement import enforce_limit
 from src.core.data_store import (
     store_pdf_metadata,
     update_pdf_metadata,
@@ -26,7 +27,8 @@ async def upload_document(
     file: UploadFile = File(...),
     subject: Optional[str] = Form(None),
     tags: Optional[str] = Form(None),  # comma-separated
-    user_id: str = Depends(get_current_user)
+    user_id: str = Depends(get_current_user),
+    _plan: dict = Depends(enforce_limit("doc_storage")),
 ):
     """Upload any document type."""
     doc_type = detect_doc_type(file.filename)

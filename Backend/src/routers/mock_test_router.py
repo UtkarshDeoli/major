@@ -11,6 +11,7 @@ from src.core.models import (
     MockTestListResponse
 )
 from src.core.security import get_current_user, require_role
+from src.core.plan_enforcement import enforce_limit
 from src.core.data_store import get_mock_test as fetch_mock_test_data
 from src.services.auth_service import get_user_by_email
 from src.services.mock_test_service import (
@@ -31,7 +32,8 @@ router = APIRouter(prefix="/mock-tests", tags=["Mock Tests"])
 )
 async def generate_mock_test(
     request: MockTestGenerationRequest,
-    user_id: str = Depends(get_current_user)
+    user_id: str = Depends(get_current_user),
+    _plan: dict = Depends(enforce_limit("mock_test")),
 ):
     """
     Generate a personalized mock test based on syllabus and previous year papers.

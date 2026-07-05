@@ -13,6 +13,7 @@ from pydantic import BaseModel
 
 from src.core.models import GenerateFlashcardsRequest
 from src.core.security import get_current_user
+from src.core.plan_enforcement import enforce_limit
 from src.core.data_store import (
     materials_collection,
     pdfs_collection,
@@ -121,6 +122,7 @@ async def _gather_content(user_id: str, material_ids: List[str], doc_ids: List[s
 async def generate_deck(
     request: GenerateFlashcardsRequest,
     user_id: str = Depends(get_current_user),
+    _plan: dict = Depends(enforce_limit("flashcard")),
 ):
     """Generate a flashcard deck from materials/documents."""
     content = await _gather_content(user_id, request.material_ids, request.doc_ids)

@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from src.core.models import Material
 from src.core.security import get_current_user
+from src.core.plan_enforcement import enforce_limit
 from src.core.data_store import (
     materials_collection,
     collections_collection,
@@ -123,7 +124,8 @@ async def list_materials(collection_id: str, user_email: str = Depends(get_curre
 async def upload_material(
     collection_id: str,
     file: UploadFile = File(...),
-    user_email: str = Depends(get_current_user)
+    user_email: str = Depends(get_current_user),
+    _plan: dict = Depends(enforce_limit("doc_storage")),
 ):
     """Upload a new material to a collection.
 

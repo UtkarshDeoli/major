@@ -15,6 +15,7 @@ from src.core.models import (
     ChatMessageResponse
 )
 from src.core.security import get_current_user
+from src.core.plan_enforcement import enforce_limit, increment_usage
 from src.services.llm_service import ask_question
 from src.core.data_store import (
     create_chat_session,
@@ -33,7 +34,8 @@ router = APIRouter(prefix="/questions", tags=["Questions"])
 )
 async def ask(
     question_data: QuestionRequest,
-    user_id: str = Depends(get_current_user)
+    user_id: str = Depends(get_current_user),
+    _plan: dict = Depends(enforce_limit("chat_message")),
 ):
     """Ask a question with optional document context."""
     try:
@@ -46,7 +48,8 @@ async def ask(
             user_id=user_id,
             stream=False
         )
-        
+
+        await increment_usage(user_id, "chat_message")
         return QuestionResponse(
             answer=response["answer"],
             sources=response.get("sources"),  # NEW
@@ -67,7 +70,8 @@ async def ask(
 )
 async def ask_stream(
     question_data: QuestionRequest,
-    user_id: str = Depends(get_current_user)
+    user_id: str = Depends(get_current_user),
+    _plan: dict = Depends(enforce_limit("chat_message")),
 ):
     """Ask a question with streaming response."""
     try:
@@ -80,7 +84,8 @@ async def ask_stream(
             user_id=user_id,
             stream=True
         )
-        
+
+        await increment_usage(user_id, "chat_message")
         return StreamingResponse(
             stream_generator(),
             media_type="application/x-ndjson"
@@ -225,30 +230,31 @@ async def get_session(
 async def add_message(
     session_id: str = Path(..., description="The ID of the chat session"),
     message: ChatMessageRequest = Body(...),
-    user_id: str = Depends(get_current_user)
+    user_id: str = Depends(get_current_user),
+    _plan: dict = Depends(enforce_limit("chat_message")),
 ):
     """Add a message to a chat session."""
     try:
         session = await get_chat_session(session_id)
         if not session or session["user_id"] != user_id:
             raise HTTPException(status_code=404, detail="Session not found")
-        
+
         # Resolve document scope
         doc_ids = session.get("doc_ids")
         if not doc_ids and session.get("pdf_id"):
             doc_ids = [session["pdf_id"]]
-        
+
         await add_message_to_chat(session_id, "user", message.content)
-        
+
         response = await ask_question(
             question=message.content,
             doc_ids=doc_ids,
             user_id=user_id,
             stream=False
         )
-        
+
         await add_message_to_chat(session_id, "assistant", response["answer"])
-        
+        await increment_usage(user_id, "chat_message")
         return QuestionResponse(
             answer=response["answer"],
             sources=response.get("sources"),
@@ -270,21 +276,23 @@ async def add_message(
 async def add_message_stream(
     session_id: str = Path(..., description="The ID of the chat session"),
     message: ChatMessageRequest = Body(...),
-    user_id: str = Depends(get_current_user)
+    user_id: str = Depends(get_current_user),
+    _plan: dict = Depends(enforce_limit("chat_message")),
 ):
     """Add a message to a chat session with streaming response."""
     try:
         session = await get_chat_session(session_id)
         if not session or session["user_id"] != user_id:
             raise HTTPException(status_code=404, detail="Session not found")
-        
+
         # Resolve document scope
         doc_ids = session.get("doc_ids")
         if not doc_ids and session.get("pdf_id"):
             doc_ids = [session["pdf_id"]]
-        
+
         await add_message_to_chat(session_id, "user", message.content)
-        
+        await increment_usage(user_id, "chat_message")
+
         async def stream_with_save():
             stream_generator = await ask_question(
                 question=message.content,

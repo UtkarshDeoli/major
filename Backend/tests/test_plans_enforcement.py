@@ -138,3 +138,43 @@ async def test_increment_usage_noop_for_derived_resources(isolated):
     # mock_test usage is derived from the mock_tests collection, not usage_events
     await pe.increment_usage("a@x.com", "mock_test")
     assert await pe.get_usage("a@x.com", "chat_message") == 0
+
+
+def test_mock_test_generate_402_on_free_limit(monkeypatch):
+    """The wired /mock-tests/generate endpoint must 402 when the free limit is hit.
+
+    The 402 fires in the enforce_limit dependency BEFORE the handler body runs,
+    so no Gemini call is made.
+    """
+    from datetime import datetime, timezone
+    from fastapi.testclient import TestClient
+    from src.core.security import get_current_user, get_current_user_with_role
+    from src.main import app
+
+    now = datetime.now(timezone.utc)
+    mt = _FakeColl(); users = _FakeColl(); subs = _FakeColl()
+    for i in range(3):
+        mt.docs[str(i)] = {"user_id": "u@x.com", "created_at": now}
+    users.docs["1"] = {"email": "u@x.com", "role": "student"}
+
+    import src.core.data_store as ds2
+    import src.core.plan_enforcement as pe2
+    for mod in (ds2, pe2):
+        monkeypatch.setattr(mod, "mock_tests_collection", mt, raising=False)
+        monkeypatch.setattr(mod, "users_collection", users, raising=False)
+        monkeypatch.setattr(mod, "subscriptions_collection", subs, raising=False)
+        monkeypatch.setattr(mod, "organizations_collection", _FakeColl(), raising=False)
+
+    def _auth():
+        return {"email": "u@x.com", "user": {"email": "u@x.com", "role": "student"}}
+    app.dependency_overrides[get_current_user_with_role] = _auth
+    app.dependency_overrides[get_current_user] = lambda: "u@x.com"
+    try:
+        client = TestClient(app)
+        r = client.post("/mock-tests/generate", json={
+            "syllabus_pdf_id": "x", "question_paper_pdf_ids": []})
+        assert r.status_code == 402, r.text
+        assert r.json()["detail"]["resource"] == "mock_test"
+    finally:
+        app.dependency_overrides.pop(get_current_user_with_role, None)
+        app.dependency_overrides.pop(get_current_user, None)

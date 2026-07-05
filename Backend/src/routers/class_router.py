@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, status
 from pydantic import BaseModel
 
 from src.core.security import get_current_user, require_role
+from src.core.plan_enforcement import enforce_limit
 from src.core.data_store import (
     users_collection,
     mock_test_submissions_collection,
@@ -87,6 +88,7 @@ def _gen_enroll_code() -> str:
 async def create_class(
     request: ClassCreateRequest,
     teacher=Depends(require_role("teacher")),
+    _plan: dict = Depends(enforce_limit("class_count")),
 ):
     """Create a new class/batch and get a shareable enroll code."""
     teacher_email = teacher["email"]
