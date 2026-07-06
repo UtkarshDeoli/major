@@ -5,7 +5,7 @@ Mastery scores per topic are updated after each mock-test submission. The mock
 student's weak areas.
 """
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from fastapi import HTTPException
 
 from src.core.data_store import student_mastery_collection
