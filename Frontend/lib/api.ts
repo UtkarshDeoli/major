@@ -264,6 +264,7 @@ export const mockTestAPI = {
     studentEmail?: string,
     gradingMode: "auto" | "teacher" = "auto",
     sourceMaterialIds?: string[],
+    adaptive: boolean = false,
   ) => {
     const response = await api.post('/mock-tests/generate', {
       syllabus_pdf_id: syllabusId,
@@ -279,6 +280,7 @@ export const mockTestAPI = {
       student_email: studentEmail,
       grading_mode: gradingMode,
       source_material_ids: sourceMaterialIds,
+      adaptive,
     });
     return response.data;
   },
@@ -334,6 +336,16 @@ export const analyticsAPI = {
 
   getTeacherAnalytics: async () => {
     const response = await api.get('/analytics/teacher');
+    return response.data;
+  },
+
+  getTeacherAlerts: async () => {
+    const response = await api.get('/analytics/teacher/alerts');
+    return response.data;
+  },
+
+  getTeacherInsights: async () => {
+    const response = await api.get('/analytics/teacher/insights');
     return response.data;
   },
 };
@@ -410,6 +422,18 @@ export const onboardingAPI = {
   },
   async complete(): Promise<any> {
     const res = await api.post("/api/onboarding/complete");
+    return res.data;
+  },
+};
+
+// ─── Socratic tutor ───────────────────────────────────────────────────────────
+export const socraticAPI = {
+  async explain(req: { question: string; concept?: string; doc_ids?: string[] }): Promise<any> {
+    const res = await api.post('/socratic/explain', req);
+    return res.data;
+  },
+  async feedback(req: { question: string; user_answer: string; correct_answer?: string }): Promise<any> {
+    const res = await api.post('/socratic/feedback', req);
     return res.data;
   },
 };

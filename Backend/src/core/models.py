@@ -142,6 +142,7 @@ class MockTestQuestion(BaseModel):
     unit: Optional[str] = None       # chapter/unit tag for section-level analytics
     topic: Optional[str] = None      # topic tag for section-level analytics
     syllabus_reference: Optional[str] = None
+    difficulty: Optional[str] = None  # easy, medium, hard
 
 class MockTestGenerationRequest(BaseModel):
     syllabus_pdf_id: str
@@ -150,13 +151,14 @@ class MockTestGenerationRequest(BaseModel):
     num_mcq: int = 15
     num_text: int = 5
     total_marks: int = 50
-    difficulty_level: str = "medium"  # easy, medium, hard
+    difficulty_level: Literal["easy", "medium", "hard", "adaptive", "mixed"] = "medium"
     student_email: Optional[str] = None
     focus_topics: Optional[List[str]] = None
     weak_topics: Optional[List[str]] = None
     subject: Optional[str] = None
     grading_mode: Literal["auto", "teacher"] = "auto"  # auto = AI/MCQ graded, teacher = teacher marks
     source_material_ids: Optional[List[str]] = None  # materials to ground generation on
+    adaptive: bool = False  # when true, difficulty is chosen from mastery data
 
 class MockTestResponse(BaseModel):
     test_id: str
@@ -190,6 +192,8 @@ class AnswerFeedback(BaseModel):
     feedback: str
     marks_awarded: float
     max_marks: int
+    rubric_scores: Optional[Dict[str, int]] = None
+    rubric_max: Optional[Dict[str, int]] = None
 
 class MockTestAnalysisResponse(BaseModel):
     submission_id: str

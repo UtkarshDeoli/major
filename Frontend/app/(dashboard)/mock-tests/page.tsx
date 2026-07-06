@@ -37,6 +37,7 @@ export default function MockTestsPage() {
     totalMarks: 50,
     difficultyLevel: "medium",
   })
+  const [adaptiveMode, setAdaptiveMode] = useState(false)
   const [mockTests, setMockTests] = useState<MockTest[]>([])
   const [isLoadingMockTests, setIsLoadingMockTests] = useState(false)
   const [linkedStudents, setLinkedStudents] = useState<Array<{ email: string; name?: string }>>([])
@@ -113,6 +114,7 @@ export default function MockTestsPage() {
         .filter(Boolean)
       const weakTopicsToSend = targetWeaknesses ? topicList : undefined
 
+      const isAdaptive = adaptiveMode || mockTestSettings.difficultyLevel === "adaptive"
       const mockTest = await mockTestAPI.generateMockTest(
         selection.syllabusId,
         selection.questionPaperIds,
@@ -125,7 +127,9 @@ export default function MockTestsPage() {
         weakTopicsToSend,
         subject || undefined,
         selectedStudent || undefined,
-        gradingMode
+        gradingMode,
+        undefined,
+        isAdaptive,
       )
 
       toast({
@@ -250,6 +254,7 @@ export default function MockTestsPage() {
                         <SelectItem value="easy">Easy</SelectItem>
                         <SelectItem value="medium">Medium</SelectItem>
                         <SelectItem value="hard">Hard</SelectItem>
+                        <SelectItem value="adaptive">Adaptive (based on my past tests)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -353,7 +358,7 @@ export default function MockTestsPage() {
                       &bull; Estimated time:{" "}
                       {Math.ceil(mockTestSettings.numMcq * 2 + mockTestSettings.numText * 10)} minutes
                     </p>
-                    <p>&bull; Difficulty: {mockTestSettings.difficultyLevel}</p>
+                    <p>&bull; Difficulty: {mockTestSettings.difficultyLevel}{adaptiveMode ? " (adaptive)" : ""}</p>
                   </div>
                 </div>
               </div>

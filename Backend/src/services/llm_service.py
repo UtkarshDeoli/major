@@ -12,24 +12,58 @@ vector_store = VectorStore()
 bm25_service = BM25IndexService()
 query_engine = QueryEngine(vector_store, bm25_service)
 
-async def ask_question(question: str, 
+
+# ISO-639-1 / common language codes mapped to friendly names
+_LANGUAGE_NAMES: Dict[str, str] = {
+    "en": "English",
+    "hi": "Hindi",
+    "bn": "Bengali",
+    "te": "Telugu",
+    "mr": "Marathi",
+    "ta": "Tamil",
+    "ur": "Urdu",
+    "gu": "Gujarati",
+    "kn": "Kannada",
+    "ml": "Malayalam",
+    "pa": "Punjabi",
+    "es": "Spanish",
+    "fr": "French",
+    "de": "German",
+    "zh": "Chinese",
+    "ja": "Japanese",
+    "ko": "Korean",
+    "ar": "Arabic",
+    "ru": "Russian",
+    "pt": "Portuguese",
+}
+
+
+def _build_language_instruction(language: Optional[str]) -> str:
+    """Return a prompt appendix that tells the model which language to respond in."""
+    if not language or language.lower() in {"en", "english", ""}:
+        return ""
+    name = _LANGUAGE_NAMES.get(language.lower()) or language
+    return f"IMPORTANT: Respond entirely in {name} ({language})."
+
+async def ask_question(question: str,
                        pdf_id: Optional[str] = None,      # DEPRECATED
                        doc_ids: Optional[List[str]] = None,  # NEW
                        subject: Optional[str] = None,
                        tags: Optional[List[str]] = None,
                        user_id: str = None,
-                       stream: bool = False):
+                       stream: bool = False,
+                       language: Optional[str] = None):
     """Ask a question using the multi-document RAG system.
-    
+
     Backward compatibility: if pdf_id is provided, treat as doc_ids=[pdf_id].
     """
     # Normalize deprecated pdf_id
     if pdf_id and not doc_ids:
         doc_ids = [pdf_id]
-    
+
     context = ""
     sources = []
-    
+
     # Get context from documents if user_id is provided
     if user_id:
         context, sources, chunks = await query_engine.query(
@@ -40,22 +74,28 @@ async def ask_question(question: str,
             tags=tags,
             top_k=5
         )
-    
+
+    language_instruction = _build_language_instruction(language)
+
     # Build prompt
     if context:
         prompt = query_engine.build_prompt(question, context, sources)
+        if language_instruction:
+            prompt += f"\n\n{language_instruction}"
     else:
-        prompt = f"""You are an AI tutor. 
+        prompt = f"""You are an AI tutor.
 
-- Provide a clear, concise, and well-structured answer.  
-- Focus on key points that are important for exams.  
-- Avoid unnecessary introductions—start directly with the answer.  
-- If necessary, break down complex ideas into simpler explanations.  
+- Provide a clear, concise, and well-structured answer.
+- Focus on key points that are important for exams.
+- Avoid unnecessary introductions—start directly with the answer.
+- If necessary, break down complex ideas into simpler explanations.
 
-**Question:** {question}  
+**Question:** {question}
 
-**Exam-Focused Answer:**  
+**Exam-Focused Answer:**
 """
+        if language_instruction:
+            prompt += f"\n\n{language_instruction}"
     
     if stream:
         return await stream_llm_response(prompt, context, sources)

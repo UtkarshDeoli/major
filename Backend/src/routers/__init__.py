@@ -20,3 +20,4 @@ from .subscription_router import router as subscription_router
 from .webhook_router import router as webhook_router
 from .org_router import router as org_router
 from .admin_router import router as admin_router
+from .socratic_router import router as socratic_router

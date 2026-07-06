@@ -259,6 +259,26 @@ export default function TestResultsPage() {
                         </p>
                       </div>
                     )}
+
+                    {feedback.rubric_scores && feedback.rubric_max && (
+                      <div className="space-y-2">
+                        <p className="font-medium text-muted-foreground">Rubric breakdown:</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                          {Object.entries(feedback.rubric_max).map(([criterion, max]) => {
+                            const score = feedback.rubric_scores?.[criterion] ?? 0;
+                            const pct = Math.round((score / max) * 100);
+                            return (
+                              <div key={criterion} className="rounded-md border p-2 text-center">
+                                <p className="text-xs text-muted-foreground capitalize">{criterion}</p>
+                                <p className={`text-lg font-semibold ${pct >= 70 ? "text-green-600" : pct >= 40 ? "text-yellow-600" : "text-red-600"}`}>
+                                  {score}/{max}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

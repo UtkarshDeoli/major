@@ -242,6 +242,8 @@ export interface AnswerFeedback {
   feedback: string;
   marks_awarded: number;
   max_marks: number;
+  rubric_scores?: Record<string, number>;
+  rubric_max?: Record<string, number>;
 }
 
 export interface MockTestAnalysis {

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 
 from src.services.gemini_service import gemini_service
+from src.services.student_mastery_service import build_adaptive_bias, update_mastery_from_submission
 from src.core.data_store import (
     get_pdf_metadata,
     store_mock_test,
@@ -35,7 +36,8 @@ async def generate_mock_test_service(
     weak_topics: Optional[List[str]] = None,
     subject: Optional[str] = None,
     grading_mode: str = "auto",
-    source_material_ids: Optional[List[str]] = None
+    source_material_ids: Optional[List[str]] = None,
+    adaptive: bool = False,
 ) -> MockTestResponse:
     """Generate a mock test using Gemini AI"""
     
@@ -75,7 +77,15 @@ async def generate_mock_test_service(
             notes_metadata = await get_pdf_metadata(notes_pdf_id)
             if notes_metadata and notes_metadata["user_id"] == user_id:
                 notes_content = await gemini_service.extract_text_from_pdf(notes_metadata["file_path"])
-        
+
+        # Adaptive difficulty: bias toward weak topics and appropriate difficulty
+        effective_difficulty = difficulty_level
+        if adaptive or difficulty_level == "adaptive":
+            bias = await build_adaptive_bias(user_id, "adaptive")
+            effective_difficulty = bias["difficulty"]
+            focus_topics = list(set((focus_topics or []) + bias["focus_topics"]))
+            weak_topics = list(set((weak_topics or []) + bias["weak_topics"]))
+
         # Generate mock test using Gemini
         mock_test_data = await _generate_mock_test_with_gemini(
             syllabus_content=syllabus_content,
@@ -84,7 +94,7 @@ async def generate_mock_test_service(
             num_mcq=num_mcq,
             num_text=num_text,
             total_marks=total_marks,
-            difficulty_level=difficulty_level,
+            difficulty_level=effective_difficulty,
             focus_topics=focus_topics,
             weak_topics=weak_topics,
             subject=subject
@@ -102,7 +112,7 @@ async def generate_mock_test_service(
             time_limit=_calculate_time_limit(total_marks, num_mcq, num_text),
             created_at=created_at,
             user_id=user_id,
-            difficulty_level=difficulty_level,
+            difficulty_level=effective_difficulty,
             created_by=created_by,
             assigned_to=assigned_to,
             subject=subject,
@@ -258,7 +268,8 @@ CRITICAL REQUIREMENTS:
                 marks=q_data.get("marks", mcq_marks_per_question if q_data.get("type") == "mcq" else text_marks_per_question),
                 unit=q_data.get("unit"),
                 topic=q_data.get("topic"),
-                syllabus_reference=q_data.get("syllabus_reference")
+                syllabus_reference=q_data.get("syllabus_reference"),
+                difficulty=q_data.get("difficulty", difficulty_level),
             )
             questions.append(question)
 
@@ -529,7 +540,9 @@ async def analyze_mock_test_submission_service(
                     user_answer=user_answer,
                     feedback=ai_feedback["feedback"],
                     marks_awarded=ai_feedback["marks_awarded"],
-                    max_marks=question.marks
+                    max_marks=question.marks,
+                    rubric_scores=ai_feedback.get("rubric_scores"),
+                    rubric_max=ai_feedback.get("rubric_max"),
                 )
 
             question_feedback.append(feedback)
@@ -573,7 +586,22 @@ async def analyze_mock_test_submission_service(
         submission_record["subject"] = getattr(test, "subject", None) or submission.subject
         submission_record["grading_mode"] = grading_mode
         submission_record["status"] = "pending_review" if teacher_graded_pending else "graded"
+
+        # Enrich question feedback with topic/difficulty for mastery update
+        question_lookup = {q.id: q for q in test.questions}
+        enriched_feedback = []
+        for fb in submission_record.get("question_feedback", []):
+            q = question_lookup.get(fb.get("question_id"))
+            if q:
+                fb_copy = dict(fb)
+                fb_copy["topic"] = q.topic
+                fb_copy["difficulty"] = q.difficulty or test.difficulty_level
+                enriched_feedback.append(fb_copy)
+            else:
+                enriched_feedback.append(fb)
+
         await store_mock_test_submission(submission_record)
+        await update_mastery_from_submission(submission_record["user_id"], enriched_feedback)
 
         return analysis
         
@@ -584,15 +612,17 @@ async def analyze_mock_test_submission_service(
         )
 
 async def _analyze_text_answer_with_gemini(question: str, user_answer: str, max_marks: int) -> Dict[str, Any]:
-    """Use Gemini to analyze and grade a text answer"""
-    
+    """Use Gemini to analyze and grade a text answer with a rubric."""
+
     if not user_answer.strip():
         return {
             "marks_awarded": 0,
-            "feedback": "No answer provided."
+            "feedback": "No answer provided.",
+            "rubric_scores": {"understanding": 0, "accuracy": 0, "completeness": 0, "examples": 0, "clarity": 0},
+            "rubric_max": {"understanding": 2, "accuracy": 2, "completeness": 2, "examples": 2, "clarity": 2},
         }
-    
-    prompt = f"""You are an expert examiner. Evaluate this student's answer.
+
+    prompt = f"""You are an expert examiner. Evaluate this student's answer using a rubric.
 
 QUESTION: {question}
 
@@ -600,50 +630,76 @@ STUDENT'S ANSWER: {user_answer}
 
 MAXIMUM MARKS: {max_marks}
 
-Evaluate the answer based on:
-1. Conceptual understanding
-2. Accuracy of information
-3. Completeness of explanation
-4. Use of examples (if applicable)
-5. Clarity of expression
+Evaluate the answer across these criteria (0-2 each):
+- understanding: conceptual grasp
+- accuracy: factual correctness
+- completeness: coverage of required points
+- examples: use of relevant examples
+- clarity: clear expression
 
 RESPOND ONLY WITH VALID JSON IN THIS EXACT FORMAT:
 {{
     "marks_awarded": 3.5,
-    "feedback": "Good understanding of the concept. The explanation covers the main points but lacks specific examples. The answer demonstrates clear understanding but could be more comprehensive. Consider including more detailed examples to strengthen your response."
+    "feedback": "Concise overall feedback.",
+    "rubric_scores": {{
+        "understanding": 2,
+        "accuracy": 1,
+        "completeness": 2,
+        "examples": 1,
+        "clarity": 2
+    }},
+    "rubric_max": {{
+        "understanding": 2,
+        "accuracy": 2,
+        "completeness": 2,
+        "examples": 2,
+        "clarity": 2
+    }}
 }}
 
 IMPORTANT: Return ONLY the JSON object, no additional text."""
 
+    default_rubric_max = {"understanding": 2, "accuracy": 2, "completeness": 2, "examples": 2, "clarity": 2}
+    fallback = {
+        "marks_awarded": max_marks * 0.5,
+        "feedback": "Unable to analyze answer automatically. Please review with instructor.",
+        "rubric_scores": {k: 1 for k in default_rubric_max},
+        "rubric_max": default_rubric_max,
+    }
+
     try:
         response = gemini_service.model.generate_content(prompt)
-        
+
         if not response or not response.text:
-            return {"marks_awarded": max_marks * 0.5, "feedback": "Unable to analyze answer automatically. Please review with instructor."}
-        
+            return fallback
+
         response_text = response.text.strip()
-        
+
         # Extract JSON from response
         start_idx = response_text.find('{')
         end_idx = response_text.rfind('}') + 1
-        
+
         if start_idx == -1 or end_idx == 0:
-            return {"marks_awarded": max_marks * 0.5, "feedback": "Unable to analyze answer automatically. Please review with instructor."}
-        
+            return fallback
+
         json_text = response_text[start_idx:end_idx]
         result = json.loads(json_text)
-        
+
         # Ensure marks are within valid range
         marks_awarded = max(0, min(result.get("marks_awarded", 0), max_marks))
-        
+        rubric_scores = result.get("rubric_scores") or {k: 1 for k in default_rubric_max}
+        rubric_max = result.get("rubric_max") or default_rubric_max
+
         return {
             "marks_awarded": marks_awarded,
-            "feedback": result.get("feedback", "Answer evaluated.")
+            "feedback": result.get("feedback", "Answer evaluated."),
+            "rubric_scores": rubric_scores,
+            "rubric_max": rubric_max,
         }
-        
+
     except Exception as e:
         print(f"Error in Gemini analysis: {e}")
-        return {"marks_awarded": max_marks * 0.5, "feedback": "Unable to analyze answer automatically. Please review with instructor."}
+        return fallback
 
 async def _generate_overall_analysis_with_gemini(
     test: MockTestResponse,

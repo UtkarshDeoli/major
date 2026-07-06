@@ -294,6 +294,131 @@ async def get_student_analytics(user_email: str = Depends(get_current_user)):
     )
 
 
+@router.get("/teacher/alerts")
+async def get_teacher_alerts(user_info: dict = Depends(require_role("teacher"))):
+    """Return at-risk students for the logged-in teacher.
+
+    Flags:
+    - score_drop: last 2 tests avg vs previous 3 avg drops > 15 points
+    - inactive: no submission in the last 7 days
+    - low_mastery: more than 2 sections with accuracy < 40%
+    """
+    from src.core.data_store import mock_test_submissions_collection, users_collection
+
+    teacher_email = user_info["email"]
+    if users_collection is None or mock_test_submissions_collection is None:
+        raise HTTPException(503, "Database connection not available")
+
+    students_cursor = users_collection.find({"teacher_id": teacher_email})
+    students = await students_cursor.to_list(length=None)
+
+    alerts = []
+    now = datetime.now(timezone.utc)
+    week_ago = now - timedelta(days=7)
+
+    for student in students:
+        student_email = student.get("email")
+        if not student_email:
+            continue
+
+        cursor = mock_test_submissions_collection.find({"user_id": student_email}).sort("created_at", -1)
+        submissions = await cursor.to_list(length=None)
+
+        flags = []
+        if not submissions:
+            alerts.append({
+                "student_email": student_email,
+                "name": student.get("name"),
+                "flags": ["no_activity"],
+                "last_active_at": None,
+                "average_score": 0.0,
+            })
+            continue
+
+        percentages = []
+        for sub in submissions:
+            score = float(sub.get("total_score", 0))
+            max_score = float(sub.get("max_score", 1))
+            percentages.append((score / max_score * 100) if max_score > 0 else 0)
+
+        # Inactive flag
+        latest = submissions[0].get("created_at")
+        latest_dt = _to_dt(latest)
+        if latest_dt is None or latest_dt < week_ago:
+            flags.append("inactive")
+
+        # Score drop flag
+        if len(percentages) >= 5:
+            recent_avg = sum(percentages[:2]) / 2
+            previous_avg = sum(percentages[2:5]) / 3
+            if previous_avg - recent_avg > 15:
+                flags.append("score_drop")
+
+        # Low mastery flag
+        weak_sections = []
+        for sub in submissions[:10]:  # look at recent 10
+            for qf in sub.get("question_feedback", []) or []:
+                max_marks = float(qf.get("max_marks", 0) or 0)
+                marks_awarded = float(qf.get("marks_awarded", 0) or 0)
+                topic = qf.get("topic") or qf.get("unit")
+                if topic and max_marks > 0:
+                    accuracy = marks_awarded / max_marks * 100
+                    if accuracy < 40:
+                        weak_sections.append(topic)
+        if len(set(weak_sections)) > 2:
+            flags.append("low_mastery")
+
+        avg_score = sum(percentages) / len(percentages) if percentages else 0.0
+        if avg_score < 40:
+            flags.append("low_average")
+
+        if flags:
+            alerts.append({
+                "student_email": student_email,
+                "name": student.get("name"),
+                "flags": list(set(flags)),
+                "last_active_at": latest_dt.isoformat() if latest_dt else None,
+                "average_score": round(avg_score, 2),
+            })
+
+    return {"alerts": alerts}
+
+
+@router.get("/teacher/insights")
+async def get_teacher_insights(user_info: dict = Depends(require_role("teacher"))):
+    """Return per-student weak topics and recommended next actions."""
+    from src.core.data_store import mock_test_submissions_collection, users_collection
+    from src.services.student_mastery_service import get_mastery_scores
+
+    teacher_email = user_info["email"]
+    if users_collection is None or mock_test_submissions_collection is None:
+        raise HTTPException(503, "Database connection not available")
+
+    students_cursor = users_collection.find({"teacher_id": teacher_email})
+    students = await students_cursor.to_list(length=None)
+
+    insights = []
+    for student in students:
+        student_email = student.get("email")
+        if not student_email:
+            continue
+
+        mastery = await get_mastery_scores(student_email)
+        weak_topics = sorted(mastery.keys(), key=lambda t: mastery[t])[:5]
+        recommended_tests = weak_topics[:3]
+
+        insights.append({
+            "student_email": student_email,
+            "name": student.get("name"),
+            "mastery_scores": mastery,
+            "weak_topics": weak_topics,
+            "recommended_focus": recommended_tests,
+            "recommended_action": "Generate adaptive mock test on " + ", ".join(recommended_tests) if recommended_tests else "No data yet",
+        })
+
+    return {"insights": insights}
+
+
 @router.get("/teacher", response_model=TeacherDashboardAnalytics)
 async def get_teacher_analytics(user_info: dict = Depends(require_role("teacher"))):
     """Aggregate analytics for students managed by the logged-in teacher."""

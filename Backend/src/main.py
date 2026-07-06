@@ -32,6 +32,7 @@ from src.routers import (
     webhook_router,
     org_router,
     admin_router,
+    socratic_router,
 )
 
 
@@ -83,6 +84,7 @@ app.include_router(subscription_router)
 app.include_router(webhook_router)
 app.include_router(org_router)
 app.include_router(admin_router)
+app.include_router(socratic_router)
 
 @app.get("/")
 async def root():

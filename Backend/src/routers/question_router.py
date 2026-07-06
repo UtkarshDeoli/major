@@ -21,8 +21,10 @@ from src.core.data_store import (
     create_chat_session,
     get_user_chat_sessions,
     get_chat_session,
-    add_message_to_chat
+    add_message_to_chat,
+    users_collection,
 )
+from src.services.auth_service import get_user_by_email
 
 router = APIRouter(prefix="/questions", tags=["Questions"])
 
@@ -32,6 +34,14 @@ router = APIRouter(prefix="/questions", tags=["Questions"])
     summary="Ask a question",
     description="Ask a question with optional PDF context.",
 )
+async def _get_user_language(user_id: str) -> str:
+    try:
+        user = await get_user_by_email(user_id)
+        return user.get("preferred_language", "en") if user else "en"
+    except Exception:
+        return "en"
+
+
 async def ask(
     question_data: QuestionRequest,
     user_id: str = Depends(get_current_user),
@@ -39,6 +49,7 @@ async def ask(
 ):
     """Ask a question with optional document context."""
     try:
+        language = await _get_user_language(user_id)
         response = await ask_question(
             question=question_data.question,
             pdf_id=question_data.pdf_id,      # backward compat
@@ -46,7 +57,8 @@ async def ask(
             subject=question_data.subject,
             tags=question_data.tags,
             user_id=user_id,
-            stream=False
+            stream=False,
+            language=language,
         )
 
         await increment_usage(user_id, "chat_message")
@@ -75,6 +87,7 @@ async def ask_stream(
 ):
     """Ask a question with streaming response."""
     try:
+        language = await _get_user_language(user_id)
         stream_generator = await ask_question(
             question=question_data.question,
             pdf_id=question_data.pdf_id,
@@ -82,7 +95,8 @@ async def ask_stream(
             subject=question_data.subject,
             tags=question_data.tags,
             user_id=user_id,
-            stream=True
+            stream=True,
+            language=language,
         )
 
         await increment_usage(user_id, "chat_message")
@@ -246,11 +260,13 @@ async def add_message(
 
         await add_message_to_chat(session_id, "user", message.content)
 
+        language = await _get_user_language(user_id)
         response = await ask_question(
             question=message.content,
             doc_ids=doc_ids,
             user_id=user_id,
-            stream=False
+            stream=False,
+            language=language,
         )
 
         await add_message_to_chat(session_id, "assistant", response["answer"])
@@ -293,12 +309,15 @@ async def add_message_stream(
         await add_message_to_chat(session_id, "user", message.content)
         await increment_usage(user_id, "chat_message")
 
+        language = await _get_user_language(user_id)
+
         async def stream_with_save():
             stream_generator = await ask_question(
                 question=message.content,
                 doc_ids=doc_ids,
                 user_id=user_id,
-                stream=True
+                stream=True,
+                language=language,
             )
             
             full_response = ""

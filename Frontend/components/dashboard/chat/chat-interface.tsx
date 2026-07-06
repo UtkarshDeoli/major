@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { ChatInput } from '@/components/dashboard/chat/chat-input'
 import { MessageList } from '@/components/dashboard/chat/message-list'
 import { SuggestedPrompts } from '@/components/dashboard/chat/suggested-prompts'
+import { SocraticExplainer } from '@/components/socratic/socratic-explainer'
 import { createMessage, MessageRole, Message, Document, ChatSession, convertApiSessionToSession } from '@/lib/data'
 import { useToast } from '@/hooks/use-toast'
 import { nanoid } from '@/lib/utils'
@@ -265,8 +266,14 @@ export function ChatInterface({ document, initialMessages = [], initialChatId, o
           </div>
         )}
         
-        <div className="p-2 sm:p-4 border-t mt-auto">
-          
+        <div className="p-2 sm:p-4 border-t mt-auto space-y-2">
+          {document && chatSession && messages.length > 0 && (
+            <SocraticExplainer
+              question={messages.filter((m) => m.role === MessageRole.User).slice(-1)[0]?.content || ""}
+              docIds={document.doc_id ? [document.doc_id] : undefined}
+            />
+          )}
+
           <ChatInput
             onSendMessage={handleSendMessage}
             isTyping={isTyping}

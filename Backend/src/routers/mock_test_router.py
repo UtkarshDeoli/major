@@ -104,7 +104,8 @@ async def generate_mock_test(
             created_by=created_by,
             assigned_to=assigned_to,
             grading_mode=request.grading_mode,
-            source_material_ids=request.source_material_ids
+            source_material_ids=request.source_material_ids,
+            adaptive=request.adaptive or request.difficulty_level == "adaptive",
         )
         
         return mock_test
