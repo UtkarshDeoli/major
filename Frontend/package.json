@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint app components lib --ext .ts,.tsx",
     "deploy": "npx serve@latest out",
     "test": "vitest run",
     "test:watch": "vitest"

@@ -53,7 +53,7 @@ export function EnrollClassDialog() {
         </Button>
       </DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Join a teacher's class</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>Join a teacher&apos;s class</DialogTitle></DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label htmlFor="enroll-code">Enroll code</Label>

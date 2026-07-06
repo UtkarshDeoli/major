@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Navbar from "@/components/marketing/navbar";
 import Hero from "@/components/marketing/hero";
 import Companies from "@/components/marketing/companies";
@@ -31,7 +32,9 @@ export default function Home() {
           <Features />
           <Analysis />
           <Integration />
-          <Pricing />
+          <Suspense fallback={<div className="py-20" />}>
+            <Pricing />
+          </Suspense>
           <LanguageSupport />
           <CTA />
         </Wrapper>

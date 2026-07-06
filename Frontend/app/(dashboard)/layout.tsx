@@ -21,6 +21,11 @@ export default function DashboardLayout({
   // even for a single frame — redirect immediately while showing a spinner.
   const needsOnboarding =
     user?.role === "student" && !user.onboarding_completed && !pathname.startsWith("/onboarding");
+
+  // Sub-admins who have not created an org yet must go through org onboarding.
+  const needsOrgOnboarding =
+    user?.role === "subadmin" && !user.org_id && !pathname.startsWith("/onboarding/org");
+
   const needsRoleHome = pathname === "/dashboard" && user && getRoleHomeRoute(user.role) !== "/dashboard";
 
   useEffect(() => {
@@ -31,12 +36,17 @@ export default function DashboardLayout({
       return;
     }
 
+    if (needsOrgOnboarding) {
+      router.replace("/onboarding/org");
+      return;
+    }
+
     if (needsRoleHome) {
       router.replace(getRoleHomeRoute(user.role));
     }
-  }, [authLoading, user, pathname, router, needsOnboarding, needsRoleHome]);
+  }, [authLoading, user, pathname, router, needsOnboarding, needsOrgOnboarding, needsRoleHome]);
 
-  if (authLoading || needsOnboarding || needsRoleHome) {
+  if (authLoading || needsOnboarding || needsOrgOnboarding || needsRoleHome) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="h-8 w-8 rounded-md border-2 border-primary border-t-transparent animate-spin" />

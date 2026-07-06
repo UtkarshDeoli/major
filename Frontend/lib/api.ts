@@ -20,16 +20,36 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor to handle 401 globally
+// Response interceptor to handle 401 and 402 globally
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      // Token expired or invalid — clear auth
-      localStorage.removeItem('token');
-      // Only redirect if not already on the login page to prevent infinite loops
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        window.location.replace('/login');
+    if (axios.isAxiosError(error)) {
+      const status = error.response?.status;
+      if (status === 401) {
+        // Token expired or invalid — clear auth
+        localStorage.removeItem('token');
+        // Only redirect if not already on the login page to prevent infinite loops
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+          window.location.replace('/login');
+        }
+      } else if (status === 402) {
+        // Plan limit hit — emit a global upgrade event so UI can show a banner
+        if (typeof window !== 'undefined') {
+          const detail = (error.response?.data as any)?.detail || {};
+          window.dispatchEvent(
+            new CustomEvent('orbit:upgrade-required', {
+              detail: {
+                resource: detail.resource,
+                used: detail.used,
+                limit: detail.limit,
+                plan: detail.plan,
+                upgradeUrl: detail.upgrade_url || '/billing',
+                message: typeof detail === 'string' ? detail : detail.message,
+              },
+            })
+          );
+        }
       }
     }
     return Promise.reject(error);
@@ -518,6 +538,135 @@ export const classAPI = {
   },
   async removeStudent(classId: string, studentEmail: string): Promise<any> {
     const res = await api.delete(`/classes/${classId}/students/${encodeURIComponent(studentEmail)}`);
+    return res.data;
+  },
+};
+
+// ─── Subscriptions / Billing ────────────────────────────────────────────────
+export const subscriptionAPI = {
+  async getPlans(): Promise<{ plans: any[] }> {
+    const res = await api.get('/subscriptions/plans');
+    return res.data;
+  },
+
+  async getMe(): Promise<any> {
+    const res = await api.get('/subscriptions/me');
+    return res.data;
+  },
+
+  async checkout(plan: 'pro' | 'premium', billing_cycle: 'monthly' | 'yearly' = 'monthly'): Promise<any> {
+    const res = await api.post('/subscriptions/checkout', { plan, billing_cycle });
+    return res.data;
+  },
+
+  async verify(payload: {
+    razorpay_payment_id: string;
+    razorpay_subscription_id?: string;
+    razorpay_signature: string;
+  }): Promise<any> {
+    const res = await api.post('/subscriptions/verify', payload);
+    return res.data;
+  },
+
+  async cancel(): Promise<any> {
+    const res = await api.post('/subscriptions/cancel');
+    return res.data;
+  },
+
+  async getInvoices(): Promise<{ invoices: any[] }> {
+    const res = await api.get('/subscriptions/invoices');
+    return res.data;
+  },
+};
+
+// ─── Organizations / Seat licenses ────────────────────────────────────────────
+export const orgAPI = {
+  async create(payload: {
+    name: string;
+    brand_name?: string;
+    tier: 'pro' | 'premium';
+    seats_total?: number;
+    billing_cycle?: 'monthly' | 'yearly';
+  }): Promise<any> {
+    const res = await api.post('/orgs/', payload);
+    return res.data;
+  },
+
+  async getMe(): Promise<{ org: any; members: any[]; seats: { used: number; total: number } }> {
+    const res = await api.get('/orgs/me');
+    return res.data;
+  },
+
+  async invite(payload: { member_role: 'teacher' | 'student'; email?: string }): Promise<any> {
+    const res = await api.post('/orgs/invite', payload);
+    return res.data;
+  },
+
+  async listMembers(): Promise<{ members: any[] }> {
+    const res = await api.get('/orgs/members');
+    return res.data;
+  },
+
+  async removeMember(memberEmail: string): Promise<any> {
+    const res = await api.delete(`/orgs/members/${encodeURIComponent(memberEmail)}`);
+    return res.data;
+  },
+
+  async addSeats(addSeats: number): Promise<any> {
+    const res = await api.post('/orgs/seats', { add_seats: addSeats });
+    return res.data;
+  },
+
+  async enroll(code: string): Promise<any> {
+    const res = await api.post(`/orgs/enroll/${encodeURIComponent(code)}`);
+    return res.data;
+  },
+
+  async previewEnroll(code: string): Promise<any> {
+    const res = await api.get(`/orgs/enroll/${encodeURIComponent(code)}`);
+    return res.data;
+  },
+};
+
+// ─── Platform Admin ───────────────────────────────────────────────────────────
+export const adminAPI = {
+  async listUsers(params?: { role?: string; org_id?: string; limit?: number; skip?: number }): Promise<{ users: any[]; total: number }> {
+    const res = await api.get('/admin/users', { params });
+    return res.data;
+  },
+
+  async updateRole(email: string, role: string): Promise<any> {
+    const res = await api.patch(`/admin/users/${encodeURIComponent(email)}/role`, { role });
+    return res.data;
+  },
+
+  async updateStatus(email: string, active: boolean): Promise<any> {
+    const res = await api.patch(`/admin/users/${encodeURIComponent(email)}/status`, { active });
+    return res.data;
+  },
+
+  async listOrgs(): Promise<{ orgs: any[] }> {
+    const res = await api.get('/admin/orgs');
+    return res.data;
+  },
+
+  async updateOrg(orgId: string, payload: { status?: string; seats_total?: number; expires_at?: string }): Promise<any> {
+    const res = await api.patch(`/admin/orgs/${encodeURIComponent(orgId)}`, payload);
+    return res.data;
+  },
+
+  async listSubscriptions(): Promise<{ subscriptions: any[]; payments: any[] }> {
+    const res = await api.get('/admin/subscriptions');
+    return res.data;
+  },
+
+  async activateSubscription(userId: string, plan: string, days: number = 30): Promise<any> {
+    const res = await api.post(`/admin/subscriptions/${encodeURIComponent(userId)}/activate`, { plan, days });
+    return res.data;
+  },
+
+  async getAnalytics(): Promise<any> {
+    const res = await api.get('/admin/analytics');
     return res.data;
   },
 };

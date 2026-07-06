@@ -17,6 +17,9 @@ import {
   BookOpen,
   Sparkles,
   BarChart3,
+  Crown,
+  Building2,
+  Shield,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -30,8 +33,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/context/auth-context"
+import { UpgradeBanner } from "@/components/billing/upgrade-banner"
 
-const nav = [
+const baseNav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/analysis", label: "Analysis", icon: FileBarChart },
@@ -43,6 +47,11 @@ const nav = [
 const bottomNav = [
   { href: "/settings", label: "Settings", icon: Settings },
 ]
+
+// Role-specific top-level pages. Teachers see billing too for self-serve upgrades.
+const billingNav = { href: "/billing", label: "Billing", icon: Crown }
+const orgNav = { href: "/org", label: "Organization", icon: Building2 }
+const adminNav = { href: "/admin", label: "Admin", icon: Shield }
 
 /**
  * Determine if a nav item is active. Tab items (/test?tab=analysis) only
@@ -62,7 +71,7 @@ function SidebarNavItem({
   isMobile,
   setMobileOpen,
 }: {
-  item: typeof nav[0]
+  item: typeof baseNav[0]
   collapsed: boolean
   isMobile: boolean
   setMobileOpen: (v: boolean) => void
@@ -127,7 +136,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   const sidebarWidth = collapsed ? "w-12" : "w-60"
-  const allNav = nav
+
+  // Build the nav list based on the current user's role.
+  const allNav = (() => {
+    const list = [...baseNav]
+    list.push(billingNav)
+    if (user?.role === "subadmin") {
+      list.push(orgNav)
+      list.push(adminNav)
+    } else if (user?.role === "admin") {
+      list.push(adminNav)
+    }
+    return list
+  })()
 
   return (
     <div className="h-screen flex overflow-hidden bg-background">
@@ -241,6 +262,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <main className="flex-1 overflow-auto">
           {children}
         </main>
+        <UpgradeBanner />
       </div>
     </div>
   )

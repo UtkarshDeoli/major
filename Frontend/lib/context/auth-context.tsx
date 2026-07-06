@@ -36,6 +36,8 @@ export interface User {
   managed_by?: string;
   class_ids?: string[];
   license_id?: string;
+  org_id?: string;
+  member_role?: string;
   subscription?: SubscriptionInfo;
 }
 
@@ -154,11 +156,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [writeToken]
   );
 
+
   const finalizeAuth = useCallback(
     (nextUser: User) => {
       // Keep the spinner up during the redirect so consumers don't render
       // partially-authenticated UI or fire competing navigations.
-      router.replace(getPostAuthRedirect(nextUser));
+
+      // Honor a ?redirect= param when the user was pushed to login/signup from a
+      // marketing page (e.g. pricing). Sanitize to local paths only.
+      let redirect: string | null = null;
+      if (typeof window !== "undefined") {
+        redirect = new URLSearchParams(window.location.search).get("redirect");
+        if (redirect) {
+          try {
+            const url = new URL(redirect, window.location.origin);
+            if (url.origin === window.location.origin) {
+              redirect = url.pathname + url.search;
+            } else {
+              redirect = null;
+            }
+          } catch {
+            redirect = null;
+          }
+        }
+      }
+
+      // Sub-admins who have not created an org yet must go through org onboarding.
+      const needsOrgOnboarding = nextUser.role === "subadmin" && !nextUser.org_id;
+
+      router.replace(
+        redirect ||
+          (needsOrgOnboarding ? "/onboarding/org" : getPostAuthRedirect(nextUser))
+      );
     },
     [router]
   );

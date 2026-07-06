@@ -40,7 +40,7 @@ export function AuthForm({ type }: AuthFormProps) {
           name: name || undefined,
         });
       }
-      
+
       toast({
         title: type === 'login' ? 'Welcome back!' : 'Account created!',
         description: "You're now part of Orbit.",
@@ -56,6 +56,7 @@ export function AuthForm({ type }: AuthFormProps) {
       setIsLoading(false)
     }
   };
+
 
   const handleGoogleSignIn = () => {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
