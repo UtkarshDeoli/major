@@ -52,7 +52,8 @@ async def ask_question(question: str,
                        tags: Optional[List[str]] = None,
                        user_id: str = None,
                        stream: bool = False,
-                       language: Optional[str] = None):
+                       language: Optional[str] = None,
+                       image_data_url: Optional[str] = None):
     """Ask a question using the multi-document RAG system.
 
     Backward compatibility: if pdf_id is provided, treat as doc_ids=[pdf_id].
@@ -96,29 +97,52 @@ async def ask_question(question: str,
 """
         if language_instruction:
             prompt += f"\n\n{language_instruction}"
-    
-    if stream:
-        return await stream_llm_response(prompt, context, sources)
-    else:
-        return await get_llm_response(prompt, context, sources)
 
-async def get_llm_response(prompt: str, context: str = "", sources: List[Dict] = None):
+    image_part = _build_image_part(image_data_url)
+
+    if stream:
+        return await stream_llm_response(prompt, context, sources, image_part)
+    else:
+        return await get_llm_response(prompt, context, sources, image_part)
+
+
+def _build_image_part(image_data_url: Optional[str]):
+    """Build a Gemini image part from a base64 data URL.
+
+    Supports 'data:image/...;base64,...' URLs.
+    """
+    if not image_data_url or not image_data_url.startswith("data:image"):
+        return None
+    try:
+        header, encoded = image_data_url.split(",", 1)
+        mime = header.split(";")[0].split(":")[1]
+        import base64
+        image_bytes = base64.b64decode(encoded)
+        return {"mime_type": mime, "data": image_bytes}
+    except Exception:
+        return None
+
+
+async def get_llm_response(prompt: str, context: str = "", sources: List[Dict] = None, image_part: Optional[Dict] = None):
     """Get a non-streaming response from Gemini LLM."""
     if not gemini_service:
         raise HTTPException(
             status_code=503,
             detail="Gemini service is not available. Please check GEMINI_API_KEY configuration."
         )
-    
+
     try:
-        response = gemini_service.model.generate_content(prompt)
-        
+        contents = [prompt]
+        if image_part:
+            contents.append(image_part)
+        response = gemini_service.model.generate_content(contents)
+
         if not response or not response.text:
             raise HTTPException(
                 status_code=500,
                 detail="Empty response from Gemini API"
             )
-        
+
         return {
             "answer": response.text.strip(),
             "sources": sources or [],
@@ -126,11 +150,11 @@ async def get_llm_response(prompt: str, context: str = "", sources: List[Dict] =
         }
     except Exception as e:
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail=f"Error generating response from Gemini: {str(e)}"
         )
 
-async def stream_llm_response(prompt: str, context: str = "", sources: List[Dict] = None):
+async def stream_llm_response(prompt: str, context: str = "", sources: List[Dict] = None, image_part: Optional[Dict] = None):
     """Get a streaming response from Gemini LLM."""
     if not gemini_service:
         async def error_response():
@@ -146,8 +170,11 @@ async def stream_llm_response(prompt: str, context: str = "", sources: List[Dict
                     context_data["sources"] = sources
                 yield json.dumps(context_data) + "\n"
             
-            response = gemini_service.model.generate_content(prompt, stream=True)
-            
+            contents = [prompt]
+            if image_part:
+                contents.append(image_part)
+            response = gemini_service.model.generate_content(contents, stream=True)
+
             for chunk in response:
                 if chunk.text:
                     data = {

@@ -13,6 +13,16 @@ from src.services.student_mastery_service import (
 )
 
 
+class _FakeCursor:
+    """Async cursor-like wrapper over a list for Motor find().to_list()."""
+
+    def __init__(self, docs):
+        self._docs = docs
+
+    async def to_list(self, length=None):
+        return self._docs[:length] if length is not None else list(self._docs)
+
+
 class _FakeColl:
     """Minimal async Mongo collection mock backed by an in-memory dict."""
 
@@ -26,13 +36,16 @@ class _FakeColl:
                 return dict(d)
         return None
 
-    async def find(self, q=None):
+    def find(self, q=None):
         q = q or {}
-        return [dict(d) for d in self.docs.values() if all(d.get(k) == v for k, v in q.items())]
+        results = [dict(d) for d in self.docs.values() if all(d.get(k) == v for k, v in q.items())]
+        return _FakeCursor(results)
 
     async def insert_one(self, doc):
         self._i += 1
-        self.docs[str(self._i)] = dict(doc)
+        doc = dict(doc)
+        doc["_id"] = str(self._i)
+        self.docs[str(self._i)] = doc
 
         class R:
             inserted_id = str(self._i)

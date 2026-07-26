@@ -167,19 +167,21 @@ const processSSEChunks = (text: string, onChunk?: (chunk: any) => void) => {
 // Chat APIs
 export const chatAPI = {
   // Ask a question without saving to history
-  askQuestion: async (question: string, pdfId?: string) => {
-    const response = await api.post('/questions/ask', { 
-      question, 
-      pdf_id: pdfId 
+  askQuestion: async (question: string, pdfId?: string, imageDataUrl?: string) => {
+    const response = await api.post('/questions/ask', {
+      question,
+      pdf_id: pdfId,
+      image_data_url: imageDataUrl,
     });
     return response.data;
   },
-  
+
   // Stream a question response without saving to history
-  askQuestionStream: async (question: string, pdfId?: string, onChunk?: (chunk: any) => void) => {
-    const response = await api.post('/questions/ask/stream', { 
-      question, 
-      pdf_id: pdfId 
+  askQuestionStream: async (question: string, pdfId?: string, onChunk?: (chunk: any) => void, imageDataUrl?: string) => {
+    const response = await api.post('/questions/ask/stream', {
+      question,
+      pdf_id: pdfId,
+      image_data_url: imageDataUrl,
     }, {
       responseType: 'text',
       onDownloadProgress: (progressEvent) => {
@@ -212,17 +214,19 @@ export const chatAPI = {
   },
   
   // Add a message to a chat session
-  addMessageToChat: async (sessionId: string, content: string) => {
+  addMessageToChat: async (sessionId: string, content: string, imageDataUrl?: string) => {
     const response = await api.post(`/questions/sessions/${sessionId}/messages`, {
-      content
+      content,
+      image_data_url: imageDataUrl,
     });
     return response.data;
   },
-  
+
   // Add a message to a chat session with streaming response
-  addMessageToChatStream: async (sessionId: string, content: string, onChunk?: (chunk: any) => void) => {
+  addMessageToChatStream: async (sessionId: string, content: string, onChunk?: (chunk: any) => void, imageDataUrl?: string) => {
     const response = await api.post(`/questions/sessions/${sessionId}/messages/stream`, {
-      content
+      content,
+      image_data_url: imageDataUrl,
     }, {
       responseType: 'text',
       onDownloadProgress: (progressEvent) => {
@@ -434,6 +438,61 @@ export const socraticAPI = {
   },
   async feedback(req: { question: string; user_answer: string; correct_answer?: string }): Promise<any> {
     const res = await api.post('/socratic/feedback', req);
+    return res.data;
+  },
+};
+
+// ─── Focus & Study Plans ───────────────────────────────────────────────────────
+export const studyAPI = {
+  async startFocusSession(req: { task: string; duration_minutes?: number }): Promise<any> {
+    const res = await api.post('/study/focus-sessions', req);
+    return res.data;
+  },
+
+  async endFocusSession(sessionId: string, req: { completed?: boolean; notes?: string }): Promise<any> {
+    const res = await api.patch(`/study/focus-sessions/${encodeURIComponent(sessionId)}`, req);
+    return res.data;
+  },
+
+  async listFocusSessions(limit?: number): Promise<{ sessions: any[] }> {
+    const res = await api.get('/study/focus-sessions', { params: { limit } });
+    return res.data;
+  },
+
+  async getFocusStats(): Promise<any> {
+    const res = await api.get('/study/focus-stats');
+    return res.data;
+  },
+
+  async createStudyPlan(req: {
+    title: string;
+    exam_date?: string;
+    subjects?: string[];
+    weak_topics?: string[];
+    hours_per_day?: number;
+    weeks?: number;
+  }): Promise<any> {
+    const res = await api.post('/study/plans', req);
+    return res.data;
+  },
+
+  async listStudyPlans(): Promise<{ plans: any[] }> {
+    const res = await api.get('/study/plans');
+    return res.data;
+  },
+
+  async deleteStudyPlan(planId: string): Promise<any> {
+    const res = await api.delete(`/study/plans/${encodeURIComponent(planId)}`);
+    return res.data;
+  },
+
+  async updatePlanProgress(planId: string, week: number, day: string, taskIndex: number, completed: boolean): Promise<any> {
+    const res = await api.patch(`/study/plans/${encodeURIComponent(planId)}/progress`, {
+      week,
+      day,
+      task_index: taskIndex,
+      completed,
+    });
     return res.data;
   },
 };

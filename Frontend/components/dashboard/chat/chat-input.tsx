@@ -7,11 +7,12 @@ import {
   Send,
   X,
   FileText,
+  ImagePlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ChatInputProps {
-  onSendMessage: (content: string, attachments: string[]) => void
+  onSendMessage: (content: string, attachments: string[], imageDataUrl?: string) => void
   isTyping: boolean
   disabled?: boolean
 }
@@ -19,8 +20,10 @@ interface ChatInputProps {
 export function ChatInput({ onSendMessage, isTyping, disabled }: ChatInputProps) {
   const [message, setMessage] = useState('')
   const [attachments, setAttachments] = useState<string[]>([])
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   // Auto-resize textarea
   useEffect(() => {
@@ -33,10 +36,11 @@ export function ChatInput({ onSendMessage, isTyping, disabled }: ChatInputProps)
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (message.trim() || attachments.length > 0) {
-      onSendMessage(message.trim(), attachments)
+    if (message.trim() || attachments.length > 0 || imageDataUrl) {
+      onSendMessage(message.trim(), attachments, imageDataUrl || undefined)
       setMessage('')
       setAttachments([])
+      setImageDataUrl(null)
 
       // Reset textarea height
       if (textareaRef.current) {
@@ -64,17 +68,32 @@ export function ChatInput({ onSendMessage, isTyping, disabled }: ChatInputProps)
     }
   }
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setImageDataUrl(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+    if (imageInputRef.current) {
+      imageInputRef.current.value = ''
+    }
+  }
+
   const handleRemoveAttachment = (attachment: string) => {
     setAttachments(attachments.filter(a => a !== attachment))
   }
 
   return (
     <form onSubmit={handleSubmit} className="relative">
-      {/* Hidden file input */}
+      {/* Hidden file inputs */}
       <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileSelect} accept=".pdf,.doc,.docx,.txt" />
+      <input type="file" className="hidden" ref={imageInputRef} onChange={handleImageSelect} accept="image/*" />
 
-      {/* Attachments display */}
-      {attachments.length > 0 && (
+      {/* Attachments + image display */}
+      {(attachments.length > 0 || imageDataUrl) && (
         <div className="mb-2 flex flex-wrap gap-2">
           {attachments.map((attachment, index) => (
             <div
@@ -94,6 +113,20 @@ export function ChatInput({ onSendMessage, isTyping, disabled }: ChatInputProps)
               </Button>
             </div>
           ))}
+          {imageDataUrl && (
+            <div className="relative rounded-md border overflow-hidden w-20 h-20">
+              <img src={imageDataUrl} alt="Uploaded" className="w-full h-full object-cover" />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute top-0 right-0 h-5 w-5 rounded-none bg-black/50 text-white hover:bg-black/70"
+                onClick={() => setImageDataUrl(null)}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -110,6 +143,18 @@ export function ChatInput({ onSendMessage, isTyping, disabled }: ChatInputProps)
             disabled={isTyping || disabled}
           >
             <Paperclip className="h-4 w-4 text-muted-foreground" />
+          </Button>
+
+          {/* Image button */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 rounded-md"
+            onClick={() => imageInputRef.current?.click()}
+            disabled={isTyping || disabled || !!imageDataUrl}
+          >
+            <ImagePlus className="h-4 w-4 text-muted-foreground" />
           </Button>
 
           {/* Textarea for message */}
@@ -133,7 +178,7 @@ export function ChatInput({ onSendMessage, isTyping, disabled }: ChatInputProps)
           type="submit"
           size="icon"
           className="h-9 w-9 rounded-md"
-          disabled={isTyping || (!message.trim() && attachments.length === 0) || disabled}
+          disabled={isTyping || (!message.trim() && attachments.length === 0 && !imageDataUrl) || disabled}
         >
           <Send className="h-4 w-4" />
         </Button>

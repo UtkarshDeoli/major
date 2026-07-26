@@ -55,6 +55,8 @@ try:
     org_invites_collection = db.org_invites
     usage_events_collection = db.usage_events
     student_mastery_collection = db.student_mastery
+    focus_sessions_collection = db.focus_sessions
+    study_plans_collection = db.study_plans
 except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     print(f"MongoDB connection error: {e}")
     print("WARNING: Data store service will not work until MongoDB is available")
@@ -85,6 +87,8 @@ except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     org_invites_collection = None
     usage_events_collection = None
     student_mastery_collection = None
+    focus_sessions_collection = None
+    study_plans_collection = None
 
 
 # Helper to convert ObjectId to string

@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.core.models import QuestionPaperAnalysisRequest, QuestionPaperAnalysisResponse
 from src.core.security import get_current_user
+from src.core.limiter import limiter
 from src.services.question_paper_analysis_service import analyze_question_papers_service
 
 router = APIRouter(prefix="/analysis", tags=["Question Paper Analysis"])
@@ -12,7 +13,9 @@ router = APIRouter(prefix="/analysis", tags=["Question Paper Analysis"])
     summary="Analyze Question Papers",
     description="Analyze question paper patterns using syllabus and previous year question papers with Gemini 2.0 Flash"
 )
+@limiter.limit("10/hour")
 async def analyze_question_papers(
+    request: Request,
     analysis_request: QuestionPaperAnalysisRequest,
     user_id: str = Depends(get_current_user)
 ):

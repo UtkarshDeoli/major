@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 from pydantic import BaseModel
 
 from src.core.models import GenerateFlashcardsRequest
@@ -27,6 +27,7 @@ from src.core.data_store import (
     delete_flashcard_deck,
 )
 from src.services.gemini_service import gemini_service, generate_flashcards
+from src.core.limiter import limiter
 
 router = APIRouter(prefix="/flashcards", tags=["Flashcards"])
 
@@ -119,29 +120,31 @@ async def _gather_content(user_id: str, material_ids: List[str], doc_ids: List[s
 
 
 @router.post("/generate", response_model=GenerateDeckResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("15/hour")
 async def generate_deck(
-    request: GenerateFlashcardsRequest,
+    request: Request,
+    req: GenerateFlashcardsRequest,
     user_id: str = Depends(get_current_user),
     _plan: dict = Depends(enforce_limit("flashcard")),
 ):
     """Generate a flashcard deck from materials/documents."""
-    content = await _gather_content(user_id, request.material_ids, request.doc_ids)
+    content = await _gather_content(user_id, req.material_ids, req.doc_ids)
     if not content.strip():
         raise HTTPException(status_code=400, detail="No readable material found to generate flashcards from")
 
-    cards_data = await generate_flashcards(content, num_cards=request.num_cards, subject=request.subject)
+    cards_data = await generate_flashcards(content, num_cards=req.num_cards, subject=req.subject)
     if not cards_data:
         raise HTTPException(status_code=502, detail="Failed to generate flashcards from the material")
 
     deck_id = str(uuid.uuid4())
     now = datetime.now(timezone.utc)
-    title = request.title or "Flashcard Deck"
+    title = req.title or "Flashcard Deck"
     deck_doc = {
         "id": deck_id,
         "user_id": user_id,
         "title": title,
-        "subject": request.subject,
-        "source_material_ids": request.material_ids,
+        "subject": req.subject,
+        "source_material_ids": req.material_ids,
         "source_type": "ai",
         "created_by": None,
         "card_count": len(cards_data),

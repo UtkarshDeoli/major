@@ -120,7 +120,7 @@ export function ChatInterface({ document, initialMessages = [], initialChatId, o
   
   
   // Handle sending a message
-  const handleSendMessage = async (content: string, attachments: string[] = []) => {
+  const handleSendMessage = async (content: string, attachments: string[] = [], imageDataUrl?: string) => {
     // Don't allow sending messages if no document or chat session
     if (!document || !chatSession) {
       toast({
@@ -155,7 +155,7 @@ export function ChatInterface({ document, initialMessages = [], initialChatId, o
           if (chunk.content) {
             setStreamingMessage(prev => (prev || "") + chunk.content)
           }
-        })
+        }, imageDataUrl)
         // After stream completes, refresh messages from the session
         await fetchChatSession(chatSession.id)
         setStreamingMessage(null)
@@ -171,7 +171,7 @@ export function ChatInterface({ document, initialMessages = [], initialChatId, o
         }
       } else {
         // Fallback to non-streaming askQuestion if no chat session ID
-        const response = await chatAPI.askQuestion(content, document.id);
+        const response = await chatAPI.askQuestion(content, document.id, imageDataUrl);
         const aiMessage = createMessage({
           id: nanoid(),
           role: MessageRole.Assistant,

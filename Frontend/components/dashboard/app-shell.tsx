@@ -20,6 +20,8 @@ import {
   Crown,
   Building2,
   Shield,
+  Focus,
+  Calendar,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -42,6 +44,8 @@ const baseNav = [
   { href: "/mock-tests", label: "Mock Tests", icon: BookOpen },
   { href: "/flashcards", label: "Flashcards", icon: Sparkles },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/focus", label: "Focus", icon: Focus },
+  { href: "/plans", label: "Plans", icon: Calendar },
 ]
 
 const bottomNav = [

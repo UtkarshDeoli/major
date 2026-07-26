@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Path, Form
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Path, Form, Request
 from fastapi.responses import FileResponse
 from typing import List, Optional
 import os
@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from src.core.models import PDFMetadata, PDFListResponse, PDFUploadResponse
 from src.core.security import get_current_user
+from src.core.limiter import limiter, UPLOAD_LIMIT
 from src.services.pdf_service import process_and_store_pdf
 from src.core.data_store import get_user_pdfs, get_pdf_metadata
 
@@ -19,12 +20,14 @@ class UploadPDFRequest(BaseModel):
 
 
 @router.post(
-    "/upload", 
+    "/upload",
     response_model=PDFUploadResponse,
     summary="Upload a PDF file",
     description="Upload a PDF file to be processed and stored. The file will be processed in the background and made available for querying.",
 )
+@limiter.limit(UPLOAD_LIMIT)
 async def upload_pdf(
+    request: Request,
     title: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
     tags: Optional[List[str]] = Form(None),

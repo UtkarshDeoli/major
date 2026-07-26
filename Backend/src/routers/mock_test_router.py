@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 
@@ -21,6 +21,7 @@ from src.services.mock_test_service import (
     get_mock_test_service
 )
 from src.core.data_store import update_mock_test_assignment
+from src.core.limiter import limiter
 
 router = APIRouter(prefix="/mock-tests", tags=["Mock Tests"])
 
@@ -30,8 +31,10 @@ router = APIRouter(prefix="/mock-tests", tags=["Mock Tests"])
     summary="Generate Mock Test",
     description="Generate a mock test using syllabus, previous year question papers, and optional study notes with Gemini AI"
 )
+@limiter.limit("10/hour")
 async def generate_mock_test(
-    request: MockTestGenerationRequest,
+    request: Request,
+    req: MockTestGenerationRequest,
     user_id: str = Depends(get_current_user),
     _plan: dict = Depends(enforce_limit("mock_test")),
 ):
@@ -58,24 +61,24 @@ async def generate_mock_test(
     """
     try:
         # Validate input
-        if not request.syllabus_pdf_id:
+        if not req.syllabus_pdf_id:
             raise HTTPException(
                 status_code=400,
                 detail="Syllabus PDF ID is required"
             )
-        
-        if not request.question_paper_pdf_ids or len(request.question_paper_pdf_ids) == 0:
+
+        if not req.question_paper_pdf_ids or len(req.question_paper_pdf_ids) == 0:
             raise HTTPException(
                 status_code=400,
                 detail="At least one question paper PDF ID is required"
             )
-        
+
         # Determine ownership / assignment
         created_by = user_id
         assigned_to = None
 
-        if request.student_email and request.student_email != user_id:
-            student = await get_user_by_email(request.student_email)
+        if req.student_email and req.student_email != user_id:
+            student = await get_user_by_email(req.student_email)
             if not student:
                 raise HTTPException(
                     status_code=404,
@@ -86,26 +89,26 @@ async def generate_mock_test(
                     status_code=403,
                     detail="Not authorized to assign test to this student"
                 )
-            assigned_to = request.student_email
+            assigned_to = req.student_email
 
         # Generate mock test
         mock_test = await generate_mock_test_service(
-            syllabus_pdf_id=request.syllabus_pdf_id,
-            question_paper_pdf_ids=request.question_paper_pdf_ids,
-            notes_pdf_id=request.notes_pdf_id,
-            num_mcq=request.num_mcq,
-            num_text=request.num_text,
-            total_marks=request.total_marks,
-            difficulty_level=request.difficulty_level,
-            focus_topics=request.focus_topics,
-            weak_topics=request.weak_topics,
-            subject=request.subject,
+            syllabus_pdf_id=req.syllabus_pdf_id,
+            question_paper_pdf_ids=req.question_paper_pdf_ids,
+            notes_pdf_id=req.notes_pdf_id,
+            num_mcq=req.num_mcq,
+            num_text=req.num_text,
+            total_marks=req.total_marks,
+            difficulty_level=req.difficulty_level,
+            focus_topics=req.focus_topics,
+            weak_topics=req.weak_topics,
+            subject=req.subject,
             user_id=user_id,
             created_by=created_by,
             assigned_to=assigned_to,
-            grading_mode=request.grading_mode,
-            source_material_ids=request.source_material_ids,
-            adaptive=request.adaptive or request.difficulty_level == "adaptive",
+            grading_mode=req.grading_mode,
+            source_material_ids=req.source_material_ids,
+            adaptive=req.adaptive or req.difficulty_level == "adaptive",
         )
         
         return mock_test

@@ -8,7 +8,12 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from fastapi import HTTPException
 
-from src.core.data_store import student_mastery_collection
+from src.core import data_store as ds
+
+
+def _mastery_coll():
+    """Resolve the mastery collection at call time so tests can monkeypatch it."""
+    return ds.student_mastery_collection
 
 
 async def update_mastery_from_submission(
@@ -21,7 +26,8 @@ async def update_mastery_from_submission(
     increase mastery; wrong answers decrease it. Hard questions contribute
     more than easy ones.
     """
-    if student_mastery_collection is None:
+    coll = _mastery_coll()
+    if coll is None:
         return
 
     now = datetime.now(timezone.utc)
@@ -40,18 +46,18 @@ async def update_mastery_from_submission(
         weight = {"hard": 2.0, "medium": 1.0, "easy": 0.5}.get(difficulty, 1.0)
         delta = (accuracy * 2 - 1) * weight * 5  # range approx -10 to +10
 
-        existing = await student_mastery_collection.find_one({"user_id": user_id, "topic": topic})
+        existing = await coll.find_one({"user_id": user_id, "topic": topic})
         if existing:
             current = float(existing.get("score", 50))
             new_score = max(0, min(100, current + delta))
-            await student_mastery_collection.update_one(
+            await coll.update_one(
                 {"_id": existing["_id"]},
                 {"$set": {"score": new_score, "updated_at": now}},
             )
         else:
             # Start at 50 and apply delta, clamped.
             start = max(0, min(100, 50 + delta))
-            await student_mastery_collection.insert_one({
+            await coll.insert_one({
                 "user_id": user_id,
                 "topic": topic,
                 "score": start,
@@ -61,10 +67,11 @@ async def update_mastery_from_submission(
 
 async def get_mastery_scores(user_id: str) -> Dict[str, float]:
     """Return a mapping of topic -> mastery score for a user."""
-    if student_mastery_collection is None:
+    coll = _mastery_coll()
+    if coll is None:
         return {}
 
-    cursor = student_mastery_collection.find({"user_id": user_id})
+    cursor = coll.find({"user_id": user_id})
     docs = await cursor.to_list(length=None)
     return {d["topic"]: float(d.get("score", 50)) for d in docs}
 

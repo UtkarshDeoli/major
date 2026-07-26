@@ -9,6 +9,7 @@ class QuestionRequest(BaseModel):
     doc_ids: Optional[List[str]] = None  # multi-doc scope
     subject: Optional[str] = None
     tags: Optional[List[str]] = None
+    image_data_url: Optional[str] = None  # base64 data URI for multimodal input
 
 class QuestionResponse(BaseModel):
     answer: str
@@ -96,6 +97,7 @@ class ChatSessionListResponse(BaseModel):
     
 class ChatMessageRequest(BaseModel):
     content: str
+    image_data_url: Optional[str] = None
     
 class ChatMessageResponse(BaseModel):
     id: str

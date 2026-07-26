@@ -8,12 +8,13 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 from pydantic import BaseModel
 
 from src.core.models import GenerateSummaryRequest, AIStudyMaterialResponse, AIStudyMaterialListResponse
 from src.core.security import get_current_user
 from src.core.plan_enforcement import enforce_limit
+from src.core.limiter import limiter
 from src.core.data_store import (
     materials_collection,
     store_ai_material,
@@ -63,29 +64,31 @@ async def _gather_content(user_id: str, material_ids: List[str], doc_ids: List[s
 
 
 @router.post("/summarize", response_model=AIStudyMaterialResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/hour")
 async def summarize_material(
-    request: GenerateSummaryRequest,
+    request: Request,
+    req: GenerateSummaryRequest,
     user_id: str = Depends(get_current_user),
     _plan: dict = Depends(enforce_limit("ai_material")),
 ):
     """Generate a study summary from materials/documents."""
-    content = await _gather_content(user_id, request.material_ids, request.doc_ids)
+    content = await _gather_content(user_id, req.material_ids, req.doc_ids)
     if not content.strip():
         raise HTTPException(status_code=400, detail="No readable material found to summarize")
 
-    summary = await generate_summary(content, style=request.style, subject=request.subject)
+    summary = await generate_summary(content, style=req.style, subject=req.subject)
     if not summary.strip():
         raise HTTPException(status_code=502, detail="Failed to generate summary from the material")
 
     now = datetime.now(timezone.utc)
-    title = request.title or "Summary"
+    title = req.title or "Summary"
     doc = {
         "user_id": user_id,
         "created_by": None,
         "kind": "summary",
         "title": title,
-        "subject": request.subject,
-        "source_material_ids": request.material_ids,
+        "subject": req.subject,
+        "source_material_ids": req.material_ids,
         "content": summary,
         "ref_id": None,
         "created_at": now,
@@ -94,7 +97,7 @@ async def summarize_material(
     doc["id"] = material_id
     return AIStudyMaterialResponse(
         id=material_id, user_id=user_id, created_by=None, kind="summary",
-        title=title, subject=request.subject, source_material_ids=request.material_ids,
+        title=title, subject=req.subject, source_material_ids=req.material_ids,
         content=summary, ref_id=None, created_at=now,
     )
 

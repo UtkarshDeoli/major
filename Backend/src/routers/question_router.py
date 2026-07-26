@@ -1,5 +1,5 @@
 import json
-from fastapi import APIRouter, Depends, HTTPException, Body, Path
+from fastapi import APIRouter, Depends, HTTPException, Body, Path, Request
 from fastapi.responses import StreamingResponse
 from typing import Dict, List, Optional
 from pydantic import BaseModel
@@ -16,6 +16,7 @@ from src.core.models import (
 )
 from src.core.security import get_current_user
 from src.core.plan_enforcement import enforce_limit, increment_usage
+from src.core.limiter import limiter, CHAT_LIMIT
 from src.services.llm_service import ask_question
 from src.core.data_store import (
     create_chat_session,
@@ -28,12 +29,7 @@ from src.services.auth_service import get_user_by_email
 
 router = APIRouter(prefix="/questions", tags=["Questions"])
 
-@router.post(
-    "/ask", 
-    response_model=QuestionResponse,
-    summary="Ask a question",
-    description="Ask a question with optional PDF context.",
-)
+
 async def _get_user_language(user_id: str) -> str:
     try:
         user = await get_user_by_email(user_id)
@@ -42,7 +38,15 @@ async def _get_user_language(user_id: str) -> str:
         return "en"
 
 
+@router.post(
+    "/ask",
+    response_model=QuestionResponse,
+    summary="Ask a question",
+    description="Ask a question with optional PDF context.",
+)
+@limiter.limit(CHAT_LIMIT)
 async def ask(
+    request: Request,
     question_data: QuestionRequest,
     user_id: str = Depends(get_current_user),
     _plan: dict = Depends(enforce_limit("chat_message")),
@@ -59,6 +63,7 @@ async def ask(
             user_id=user_id,
             stream=False,
             language=language,
+            image_data_url=question_data.image_data_url,
         )
 
         await increment_usage(user_id, "chat_message")
@@ -71,16 +76,18 @@ async def ask(
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail=f"Error asking question: {str(e)}"
         )
 
 @router.post(
-    "/ask/stream", 
+    "/ask/stream",
     summary="Ask a question with streaming response",
     description="Ask a question with optional PDF context and get a streaming response.",
 )
+@limiter.limit(CHAT_LIMIT)
 async def ask_stream(
+    request: Request,
     question_data: QuestionRequest,
     user_id: str = Depends(get_current_user),
     _plan: dict = Depends(enforce_limit("chat_message")),
@@ -97,6 +104,7 @@ async def ask_stream(
             user_id=user_id,
             stream=True,
             language=language,
+            image_data_url=question_data.image_data_url,
         )
 
         await increment_usage(user_id, "chat_message")
@@ -108,7 +116,7 @@ async def ask_stream(
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail=f"Error streaming: {str(e)}"
         )
 
@@ -236,12 +244,14 @@ async def get_session(
         )
 
 @router.post(
-    "/sessions/{session_id}/messages", 
+    "/sessions/{session_id}/messages",
     response_model=QuestionResponse,
     summary="Add a message to a chat session",
     description="Add a user message to a chat session and get an AI response.",
 )
+@limiter.limit(CHAT_LIMIT)
 async def add_message(
+    request: Request,
     session_id: str = Path(..., description="The ID of the chat session"),
     message: ChatMessageRequest = Body(...),
     user_id: str = Depends(get_current_user),
@@ -267,6 +277,7 @@ async def add_message(
             user_id=user_id,
             stream=False,
             language=language,
+            image_data_url=message.image_data_url,
         )
 
         await add_message_to_chat(session_id, "assistant", response["answer"])
@@ -285,11 +296,13 @@ async def add_message(
         )
 
 @router.post(
-    "/sessions/{session_id}/messages/stream", 
+    "/sessions/{session_id}/messages/stream",
     summary="Add a message to a chat session with streaming response",
     description="Add a user message to a chat session and get a streaming AI response.",
 )
+@limiter.limit(CHAT_LIMIT)
 async def add_message_stream(
+    request: Request,
     session_id: str = Path(..., description="The ID of the chat session"),
     message: ChatMessageRequest = Body(...),
     user_id: str = Depends(get_current_user),
@@ -318,6 +331,7 @@ async def add_message_stream(
                 user_id=user_id,
                 stream=True,
                 language=language,
+                image_data_url=message.image_data_url,
             )
             
             full_response = ""
