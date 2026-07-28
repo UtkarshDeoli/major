@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Users, Copy, Trash2, UserPlus, Crown, Building2, Mail } from "lucide-react";
-import { orgAPI } from "@/lib/api";
+import { Loader2, Users, Copy, Trash2, UserPlus, Building2, Mail } from "lucide-react";
+import { API_BASE_URL, orgAPI } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorMessage } from "@/lib/errors";
 import RoleGuard from "@/components/auth/route-protection/role-guard";
@@ -148,12 +148,15 @@ function OrgPageContent() {
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <Crown className="h-5 w-5 text-primary" />
-                    </div>
+                    {org.logo_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={`${API_BASE_URL}${org.logo_url}`} alt={org.brand_name || org.name}
+                           className="h-10 w-10 rounded-md object-contain border" />
+                    )}
                     <div>
                       <CardTitle className="text-base">{org.brand_name || org.name}</CardTitle>
                       <CardDescription className="capitalize">{org.tier} tier · {org.status}</CardDescription>
+                      {org.tagline && <p className="text-xs text-muted-foreground mt-1">{org.tagline}</p>}
                     </div>
                   </div>
                   <Badge variant="secondary">{org.billing_cycle || "monthly"}</Badge>
@@ -185,6 +188,23 @@ function OrgPageContent() {
                     Add
                   </Button>
                 </form>
+
+                <div className="mt-4 grid gap-2">
+                  <label htmlFor="org-logo" className="text-sm font-medium">Logo</label>
+                  <input id="org-logo" type="file" accept="image/*"
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      try {
+                        await orgAPI.uploadLogo(f);
+                        await loadOrg();
+                        toast({ title: "Logo updated" });
+                      } catch (err) {
+                        toast({ title: "Logo upload failed", description: getErrorMessage(err), variant: "destructive" });
+                      }
+                    }}
+                    className="border rounded-md px-3 py-2" />
+                </div>
               </CardContent>
             </Card>
 

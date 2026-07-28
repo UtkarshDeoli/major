@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Building2 } from "lucide-react";
-import { orgAPI } from "@/lib/api";
+import { API_BASE_URL, orgAPI } from "@/lib/api";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorMessage } from "@/lib/errors";
@@ -23,6 +23,8 @@ export default function OrgOnboardingPage() {
   const [tier, setTier] = useState<"pro" | "premium">("pro");
   const [seats, setSeats] = useState(5);
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+  const [tagline, setTagline] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (isLoading) return;
@@ -43,13 +45,21 @@ export default function OrgOnboardingPage() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      await orgAPI.create({
+      const created: any = await orgAPI.create({
         name,
         brand_name: brandName || undefined,
+        tagline: tagline || undefined,
         tier,
         seats_total: seats,
         billing_cycle: billingCycle,
       });
+      if (logoFile) {
+        try {
+          await orgAPI.uploadLogo(logoFile);
+        } catch (e) {
+          // non-fatal: org is created; logo can be added later from /org
+        }
+      }
       toast({ title: "Organization created", description: "You can now manage seats and invites from /org." });
       await refreshUser();
       router.push("/admin");
@@ -143,6 +153,22 @@ export default function OrgOnboardingPage() {
                   <SelectItem value="yearly">Yearly (save ~17%)</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <label htmlFor="tagline" className="text-sm font-medium">Tagline (optional)</label>
+              <input id="tagline" value={tagline} onChange={(e) => setTagline(e.target.value)}
+                className="border rounded-md px-3 py-2" placeholder="e.g. Dream. Prepare. Achieve." />
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="logo" className="text-sm font-medium">Coaching logo (optional)</label>
+              <input id="logo" type="file" accept="image/*"
+                onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                className="border rounded-md px-3 py-2" />
+              {logoFile && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={URL.createObjectURL(logoFile)} alt="logo preview" className="h-12 w-12 object-contain" />
+              )}
             </div>
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>
