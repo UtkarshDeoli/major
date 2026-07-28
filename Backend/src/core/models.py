@@ -314,6 +314,7 @@ class User(BaseModel):
     provider_uid: Optional[str] = None   # Google "sub" ID, or None for email users
     role: Literal["student", "teacher", "subadmin", "admin"] = "student"
     institute: Optional[str] = None
+    curriculum: Optional[str] = None      # exam-preset key (e.g. "jee-mains") chosen at signup
     preferred_language: str = "en"
     onboarding_completed: bool = False
     active_exam_id: Optional[str] = None

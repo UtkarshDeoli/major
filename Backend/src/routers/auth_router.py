@@ -37,6 +37,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     name: Optional[str] = None
+    curriculum: Optional[str] = None
 
 
 class UserResponse(BaseModel):
@@ -44,6 +45,7 @@ class UserResponse(BaseModel):
     name: Optional[str] = None
     role: Literal["student", "teacher", "subadmin", "admin"] = "student"
     institute: Optional[str] = None
+    curriculum: Optional[str] = None
     preferred_language: str = "en"
     onboarding_completed: bool = False
     active_exam_id: Optional[str] = None
@@ -75,6 +77,7 @@ def _build_user_response(user: dict) -> UserResponse:
         name=user.get("name"),
         role=user.get("role", "student"),
         institute=user.get("institute"),
+        curriculum=user.get("curriculum"),
         preferred_language=user.get("preferred_language", "en"),
         onboarding_completed=user.get("onboarding_completed", False),
         active_exam_id=user.get("active_exam_id"),
@@ -95,6 +98,7 @@ async def signup(request: Request, user_data: UserCreate):
         email=user_data.email,
         password=user_data.password,
         name=user_data.name,
+        curriculum=user_data.curriculum,
     )
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
@@ -144,6 +148,7 @@ async def get_me(user_email: str = Depends(get_current_user)):
         name=user.get("name"),
         role=user.get("role", "student"),
         institute=user.get("institute"),
+        curriculum=user.get("curriculum"),
         preferred_language=user.get("preferred_language", "en"),
         onboarding_completed=user.get("onboarding_completed", False),
         active_exam_id=user.get("active_exam_id"),

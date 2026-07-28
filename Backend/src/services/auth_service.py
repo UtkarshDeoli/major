@@ -77,7 +77,8 @@ async def create_user(
     name: Optional[str] = None,
     role: str = "student",
     institute: Optional[str] = None,
-    preferred_language: Optional[str] = None
+    preferred_language: Optional[str] = None,
+    curriculum: Optional[str] = None,
 ):
     _ensure_auth_db()
     if users_collection is None:
@@ -113,6 +114,7 @@ async def create_user(
             institute=institute,
             preferred_language=preferred_language or "en",
             auth_provider="email",
+            curriculum=curriculum,
         )
 
         result = await users_collection.insert_one(user.model_dump(by_alias=True))
