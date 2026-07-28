@@ -338,14 +338,63 @@ class Class(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
-    teacher_id: str                      # teacher email who owns the class
+    teacher_id: str                      # teacher email who owns the class (creator)
     name: str                            # e.g. "JEE 2026 Batch"
     description: Optional[str] = None
     exam_preset: Optional[str] = None    # e.g. "jee-mains" — drives default subjects
     enroll_code: str                     # short shareable code
     student_emails: List[str] = []
+    # Coaching-platform fields (Phase 1)
+    org_id: Optional[str] = None         # coaching this class belongs to
+    teacher_ids: List[str] = []          # creator + co-teachers (all same org)
+    subject_ids: List[str] = []          # references to class_subjects
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# A subject inside a class — any teacher in the class's org may add one.
+class ClassSubject(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
+    class_id: str
+    name: str
+    icon: Optional[str] = None
+    created_by: str                      # teacher email
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# A material uploaded to a class subject. doc_id links into pdfs_collection + RAG.
+class ClassMaterial(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
+    class_id: str
+    class_subject_id: str
+    teacher_id: str                      # uploader
+    name: str
+    type: Literal["pdf", "image", "text"] = "pdf"
+    size: int = 0
+    page_count: Optional[int] = None
+    doc_id: Optional[str] = None         # links to pdfs_collection for RAG
+    rag_indexed: bool = False
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# Pending invite for a student who does not yet have an account.
+class ClassInvite(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(default_factory=lambda: str(ObjectId()), alias="_id")
+    class_id: str
+    email: str
+    token: str
+    status: Literal["pending", "used"] = "pending"
+    created_by: str                      # teacher email
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    used_at: Optional[datetime] = None
 
 
 # Flashcard models
