@@ -50,7 +50,9 @@ Extend, don't rebuild. The platform already has: JWT auth with roles, an `organi
 
 ## 4. Data model (backend, MongoDB)
 
-Collections are managed via `Backend/src/core/data_store.py`. New collections follow the existing pattern. Field names are concrete.
+Collections are managed via `Backend/src/core/data_store.py`. New collections follow the existing pattern. Field names are concrete. **We extend existing collections in place, not rename them** — e.g. the mock-test collection remains `mock_tests_collection` and submissions remain `mock_test_submissions_collection` (the `tests`/`test_submissions` names below are logical, not new collection names).
+
+**Migration (P1):** backfill existing `classes` docs — set `teacher_ids = [teacher_id]`, `subject_ids = []`, and `org_id` from the teacher's current `org_id` (if any). Add `mode = "mock"` and `test_mode = "mock"` defaults to existing tests/submissions. No destructive schema changes; all new fields are optional with defaults so old data keeps working.
 
 ### 4.1 `organizations` (extend existing)
 Existing: `org_id`, `name`, `brand_name`, `owner_user_id`, `tier`, `seats_total`, `seats_used`, `status`, `billing_cycle`, `created_at`, `updated_at`.
@@ -111,7 +113,7 @@ Existing mock-test fields: `test_id`, `title`, `questions`, `total_marks`, `time
   - `duration_minutes: int` — timed duration within the window.
   - `results_published: bool` — internal flag (default `false`); not used to reveal results to students (per decision, students never see actual-test feedback), but available for teacher workflow/analytics.
 
-For class tests, `assigned_to` is derived from `class.student_emails` (class-wide). Mock = immediate AI feedback (unchanged). Actual = no feedback to student; teacher sees all.
+For class tests, `assigned_to` is derived from `class.student_emails` (class-wide). Mock = immediate AI feedback (unchanged). Actual = no feedback to student; teacher sees all. **Actual tests are still graded** on submit using the same pipeline as mock (auto-grade MCQ + AI/teacher-grade text answers); the score + feedback are stored on the submission and shown to the teacher, but the student-facing response suppresses all of it.
 
 ### 4.7 `test_submissions` (extend existing)
 Existing: `submission_id`, `test_id`, `user_id`, `answers`, `time_taken`, `total_score`, `max_score`, `percentage`, `feedback_summary`, `question_feedback`, `strengths`, `improvements`, `study_recommendations`, `grading_mode`, `status`, `subject`.
@@ -137,20 +139,22 @@ When that email later signs up, the signup flow auto-enrolls the student into th
 ## 5. Roles, auth & coaching admin
 
 ### 5.1 Role definitions
-- **`subadmin` = coaching admin.** Creates the coaching (org) via checkout, uploads logo/branding, invites teachers into the org (existing org invite with `member_role="teacher"`), buys seats. **Monitoring only — no content creation.**
+- **`subadmin` = coaching admin.** Creates the coaching (org) via checkout, uploads logo/branding, manages org **membership** (invites/removes both teachers and students), buys seats. **Monitoring + membership only — no content creation** (no classes, materials, or tests).
 - **`admin` = platform super-admin (unchanged).** Cross-coaching oversight, billing, manual subscriptions, analytics via `/admin`.
 - **`teacher`.** Added to an org by the coaching admin. Creates classes, adds subjects, uploads/generates materials, creates mock + actual tests, monitors students.
 - **`student`.** Signs up independently (public signup forced to `student`, unchanged). Operates freely with no org. When added to a class by a teacher, gains `org_id` and sees coaching branding + that class.
 
 ### 5.2 Coaching-admin dashboard (`/org`, extended)
-Existing `/org` shows org card, members, invites, seats. **Extend with monitoring-only tabs:**
+Existing `/org` shows org card, members, invites, seats. **Extend with membership + monitoring tabs:**
 - **Overview:** seats, tier, logo, branding.
-- **Teachers:** list (add via invite, remove). Read-only on their content.
-- **Students:** all students across all classes in the coaching (read-only).
+- **Teachers:** list; add via invite link (`member_role="teacher"`); remove from org. Read-only on their content.
+- **Students:** all students across all classes in the coaching; add via org student-invite link; remove from org (un-enroll). Read-only on their content/attempts.
 - **Classes:** every class in the coaching (read-only): teacher(s), subject count, student count, test count. No edit access to materials/tests.
 
+Membership actions (add/remove teachers and students) are the coaching admin's only write operations; all class/material/test content is read-only monitoring.
+
 ### 5.3 Teacher navigation
-Remove student-only items from the teacher sidebar: **Focus**, **Plans** (study planner/timer). Keep: Dashboard, Classes, Materials, Tests, Analytics, Chat, Settings. Gating is enforced both client-side (role-based nav in `app-shell.tsx`) and server-side (`require_role` + class/org ownership checks).
+Remove student-only items from the teacher sidebar: **Focus**, **Plans** (study planner/timer). Keep: Dashboard, Classes, Tests, Analytics, Chat, Settings. (Materials live under each class/subject in `/classes/[id]`, so there is no standalone teacher Materials page.) Gating is enforced both client-side (role-based nav in `app-shell.tsx`) and server-side (`require_role` + class/org ownership checks).
 
 ### 5.4 Enrollment flows
 - **Invite link (class):** existing `enroll_code` → copyable link; student previews and enrolls. Enrolling in a class whose `org_id` is set enrolls the student into that org (`org_id`, `member_role="student"`, `org_joined_at`).
@@ -197,7 +201,7 @@ Everything above **plus:**
 
 ### 7.3 Branding plumbing
 - `POST /orgs/logo` (multipart upload) → stored on disk under `uploads/orgs/{org_id}/` → `logo_url` on the org. Reuses the disk-upload pattern from PDFs.
-- `GET /orgs/me` and a public-ish `GET /orgs/{org_id}/branding` return `name`, `brand_name`, `logo_url`, `tagline`.
+- `GET /orgs/me` and `GET /orgs/{org_id}/branding` return `name`, `brand_name`, `logo_url`, `tagline`. The branding endpoint is authenticated (any logged-in user may fetch it — a logo is not secret) so students/teachers can render branding for an org they belong to.
 - Frontend caches org branding; the teacher shell and student home/classes render the logo from the relevant org. Logo is visible to teachers in their dashboard chrome at all times; to students in the classes section and home dashboard.
 
 ---
@@ -210,7 +214,7 @@ Everything above **plus:**
 
 ### 8.2 Bug 2 — forced material selection / no free chat / no visible history
 **Root cause:** `ChatInterface` refuses to send unless a material + session are selected; `ChatHistoryViewer` exists but is not mounted.
-**Fix:** Allow a "General chat" session with no `doc_ids` (RAG returns no sources; Gemini answers from its own knowledge, flagged to the UI as uncited). Mount `ChatHistoryViewer` as a session sidebar so past sessions are reachable. Keep material-scoped chat as the other mode.
+**Fix:** Allow a "General chat" session with no `doc_ids`. When `doc_ids` is empty, `llm_service` **skips retrieval entirely** (no `QueryEngine.query` call) and sends only the history + question to Gemini; the answer is flagged to the UI as uncited. Mount `ChatHistoryViewer` as a session sidebar so past sessions are reachable. Keep material-scoped chat as the other mode.
 
 ---
 
@@ -218,7 +222,7 @@ Everything above **plus:**
 
 ### Org & branding
 - `POST /orgs/logo` (multipart) — subadmin uploads logo. *(new)*
-- `GET /orgs/{org_id}/branding` — public branding (name, brand_name, logo_url, tagline). *(new)*
+- `GET /orgs/{org_id}/branding` — branding (name, brand_name, logo_url, tagline); authenticated, any logged-in user. *(new)*
 - `PATCH /orgs/` — extend to accept `tagline` (and `brand_name` as today). *(changed)*
 - `GET /orgs/me` — include `logo_url`, `tagline`, plus monitoring lists (teachers, students, classes). *(changed)*
 
@@ -248,7 +252,7 @@ Everything above **plus:**
 - `GET /classes/{id}/tests/{test_id}/submissions` — teacher sees all attempts/marks. *(new)*
 
 ### Tests (student)
-- `GET /classes/me/tests` — tests available to the student (mock always; actual only within window). *(new)*
+- `GET /classes/me/tests` — canonical list of tests available to the student: personal assigned tests (existing `assigned_to` flow) **united with** class tests (mock always; actual only within window). The existing `/mock-tests` student list is deprecated in favor of this union endpoint to avoid two divergent lists. *(new)*
 - `POST /mock-tests/{test_id}/submit` — unchanged for mock; for actual, suppress feedback in response. *(changed)*
 - `GET /mock-tests/{test_id}` — for actual, strip `correctAnswer` and any feedback. *(changed)*
 
