@@ -42,7 +42,8 @@ interface StudyPlan {
   subjects: string[];
   weak_topics: string[];
   hours_per_day: number;
-  weeks: number;
+  num_weeks?: number;
+  weeks?: number;
   plan: { weeks: WeekPlan[] };
   created_at: string;
 }
@@ -59,7 +60,7 @@ export default function PlansPage() {
     subjects: "",
     weak_topics: "",
     hours_per_day: 4,
-    weeks: 4,
+    num_weeks: 4,
   });
 
   useEffect(() => {
@@ -91,10 +92,10 @@ export default function PlansPage() {
         subjects: form.subjects.split(",").map((s) => s.trim()).filter(Boolean),
         weak_topics: form.weak_topics.split(",").map((s) => s.trim()).filter(Boolean),
         hours_per_day: form.hours_per_day,
-        weeks: form.weeks,
+        num_weeks: form.num_weeks,
       });
       toast({ title: "Study plan created" });
-      setForm({ title: "", exam_date: "", subjects: "", weak_topics: "", hours_per_day: 4, weeks: 4 });
+      setForm({ title: "", exam_date: "", subjects: "", weak_topics: "", hours_per_day: 4, num_weeks: 4 });
       await loadPlans();
       setSelectedPlan(created);
     } catch (error) {
@@ -174,8 +175,8 @@ export default function PlansPage() {
                   <Input id="hours" type="number" min={1} max={12} value={form.hours_per_day} onChange={(e) => setForm({ ...form, hours_per_day: parseInt(e.target.value) || 4 })} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="weeks">Weeks</Label>
-                  <Input id="weeks" type="number" min={1} max={12} value={form.weeks} onChange={(e) => setForm({ ...form, weeks: parseInt(e.target.value) || 4 })} />
+                  <Label htmlFor="num_weeks">Weeks</Label>
+                  <Input id="num_weeks" type="number" min={1} max={12} value={form.num_weeks} onChange={(e) => setForm({ ...form, num_weeks: parseInt(e.target.value) || 4 })} />
                 </div>
               </div>
 
@@ -222,7 +223,7 @@ export default function PlansPage() {
                       <div>
                         <CardTitle className="text-lg">{selectedPlan.title}</CardTitle>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {selectedPlan.subjects.join(", ")} · {selectedPlan.weeks} weeks · {selectedPlan.hours_per_day}h/day
+                          {selectedPlan.subjects.join(", ")} · {selectedPlan.num_weeks || selectedPlan.weeks} weeks · {selectedPlan.hours_per_day}h/day
                         </p>
                       </div>
                       <Button variant="ghost" size="icon" onClick={() => handleDelete(selectedPlan.plan_id)}>

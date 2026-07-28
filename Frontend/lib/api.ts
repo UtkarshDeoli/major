@@ -94,30 +94,34 @@ export const authAPI = {
 
 // PDF APIs
 export const pdfAPI = {
-  uploadPDF: async (file: File, title?: string, description?: string, tags?: string[]) => {
+  uploadPDF: async (file: File, title?: string, description?: string, tags?: string[], subject?: string) => {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     if (title) {
       formData.append('title', title);
     }
-    
+
     if (description) {
       formData.append('description', description);
     }
-    
+
+    if (subject) {
+      formData.append('subject', subject);
+    }
+
     // Add tags as repeated form fields so FastAPI collects them into List[str]
     if (tags && tags.length > 0) {
       tags.forEach(tag => formData.append('tags', tag));
     }
-    
+
     // IMPORTANT: Do NOT set Content-Type manually.
     // Axios will automatically set it to 'multipart/form-data' with the correct boundary.
     const response = await api.post('/pdfs/upload', formData);
-    
+
     return response.data;
   },
-  
+
   listPDFs: async () => {
     try {
       const response = await api.get('/pdfs/');
@@ -126,6 +130,14 @@ export const pdfAPI = {
       console.error('Error fetching PDFs:', error);
       throw error;
     }
+  },
+
+  listBySubject: async () => {
+    const response = await api.get('/documents/by-subject');
+    return response.data as {
+      subjects: Array<{ name: string; documents: any[] }>;
+      others: { name: string; documents: any[] };
+    };
   },
   
   getPDF: async (pdfId: string) => {
@@ -142,26 +154,47 @@ export const pdfAPI = {
   }
 };
 
-// Helper function to process SSE chunks
+// Helper function to process streaming chunks.
+// The backend sends NDJSON (one JSON object per line). We also tolerate SSE
+// (`data: {...}`) so the parser keeps working if the format changes.
 const processSSEChunks = (text: string, onChunk?: (chunk: any) => void) => {
   if (!onChunk) return;
-  
-  // Split the text by double newlines (standard SSE format)
-  const chunks = text.split('\n\n').filter(chunk => chunk.trim() !== '');
-  
-  // Process each chunk
-  chunks.forEach(chunk => {
-    // Get the data portion of the SSE event
-    const dataMatch = chunk.match(/data: (.*)/);
-    if (dataMatch && dataMatch[1]) {
-      try {
-        const parsedData = JSON.parse(dataMatch[1]);
-        onChunk(parsedData);
-      } catch (error) {
-        console.error('Error parsing SSE data:', error);
+
+  const lines = text.split('\n');
+  const seen = new Set<string>();
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    // Support SSE `data: {...}` lines as well as raw NDJSON.
+    const dataMatch = line.match(/^data:\s*(.+)$/);
+    const payload = dataMatch ? dataMatch[1] : line;
+
+    try {
+      const parsed = JSON.parse(payload);
+      // Normalize backend NDJSON shape (`response`) to the SSE-like `content`
+      // key the rest of the UI expects.
+      const normalized = {
+        ...parsed,
+        content: parsed.response || parsed.content || '',
+        done: !!parsed.done,
+      };
+
+      // Deduplicate by stringified payload so repeated progress callbacks don't
+      // replay the same chunk.
+      const key = JSON.stringify(normalized);
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      onChunk(normalized);
+    } catch (error) {
+      // Ignore incomplete trailing JSON lines; log other parse errors.
+      if (!line.endsWith('}')) {
+        console.error('Error parsing streaming chunk:', error, line);
       }
     }
-  });
+  }
 };
 
 // Chat APIs
@@ -328,6 +361,26 @@ export const mockTestAPI = {
   getAnalysisBySubmissionId: async (submissionId: string) => {
     const response = await api.get(`/mock-tests/submissions/${submissionId}/analysis`);
     return response.data;
+  },
+
+  // Generate a practice test directly from uploaded document(s)
+  generateFromDoc: async (req: {
+    doc_ids: string[];
+    subject?: string;
+    num_mcq?: number;
+    num_text?: number;
+    total_marks?: number;
+    difficulty_level?: "easy" | "medium" | "hard";
+  }) => {
+    const response = await api.post('/mock-tests/generate-from-doc', {
+      doc_ids: req.doc_ids,
+      subject: req.subject,
+      num_mcq: req.num_mcq ?? 10,
+      num_text: req.num_text ?? 3,
+      total_marks: req.total_marks ?? 30,
+      difficulty_level: req.difficulty_level ?? "medium",
+    });
+    return response.data;
   }
 };
 
@@ -470,7 +523,7 @@ export const studyAPI = {
     subjects?: string[];
     weak_topics?: string[];
     hours_per_day?: number;
-    weeks?: number;
+    num_weeks?: number;
   }): Promise<any> {
     const res = await api.post('/study/plans', req);
     return res.data;

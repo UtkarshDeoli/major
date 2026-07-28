@@ -4,6 +4,7 @@ from typing import Dict, List, Optional
 
 from src.core.models import (
     MockTestGenerationRequest,
+    MockTestFromDocRequest,
     MockTestResponse,
     MockTestQuestion,
     MockTestSubmission,
@@ -16,12 +17,13 @@ from src.core.data_store import get_mock_test as fetch_mock_test_data
 from src.services.auth_service import get_user_by_email
 from src.services.mock_test_service import (
     generate_mock_test_service,
+    generate_mock_test_from_docs_service,
     analyze_mock_test_submission_service,
     get_user_mock_tests_service,
     get_mock_test_service
 )
 from src.core.data_store import update_mock_test_assignment
-from src.core.limiter import limiter
+from src.core.limiter import limiter, SUBMISSION_LIMIT
 
 router = APIRouter(prefix="/mock-tests", tags=["Mock Tests"])
 
@@ -112,7 +114,7 @@ async def generate_mock_test(
         )
         
         return mock_test
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -120,6 +122,48 @@ async def generate_mock_test(
             status_code=500,
             detail=f"Error generating mock test: {str(e)}"
         )
+
+
+@router.post(
+    "/generate-from-doc",
+    response_model=MockTestResponse,
+    summary="Generate practice test from uploaded documents",
+    description="Generate a practice mock test directly from one or more uploaded documents without requiring a separate syllabus or question papers.",
+)
+@limiter.limit("10/hour")
+async def generate_mock_test_from_doc(
+    request: Request,
+    req: MockTestFromDocRequest,
+    user_id: str = Depends(get_current_user),
+    _plan: dict = Depends(enforce_limit("mock_test")),
+):
+    """Generate a practice mock test grounded on uploaded document content."""
+    try:
+        if not req.doc_ids:
+            raise HTTPException(
+                status_code=400,
+                detail="At least one document ID is required"
+            )
+
+        mock_test = await generate_mock_test_from_docs_service(
+            doc_ids=req.doc_ids,
+            num_mcq=req.num_mcq,
+            num_text=req.num_text,
+            total_marks=req.total_marks,
+            difficulty_level=req.difficulty_level,
+            user_id=user_id,
+            subject=req.subject,
+        )
+        return mock_test
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generating practice test: {str(e)}"
+        )
+
 
 @router.get(
     "/",
@@ -179,7 +223,9 @@ async def get_mock_test(
     summary="Submit Mock Test",
     description="Submit a mock test and get detailed analysis with feedback using Gemini AI"
 )
+@limiter.limit(SUBMISSION_LIMIT)
 async def submit_mock_test(
+    request: Request,
     submission: MockTestSubmission,
     test_id: str = Path(..., description="The ID of the mock test"),
     user_id: str = Depends(get_current_user)

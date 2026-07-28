@@ -1,9 +1,10 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from src.core.security import get_current_user
 from src.core.plan_enforcement import enforce_limit
+from src.core.limiter import limiter, SOCRATIC_LIMIT
 from src.services.socratic_service import explain_socratically, socratic_feedback_for_answer
 from src.services.query_engine import QueryEngine
 from src.services.vector_store import VectorStore
@@ -29,7 +30,9 @@ _query_engine = QueryEngine(VectorStore(), BM25IndexService())
 
 
 @router.post("/explain")
+@limiter.limit(SOCRATIC_LIMIT)
 async def socratic_explain(
+    request: Request,
     req: SocraticExplainRequest,
     user_id: str = Depends(get_current_user),
     _plan: dict = Depends(enforce_limit("chat_message")),
@@ -59,7 +62,9 @@ async def socratic_explain(
 
 
 @router.post("/feedback")
+@limiter.limit(SOCRATIC_LIMIT)
 async def socratic_feedback(
+    request: Request,
     req: SocraticFeedbackRequest,
     user_id: str = Depends(get_current_user),
     _plan: dict = Depends(enforce_limit("chat_message")),

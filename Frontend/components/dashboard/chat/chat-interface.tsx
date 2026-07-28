@@ -45,12 +45,48 @@ export function ChatInterface({ document, initialMessages = [], initialChatId, o
     }
   }, [initialChatId]);
 
-  // Initialize a new chat session when document changes and no initialChatId
+  // Initialize a new chat session whenever the selected document changes.
+  // This avoids reusing a session scoped to a previously selected document.
   useEffect(() => {
-    if (document && !initialChatId && !chatSession) {
-      createNewChatSession();
-    }
-  }, [document, initialChatId, chatSession]);
+    if (!document || initialChatId) return;
+
+    setChatSession(null);
+    setMessages([]);
+    setStreamingMessage(null);
+
+    let cancelled = false;
+    const setup = async () => {
+      try {
+        const title = `Chat about ${document.title}`;
+        const docIds = document.doc_id ? [document.doc_id] : undefined;
+        const sessionData = await chatAPI.createChatSession(title, document.id, docIds);
+        if (cancelled) return;
+        const session = convertApiSessionToSession(sessionData);
+        setChatSession(session);
+
+        const systemMessage = createMessage({
+          id: nanoid(),
+          role: MessageRole.System,
+          content: `You're now chatting with an AI assistant about "${document.title}". Ask any questions about the document.`,
+          timestamp: new Date().toISOString(),
+        });
+        setMessages([systemMessage]);
+      } catch (error) {
+        if (cancelled) return;
+        console.error("Error creating chat session:", error);
+        toast({
+          title: "Error creating chat",
+          description: "Could not create a new chat session. Please try again.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    setup();
+    return () => {
+      cancelled = true;
+    };
+  }, [document?.id, initialChatId]);
   
   // Scroll to bottom when messages change or streaming updates
   useEffect(() => {
@@ -65,13 +101,11 @@ export function ChatInterface({ document, initialMessages = [], initialChatId, o
   
   // Fetch existing chat session
   const fetchChatSession = async (sessionId: string) => {
-    console.log("session id:", sessionId);
-
     try {
       const sessionData = await chatAPI.getChatSession(sessionId);
       const session = convertApiSessionToSession(sessionData);
       setChatSession(session);
-      
+
       if (session.messages && session.messages.length > 0) {
         setMessages(session.messages);
       }
@@ -80,41 +114,13 @@ export function ChatInterface({ document, initialMessages = [], initialChatId, o
       toast({
         title: "Error loading chat",
         description: "Could not load the chat history. Starting a new chat.",
-        variant: "destructive"
+        variant: "destructive",
       });
-      
+
       if (document) {
-        createNewChatSession();
+        // Let the document effect create a fresh session on the next tick.
+        setChatSession(null);
       }
-    }
-  };
-  
-  // Create a new chat session
-  const createNewChatSession = async () => {
-    if (!document) return;
-    try {
-      const title = `Chat about ${document.title}`;
-      const docIds = document.doc_id ? [document.doc_id] : undefined;
-      const sessionData = await chatAPI.createChatSession(title, document.id, docIds);
-      const session = convertApiSessionToSession(sessionData);
-      setChatSession(session);
-      
-      // Add system message
-      const systemMessage = createMessage({
-        id: nanoid(),
-        role: MessageRole.System,
-        content: `You're now chatting with an AI assistant about "${document.title}". Ask any questions about the document.`,
-        timestamp: new Date().toISOString()
-      });
-      
-      setMessages([systemMessage]);
-    } catch (error) {
-      console.error("Error creating chat session:", error);
-      toast({
-        title: "Error creating chat",
-        description: "Could not create a new chat session. Please try again.",
-        variant: "destructive"
-      });
     }
   };
   
@@ -152,8 +158,12 @@ export function ChatInterface({ document, initialMessages = [], initialChatId, o
         setIsStreaming(true)
         setStreamingMessage("")
         await chatAPI.addMessageToChatStream(chatSession.id, content, (chunk: any) => {
-          if (chunk.content) {
-            setStreamingMessage(prev => (prev || "") + chunk.content)
+          if (chunk.error) {
+            console.error("Streaming error chunk:", chunk.error);
+            return;
+          }
+          if (chunk.content && !chunk.done) {
+            setStreamingMessage((prev) => (prev || "") + chunk.content);
           }
         }, imageDataUrl)
         // After stream completes, refresh messages from the session

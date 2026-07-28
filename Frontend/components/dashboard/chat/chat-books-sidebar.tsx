@@ -21,6 +21,7 @@ import {
   materialAPI,
   sampleMaterialAPI,
 } from "@/lib/api";
+import { UploadedPdfsPanel } from "./uploaded-pdfs-panel";
 
 export interface BookMaterial {
   id: string;
@@ -70,6 +71,7 @@ export function ChatBooksSidebar({
   const [newSectionSubject, setNewSectionSubject] = useState<string | null>(null);
   const [newSectionName, setNewSectionName] = useState("");
   const [seeding, setSeeding] = useState(false);
+  const [activeTab, setActiveTab] = useState<"books" | "uploads">("books");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const uploadTargetCollection = useRef<string | null>(null);
 
@@ -205,39 +207,73 @@ export function ChatBooksSidebar({
     }
   };
 
-  if (!examId) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center p-3 text-center">
-        <BookOpen className="h-8 w-8 text-muted-foreground/50 mb-2" />
-        <p className="text-xs text-muted-foreground">
-          No active exam. Add one from the dashboard to start chatting.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="h-full flex flex-col bg-background">
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} accept=".pdf,.txt,.md" />
 
-      <div className="px-3 py-2 border-b">
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">Your Books</div>
-        <h3 className="font-medium text-[13px] truncate">{examName || "Exam"}</h3>
+      <div className="px-2 py-2 border-b space-y-2">
+        <div className="flex items-center gap-1 bg-muted/50 rounded-md p-0.5">
+          <button
+            onClick={() => setActiveTab("books")}
+            className={cn(
+              "flex-1 text-[11px] font-medium px-2 py-1 rounded-[4px] transition-colors",
+              activeTab === "books"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Books
+          </button>
+          <button
+            onClick={() => setActiveTab("uploads")}
+            className={cn(
+              "flex-1 text-[11px] font-medium px-2 py-1 rounded-[4px] transition-colors",
+              activeTab === "uploads"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            My Uploads
+          </button>
+        </div>
+        {activeTab === "books" && (
+          <div>
+            <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">Your Books</div>
+            <h3 className="font-medium text-[13px] truncate">{examName || "Exam"}</h3>
+          </div>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
-        {loadingSubjects && (
+      {activeTab === "uploads" && (
+        <UploadedPdfsPanel
+          selectedMaterialId={selectedMaterialId}
+          onSelectMaterial={onSelectMaterial}
+        />
+      )}
+
+      {activeTab === "books" && (
+        <>
+          <div className="flex-1 overflow-y-auto p-1.5 space-y-0.5">
+        {!examId && (
+          <div className="h-full flex flex-col items-center justify-center p-3 text-center">
+            <BookOpen className="h-8 w-8 text-muted-foreground/50 mb-2" />
+            <p className="text-xs text-muted-foreground">
+              No active exam. Add one from the dashboard to start chatting.
+            </p>
+          </div>
+        )}
+        {examId && loadingSubjects && (
           <div className="flex items-center justify-center py-4">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         )}
-        {!loadingSubjects && subjects.length === 0 && (
+        {examId && !loadingSubjects && subjects.length === 0 && (
           <div className="px-2 py-2 text-[11px] text-muted-foreground">
             No subjects yet. Add subjects from the dashboard.
           </div>
         )}
 
-        {subjects.map((subject) => (
+        {examId && subjects.map((subject) => (
           <div key={subject.id}>
             <div className="flex items-center">
               <button
@@ -346,6 +382,8 @@ export function ChatBooksSidebar({
             Load sample NCERT & PYQ
           </Button>
         </div>
+      )}
+        </>
       )}
     </div>
   );

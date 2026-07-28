@@ -2,12 +2,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 import nltk
 
-from src.core.config import FRONTEND_URL
+from src.core.config import FRONTEND_URL, RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET
 from src.core.limiter import limiter
+from src.core.data_store import client as mongo_client
 
 # Import our routers
 from src.routers import (
@@ -92,9 +94,44 @@ app.include_router(study_router)
 async def root():
     return {"message": "Welcome to Padhai Whallah API"}
 
+async def _check_mongodb() -> dict:
+    """Best-effort MongoDB connectivity check."""
+    if mongo_client is None:
+        return {"ok": False, "error": "client not initialized"}
+    try:
+        await mongo_client.admin.command("ping")
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+async def _check_razorpay() -> dict:
+    """Best-effort Razorpay readiness check (non-fatal)."""
+    if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
+        return {"ok": False, "error": "keys not configured"}
+    try:
+        import razorpay
+        client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
+        # Lightweight, low-risk API call to verify credentials.
+        client.plan.all()
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @app.get("/healthcheck")
 async def healthcheck():
-    return {"status": "ok"}
+    mongodb = await _check_mongodb()
+    razorpay = await _check_razorpay()
+    status_code = 200 if mongodb["ok"] else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "ok" if mongodb["ok"] else "degraded",
+            "mongodb": mongodb,
+            "razorpay": razorpay,
+        },
+    )
 
 if __name__ == "__main__":
     import uvicorn

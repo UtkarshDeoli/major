@@ -53,13 +53,14 @@ def setup(monkeypatch):
     users = _FakeColl(); subs = _FakeColl(); pays = _FakeColl(); orgs = _FakeColl()
     mt = _FakeColl(); decks = _FakeColl(); fc = _FakeColl(); aim = _FakeColl()
     pdfs = _FakeColl(); classes = _FakeColl(); usage = _FakeColl()
+    study = _FakeColl()
     for name, coll in [
         ("users_collection", users), ("subscriptions_collection", subs),
         ("payments_collection", pays), ("organizations_collection", orgs),
         ("mock_tests_collection", mt), ("flashcard_decks_collection", decks),
         ("flashcards_collection", fc), ("ai_materials_collection", aim),
         ("pdfs_collection", pdfs), ("classes_collection", classes),
-        ("usage_events_collection", usage),
+        ("usage_events_collection", usage), ("study_plans_collection", study),
     ]:
         monkeypatch.setattr(ds, name, coll)
         monkeypatch.setattr(ss, name, coll, raising=False)

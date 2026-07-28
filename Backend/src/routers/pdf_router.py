@@ -2,75 +2,133 @@ from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Path, F
 from fastapi.responses import FileResponse
 from typing import List, Optional
 import os
-from pydantic import BaseModel
-
 from src.core.models import PDFMetadata, PDFListResponse, PDFUploadResponse
 from src.core.security import get_current_user
+from src.core.plan_enforcement import enforce_limit
 from src.core.limiter import limiter, UPLOAD_LIMIT
-from src.services.pdf_service import process_and_store_pdf
-from src.core.data_store import get_user_pdfs, get_pdf_metadata
+from src.core.data_store import (
+    get_user_pdfs,
+    get_pdf_metadata,
+    store_pdf_metadata,
+    update_pdf_metadata,
+    store_document_chunks,
+)
+from src.services.document_processor import extract_text_from_pdf, chunk_document
+from src.services.vector_store import VectorStore
+import uuid
 
 router = APIRouter(prefix="/pdfs", tags=["PDFs"])
-
-
-class UploadPDFRequest(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    tags: Optional[List[str]] = None
 
 
 @router.post(
     "/upload",
     response_model=PDFUploadResponse,
     summary="Upload a PDF file",
-    description="Upload a PDF file to be processed and stored. The file will be processed in the background and made available for querying.",
+    description="Upload a PDF file to be processed and stored. The file will be indexed for RAG chat and made available for querying.",
 )
 @limiter.limit(UPLOAD_LIMIT)
 async def upload_pdf(
     request: Request,
     title: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
+    subject: Optional[str] = Form(None),
     tags: Optional[List[str]] = Form(None),
     file: UploadFile = File(...),
-    user_id: str = Depends(get_current_user)
+    user_id: str = Depends(get_current_user),
+    _plan: dict = Depends(enforce_limit("doc_storage")),
 ):
     """
-    Upload a PDF file for processing and storage.
+    Upload a PDF file for processing, storage, and RAG indexing.
     """
     # Validate the file
     if not file.filename.lower().endswith('.pdf'):
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail="Only PDF files are allowed"
         )
-    
+
     try:
         # Read the file content
         content = await file.read()
-        
-        # Process and store the PDF
-        pdf_metadata = await process_and_store_pdf(
-            file_content=content,
+
+        # Save file to disk
+        user_dir = os.path.join("uploads", user_id)
+        os.makedirs(user_dir, exist_ok=True)
+        file_path = os.path.join(user_dir, file.filename)
+        with open(file_path, "wb") as f:
+            f.write(content)
+
+        # Store metadata
+        pdf_metadata = await store_pdf_metadata(
             filename=file.filename,
+            size=len(content),
             user_id=user_id,
+            file_path=file_path,
             title=title,
             description=description,
-            tags=tags
+            tags=tags or [],
         )
-        
+
+        # Extract and chunk
+        doc_type = "pdf"
+        text, page_count = extract_text_from_pdf(content)
+        chunks_data = chunk_document(text, doc_type=doc_type)
+
+        # Generate embeddings and store
+        model = VectorStore.get_embedding_model()
+        chroma_chunks = []
+        for chunk in chunks_data:
+            chroma_id = str(uuid.uuid4())
+            embedding = model.encode(chunk["content"]).tolist()
+            chroma_chunks.append({
+                "chroma_id": chroma_id,
+                "user_id": user_id,
+                "doc_id": pdf_metadata["id"],
+                "doc_name": file.filename,
+                "chunk_index": chunk["chunk_index"],
+                "content": chunk["content"],
+                "embedding": embedding,
+                "page": chunk.get("page"),
+                "section": chunk.get("section"),
+                "doc_type": doc_type,
+                "subject": subject,
+                "tags": tags or [],
+            })
+
+        # Store in ChromaDB (use a fresh singleton lookup so test resets are respected)
+        VectorStore().add_chunks(user_id, chroma_chunks)
+
+        # Store in MongoDB
+        await store_document_chunks(chroma_chunks)
+
+        # Update metadata
+        await update_pdf_metadata(
+            pdf_metadata["id"],
+            {
+                "processed": True,
+                "chunk_count": len(chroma_chunks),
+                "doc_type": doc_type,
+                "subject": subject,
+                "tags": tags or [],
+                "page_count": page_count,
+            }
+        )
+
+        updated = await get_pdf_metadata(pdf_metadata["id"])
+
         return PDFUploadResponse(
-            id=pdf_metadata["id"],
-            filename=pdf_metadata["filename"],
-            size=pdf_metadata["size"],
-            upload_date=pdf_metadata["upload_date"],
-            user_id=pdf_metadata["user_id"],
-            file_path=pdf_metadata["file_path"],
-            processed=pdf_metadata["processed"],
-            tags=pdf_metadata.get("tags", [])
+            id=updated["id"],
+            filename=updated["filename"],
+            size=updated["size"],
+            upload_date=updated["upload_date"],
+            user_id=updated["user_id"],
+            file_path=updated["file_path"],
+            processed=updated["processed"],
+            tags=updated.get("tags", [])
         )
     except Exception as e:
         raise HTTPException(
-            status_code=500, 
+            status_code=500,
             detail=f"Error uploading PDF: {str(e)}"
         )
 

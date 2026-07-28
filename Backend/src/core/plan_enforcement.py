@@ -18,9 +18,19 @@ from src.core.data_store import (
     mock_tests_collection, mock_test_submissions_collection,
     flashcards_collection, ai_materials_collection, pdfs_collection,
     classes_collection, flashcard_decks_collection, usage_events_collection,
+    study_plans_collection,
 )
 
 _UPGRADE_URL = "/pricing"
+
+
+def _cursor_to_list(cursor):
+    """Normalize a Motor cursor (or test fake returning a list coroutine) to a list."""
+    if cursor is None:
+        return []
+    if hasattr(cursor, "to_list"):
+        return cursor.to_list(length=None)
+    return cursor
 
 
 def _start_of_month() -> datetime:
@@ -56,7 +66,7 @@ async def get_usage(user_id: str, resource: str) -> float:
         if mock_tests_collection is None:
             return 0
         start = _start_of_month()
-        docs = await mock_tests_collection.find({})
+        docs = await _cursor_to_list(mock_tests_collection.find({}))
         return sum(
             1 for d in docs
             if (d.get("user_id") == user_id or d.get("created_by") == user_id)
@@ -66,9 +76,9 @@ async def get_usage(user_id: str, resource: str) -> float:
         if flashcards_collection is None or flashcard_decks_collection is None:
             return 0
         start = _start_of_month()
-        decks = await flashcard_decks_collection.find({"user_id": user_id})
+        decks = await _cursor_to_list(flashcard_decks_collection.find({"user_id": user_id}))
         deck_ids = {d.get("id") or str(d.get("_id")) for d in decks}
-        cards = await flashcards_collection.find({})
+        cards = await _cursor_to_list(flashcards_collection.find({}))
         return sum(
             1 for c in cards
             if c.get("deck_id") in deck_ids
@@ -78,8 +88,22 @@ async def get_usage(user_id: str, resource: str) -> float:
         if ai_materials_collection is None:
             return 0
         start = _start_of_month()
-        docs = await ai_materials_collection.find({"user_id": user_id})
+        docs = await _cursor_to_list(ai_materials_collection.find({"user_id": user_id}))
         return sum(1 for d in docs if d.get("created_at") and d["created_at"] >= start)
+    if resource == "study_plan":
+        if study_plans_collection is None:
+            return 0
+        start = _start_of_month()
+        docs = await _cursor_to_list(study_plans_collection.find({"user_id": user_id}))
+
+        def _is_this_month(created_at):
+            if not created_at:
+                return False
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            return created_at >= start
+
+        return sum(1 for d in docs if _is_this_month(d.get("created_at")))
     if resource == "chat_message":
         if usage_events_collection is None:
             return 0
@@ -90,12 +114,13 @@ async def get_usage(user_id: str, resource: str) -> float:
     if resource == "doc_storage":
         if pdfs_collection is None:
             return 0
-        docs = await pdfs_collection.find({"user_id": user_id})
+        docs = await _cursor_to_list(pdfs_collection.find({"user_id": user_id}))
         return float(sum(int(d.get("size", 0)) for d in docs))
     if resource == "class_count":
         if classes_collection is None:
             return 0
-        return float(len(await classes_collection.find({"teacher_id": user_id})))
+        docs = await _cursor_to_list(classes_collection.find({"teacher_id": user_id}))
+        return float(len(docs))
     return 0
 
 

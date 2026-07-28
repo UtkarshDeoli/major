@@ -162,6 +162,15 @@ class MockTestGenerationRequest(BaseModel):
     source_material_ids: Optional[List[str]] = None  # materials to ground generation on
     adaptive: bool = False  # when true, difficulty is chosen from mastery data
 
+
+class MockTestFromDocRequest(BaseModel):
+    doc_ids: List[str]
+    subject: Optional[str] = None
+    num_mcq: int = 10
+    num_text: int = 3
+    total_marks: int = 30
+    difficulty_level: Literal["easy", "medium", "hard"] = "medium"
+
 class MockTestResponse(BaseModel):
     test_id: str
     title: str

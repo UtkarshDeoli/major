@@ -1,14 +1,34 @@
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from src.core.security import get_current_user
 from src.core.data_store import focus_sessions_collection, study_plans_collection
+from src.core.plan_enforcement import enforce_limit
+from src.core.limiter import limiter, GENERATION_LIMIT
 from src.services.gemini_service import gemini_service
 from src.services.auth_service import get_user_by_email
 
 router = APIRouter(prefix="/study", tags=["Study"])
+
+
+def _serialize_value(value):
+    """Recursively convert datetime / ObjectId values to JSON-safe strings."""
+    from bson import ObjectId
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, ObjectId):
+        return str(value)
+    if isinstance(value, dict):
+        return {k: _serialize_value(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_serialize_value(v) for v in value]
+    return value
+
+
+def _serialize_doc(doc: dict) -> dict:
+    return _serialize_value(doc)
 
 
 class FocusSessionCreate(BaseModel):
@@ -27,7 +47,7 @@ class StudyPlanCreate(BaseModel):
     subjects: List[str] = []
     weak_topics: List[str] = []
     hours_per_day: int = Field(ge=1, le=12, default=4)
-    weeks: int = Field(ge=1, le=12, default=4)
+    num_weeks: int = Field(ge=1, le=12, default=4)
 
 
 @router.post("/focus-sessions")
@@ -48,7 +68,7 @@ async def start_focus_session(
         "notes": None,
     }
     result = await focus_sessions_collection.insert_one(doc)
-    return {"session_id": str(result.inserted_id), **doc}
+    return _serialize_doc({"session_id": str(result.inserted_id), **doc})
 
 
 @router.patch("/focus-sessions/{session_id}")
@@ -81,7 +101,7 @@ async def list_focus_sessions(
     docs = await cursor.to_list(length=None)
     for d in docs:
         d["session_id"] = str(d.pop("_id"))
-    return {"sessions": docs}
+    return {"sessions": [_serialize_doc(d) for d in docs]}
 
 
 @router.get("/focus-stats")
@@ -99,6 +119,11 @@ async def focus_stats(user_id: str = Depends(get_current_user)):
     for d in docs:
         started = d.get("started_at")
         ended = d.get("ended_at")
+        # Normalize MongoDB datetimes that may come back offset-naive.
+        if started and started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+        if ended and ended.tzinfo is None:
+            ended = ended.replace(tzinfo=timezone.utc)
         duration = d.get("duration_minutes", 0)
         if ended and started:
             duration = min(duration, int((ended - started).total_seconds() / 60))
@@ -117,9 +142,12 @@ async def focus_stats(user_id: str = Depends(get_current_user)):
 
 
 @router.post("/plans")
+@limiter.limit(GENERATION_LIMIT)
 async def create_study_plan(
+    request: Request,
     req: StudyPlanCreate,
     user_id: str = Depends(get_current_user),
+    _plan: dict = Depends(enforce_limit("study_plan")),
 ):
     if study_plans_collection is None:
         raise HTTPException(503, "Database connection not available")
@@ -135,7 +163,7 @@ Title: {req.title}
 Subjects: {', '.join(req.subjects) if req.subjects else 'All subjects'}
 Weak topics to prioritize: {', '.join(req.weak_topics) if req.weak_topics else 'None specified'}
 Study hours per day: {req.hours_per_day}
-Number of weeks: {req.weeks}
+Number of weeks: {req.num_weeks}
 Exam date: {req.exam_date or 'Not set'}
 
 Respond ONLY with valid JSON in this exact format:
@@ -187,13 +215,13 @@ Include all 7 days for each week. Spread subjects evenly and prioritize weak top
         "subjects": req.subjects,
         "weak_topics": req.weak_topics,
         "hours_per_day": req.hours_per_day,
-        "weeks": req.weeks,
+        "num_weeks": req.num_weeks,
         "plan": plan_data,
         "created_at": now,
         "updated_at": now,
     }
     result = await study_plans_collection.insert_one(doc)
-    return {"plan_id": str(result.inserted_id), **doc}
+    return _serialize_doc({"plan_id": str(result.inserted_id), **doc})
 
 
 @router.get("/plans")
@@ -204,7 +232,7 @@ async def list_study_plans(user_id: str = Depends(get_current_user)):
     docs = await cursor.to_list(length=None)
     for d in docs:
         d["plan_id"] = str(d.pop("_id"))
-    return {"plans": docs}
+    return {"plans": [_serialize_doc(d) for d in docs]}
 
 
 @router.delete("/plans/{plan_id}")
@@ -235,11 +263,21 @@ async def update_plan_progress(
         raise HTTPException(404, "Plan not found")
 
     plan = doc.get("plan", {})
-    try:
-        plan["weeks"][week - 1]["days"][day]["tasks"][task_index]["completed"] = completed
-    except (IndexError, KeyError):
-        raise HTTPException(400, "Invalid progress path")
+    weeks = plan.get("weeks", [])
+    if week < 1 or week > len(weeks):
+        raise HTTPException(400, "Invalid week number")
 
+    week_plan = weeks[week - 1]
+    days = week_plan.get("days", [])
+    day_index = next((i for i, d in enumerate(days) if d.get("day") == day), None)
+    if day_index is None:
+        raise HTTPException(400, f"Day '{day}' not found in week {week}")
+
+    day_tasks = days[day_index].get("tasks", [])
+    if task_index < 0 or task_index >= len(day_tasks):
+        raise HTTPException(400, "Invalid task index")
+
+    day_tasks[task_index]["completed"] = completed
     await study_plans_collection.update_one(
         {"_id": ObjectId(plan_id)},
         {"$set": {"plan": plan, "updated_at": datetime.now(timezone.utc)}},

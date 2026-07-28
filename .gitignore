@@ -25,3 +25,4 @@ DESIGN.md
 Backend/uploads/
 Backend/processed/
 Backend/chroma_db/
+Backend/test_chroma/

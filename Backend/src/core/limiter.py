@@ -21,6 +21,8 @@ limiter = Limiter(key_func=_rate_limit_key, storage_uri="memory://")
 
 
 # Common limit strings. The key function above means these are per-user by default.
-GENERATION_LIMIT = "10/hour"  # mock tests, flashcards, ai materials, analysis
+GENERATION_LIMIT = "10/hour"  # mock tests, flashcards, ai materials, analysis, study plans
 CHAT_LIMIT = "60/hour"        # chat messages (beyond plan enforcement)
+SOCRATIC_LIMIT = "30/hour"    # socratic tutor endpoints
 UPLOAD_LIMIT = "30/hour"      # PDF/document uploads
+SUBMISSION_LIMIT = "30/hour"  # mock-test submissions

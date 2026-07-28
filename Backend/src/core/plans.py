@@ -17,7 +17,7 @@ ALL_PLANS = (STARTER, PRO, PREMIUM)
 # are cumulative totals; the rest are calendar-month counts.
 ALL_RESOURCES = (
     "mock_test", "flashcard", "ai_material", "chat_message",
-    "doc_storage", "class_count",
+    "doc_storage", "class_count", "study_plan",
 )
 
 _MB = 1024 * 1024
@@ -26,15 +26,16 @@ _GB = 1024 * 1024 * 1024
 PLAN_LIMITS: Dict[str, Dict[str, float]] = {
     STARTER: {
         "mock_test": 3, "flashcard": 50, "ai_material": 5, "chat_message": 100,
-        "doc_storage": 50 * _MB, "class_count": 1,
+        "doc_storage": 50 * _MB, "class_count": 1, "study_plan": 5,
     },
     PRO: {
         "mock_test": 50, "flashcard": 500, "ai_material": 50, "chat_message": 1000,
-        "doc_storage": 1 * _GB, "class_count": 10,
+        "doc_storage": 1 * _GB, "class_count": 10, "study_plan": 50,
     },
     PREMIUM: {
         "mock_test": math.inf, "flashcard": math.inf, "ai_material": math.inf,
         "chat_message": math.inf, "doc_storage": 10 * _GB, "class_count": math.inf,
+        "study_plan": math.inf,
     },
 }
 

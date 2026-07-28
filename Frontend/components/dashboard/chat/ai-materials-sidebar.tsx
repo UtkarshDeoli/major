@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorMessage } from "@/lib/errors";
 import { useRouter } from "next/navigation";
-import { aiMaterialAPI, flashcardAPI } from "@/lib/api";
+import { aiMaterialAPI, flashcardAPI, mockTestAPI } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -110,7 +110,26 @@ export function AIMaterialsSidebar({ selectedMaterial, selectedSubjectName, onCl
 
   const handleMockTest = async () => {
     if (!requireMaterial() || !selectedMaterial) return;
-    // Route to the mock-test generator, preloading context via query params.
+
+    // If we have a RAG doc_id, generate a one-click practice test from the material.
+    if (selectedMaterial.docId) {
+      setBusy("mocktest");
+      try {
+        const test = await mockTestAPI.generateFromDoc({
+          doc_ids: [selectedMaterial.docId],
+          subject: selectedSubjectName || undefined,
+        });
+        toast({ title: "Practice test ready", description: "Starting your test now." });
+        router.push(`/test/quiz?testId=${test.test_id}`);
+      } catch (e) {
+        toast({ title: "Mock test failed", description: getErrorMessage(e), variant: "destructive" });
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
+
+    // Fallback for materials without a doc_id: open the full generator prefilled.
     const params = new URLSearchParams({
       material: selectedMaterial.id,
       subject: selectedSubjectName || "",

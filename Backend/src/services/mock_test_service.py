@@ -39,8 +39,8 @@ async def generate_mock_test_service(
     source_material_ids: Optional[List[str]] = None,
     adaptive: bool = False,
 ) -> MockTestResponse:
-    """Generate a mock test using Gemini AI"""
-    
+    """Generate a mock test using syllabus + previous year papers."""
+
     if not gemini_service:
         raise HTTPException(
             status_code=503,
@@ -124,7 +124,7 @@ async def generate_mock_test_service(
         await store_mock_test(mock_test.model_dump())
 
         return mock_test
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -132,6 +132,202 @@ async def generate_mock_test_service(
             status_code=500,
             detail=f"Error generating mock test: {str(e)}"
         )
+
+
+async def generate_mock_test_from_docs_service(
+    doc_ids: List[str],
+    num_mcq: int,
+    num_text: int,
+    total_marks: int,
+    difficulty_level: str,
+    user_id: str,
+    subject: Optional[str] = None,
+    grading_mode: str = "auto",
+) -> MockTestResponse:
+    """Generate a practice mock test directly from uploaded document(s)."""
+
+    if not gemini_service:
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini service is not available"
+        )
+
+    try:
+        # Validate ownership and collect content
+        parts: List[str] = []
+        for doc_id in doc_ids:
+            pdf = await get_pdf_metadata(doc_id)
+            if not pdf or pdf.get("user_id") != user_id:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Document {doc_id} not found or access denied"
+                )
+            file_path = pdf.get("file_path")
+            if not file_path:
+                continue
+            text = await gemini_service.extract_text_from_pdf(file_path)
+            if text:
+                parts.append(text)
+
+        if not parts:
+            raise HTTPException(
+                status_code=400,
+                detail="No readable content found in the selected documents"
+            )
+
+        combined_content = "\n\n---DOCUMENT---\n\n".join(parts)[:12000]
+
+        mock_test_data = await _generate_mock_test_from_content_with_gemini(
+            content=combined_content,
+            num_mcq=num_mcq,
+            num_text=num_text,
+            total_marks=total_marks,
+            difficulty_level=difficulty_level,
+            subject=subject,
+        )
+
+        test_id = str(uuid.uuid4())
+        created_at = datetime.now(timezone.utc)
+
+        mock_test = MockTestResponse(
+            test_id=test_id,
+            title=f"Practice Test - {subject or 'General'} - {created_at.strftime('%B %d, %Y')}",
+            questions=mock_test_data["questions"],
+            total_marks=total_marks,
+            time_limit=_calculate_time_limit(total_marks, num_mcq, num_text),
+            created_at=created_at,
+            user_id=user_id,
+            difficulty_level=difficulty_level,
+            subject=subject,
+            grading_mode=grading_mode,  # type: ignore[arg-type]
+        )
+
+        await store_mock_test(mock_test.model_dump())
+        return mock_test
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generating practice test: {str(e)}"
+        )
+
+
+async def _generate_mock_test_from_content_with_gemini(
+    content: str,
+    num_mcq: int,
+    num_text: int,
+    total_marks: int,
+    difficulty_level: str,
+    subject: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Use Gemini to generate questions from provided study content."""
+
+    mcq_marks_per_question = 2
+    num_text_safe = max(0, num_text)
+    text_marks_per_question = (
+        max(5, (total_marks - num_mcq * mcq_marks_per_question) // num_text_safe)
+        if num_text_safe > 0 else 5
+    )
+
+    prompt = f"""You are an expert exam paper setter. Create a realistic practice test based ONLY on the study material provided below.
+
+INSTRUCTIONS:
+1. Read the study material carefully.
+2. Generate questions that are directly based on the material.
+3. Cover important concepts, facts, and examples from the material.
+4. Maintain the requested difficulty level and balance across topics.
+
+STUDY MATERIAL:
+{content}
+
+SUBJECT: {subject or "Not specified"}
+DIFFICULTY: {difficulty_level}
+
+REQUIREMENTS:
+- Generate {num_mcq} Multiple Choice Questions (MCQ) worth {mcq_marks_per_question} marks each
+- Generate {num_text} Descriptive/Text questions worth {text_marks_per_question} marks each
+- Total marks: {total_marks}
+- MCQ should have 4 options with one correct answer
+- Options must start with A), B), C), D)
+
+RESPOND ONLY WITH VALID JSON IN THIS EXACT FORMAT:
+{{
+    "questions": [
+        {{
+            "id": "1",
+            "type": "mcq",
+            "question": "Which of the following correctly describes...",
+            "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
+            "correctAnswer": "A) Option 1",
+            "marks": {mcq_marks_per_question},
+            "unit": "Unit 1",
+            "topic": "Specific topic",
+            "difficulty": "Easy/Medium/Hard"
+        }},
+        {{
+            "id": "{num_mcq + 1}",
+            "type": "text",
+            "question": "Explain the concept of... with suitable examples.",
+            "marks": {text_marks_per_question},
+            "unit": "Unit 2",
+            "topic": "Specific topic",
+            "difficulty": "Medium/Hard"
+        }}
+    ]
+}}
+
+CRITICAL REQUIREMENTS:
+- Generate exactly {num_mcq + num_text} questions total
+- Every question MUST be answerable from the provided study material
+- NO generic questions unrelated to the material
+- MCQ options must start with A), B), C), D)
+- Ensure sequential question IDs as strings
+- Return ONLY the JSON object, no additional text"""
+
+    try:
+        response = gemini_service.model.generate_content(prompt)
+
+        if not response or not response.text:
+            return _create_fallback_mock_test(num_mcq, num_text, mcq_marks_per_question, text_marks_per_question)
+
+        response_text = response.text.strip()
+        print(f"Practice test generation response: {response_text[:500]}...")
+
+        start_idx = response_text.find('{')
+        end_idx = response_text.rfind('}') + 1
+
+        if start_idx == -1 or end_idx == 0:
+            return _create_fallback_mock_test(num_mcq, num_text, mcq_marks_per_question, text_marks_per_question)
+
+        json_text = response_text[start_idx:end_idx]
+        mock_test_data = json.loads(json_text)
+
+        questions = []
+        for i, q_data in enumerate(mock_test_data.get("questions", [])):
+            question = MockTestQuestion(
+                id=str(i + 1),
+                type=q_data.get("type", "mcq"),
+                question=q_data.get("question", f"Sample question {i + 1}"),
+                options=q_data.get("options") if q_data.get("type") == "mcq" else None,
+                correctAnswer=q_data.get("correctAnswer") if q_data.get("type") == "mcq" else None,
+                marks=q_data.get("marks", mcq_marks_per_question if q_data.get("type") == "mcq" else text_marks_per_question),
+                unit=q_data.get("unit"),
+                topic=q_data.get("topic"),
+                difficulty=q_data.get("difficulty", difficulty_level),
+            )
+            questions.append(question)
+
+        return {"questions": questions}
+
+    except json.JSONDecodeError as e:
+        print(f"JSON parsing error in practice test generation: {str(e)}")
+        return _create_fallback_mock_test(num_mcq, num_text, mcq_marks_per_question, text_marks_per_question)
+    except Exception as e:
+        print(f"Error in practice test generation: {str(e)}")
+        return _create_fallback_mock_test(num_mcq, num_text, mcq_marks_per_question, text_marks_per_question)
+
 
 async def _generate_mock_test_with_gemini(
     syllabus_content: str,

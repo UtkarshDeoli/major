@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, Path, Form
-from typing import List, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel
 
 from src.core.models import DocumentUploadResponse, DocumentListResponse, PDFMetadata
@@ -130,15 +130,51 @@ async def list_documents(
 ):
     """List all documents for the current user."""
     pdfs = await get_user_pdfs(user_id)
-    
+
     # Apply filters
     if subject:
         pdfs = [p for p in pdfs if p.get("subject") == subject]
     if tags:
         pdfs = [p for p in pdfs if any(t in p.get("tags", []) for t in tags)]
-    
+
     return DocumentListResponse(
         documents=[PDFMetadata(**p) for p in pdfs]
+    )
+
+
+class SubjectDocumentGroup(BaseModel):
+    name: str
+    documents: List[PDFMetadata]
+
+
+class DocumentsBySubjectResponse(BaseModel):
+    subjects: List[SubjectDocumentGroup]
+    others: SubjectDocumentGroup
+
+
+@router.get("/by-subject", response_model=DocumentsBySubjectResponse)
+async def list_documents_by_subject(user_id: str = Depends(get_current_user)):
+    """List all user documents grouped by subject; uncategorized docs go to Others."""
+    pdfs = await get_user_pdfs(user_id)
+
+    subject_buckets: Dict[str, List[PDFMetadata]] = {}
+    others: List[PDFMetadata] = []
+
+    for pdf in pdfs:
+        meta = PDFMetadata(**pdf)
+        if meta.subject:
+            subject_buckets.setdefault(meta.subject, []).append(meta)
+        else:
+            others.append(meta)
+
+    subjects = [
+        SubjectDocumentGroup(name=name, documents=docs)
+        for name, docs in sorted(subject_buckets.items(), key=lambda x: x[0].lower())
+    ]
+
+    return DocumentsBySubjectResponse(
+        subjects=subjects,
+        others=SubjectDocumentGroup(name="Others", documents=others),
     )
 
 @router.post("/{doc_id}/tags")
