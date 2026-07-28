@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Building2 } from "lucide-react";
-import { API_BASE_URL, orgAPI } from "@/lib/api";
+import { orgAPI } from "@/lib/api";
 import { useAuth } from "@/lib/context/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { getErrorMessage } from "@/lib/errors";
@@ -25,6 +25,17 @@ export default function OrgOnboardingPage() {
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
   const [tagline, setTagline] = useState("");
   const [logoFile, setLogoFile] = useState<File | null>(null);
+
+  const logoPreviewUrl = useMemo(
+    () => (logoFile ? URL.createObjectURL(logoFile) : null),
+    [logoFile],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl);
+    };
+  }, [logoPreviewUrl]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -45,7 +56,7 @@ export default function OrgOnboardingPage() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const created: any = await orgAPI.create({
+      await orgAPI.create({
         name,
         brand_name: brandName || undefined,
         tagline: tagline || undefined,
@@ -165,9 +176,9 @@ export default function OrgOnboardingPage() {
               <input id="logo" type="file" accept="image/*"
                 onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
                 className="border rounded-md px-3 py-2" />
-              {logoFile && (
+              {logoPreviewUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={URL.createObjectURL(logoFile)} alt="logo preview" className="h-12 w-12 object-contain" />
+                <img src={logoPreviewUrl} alt="logo preview" className="h-12 w-12 object-contain" />
               )}
             </div>
 
