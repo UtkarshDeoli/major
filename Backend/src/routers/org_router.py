@@ -71,6 +71,8 @@ async def my_org(user=Depends(require_role("subadmin"))):
     org = await svc.get_org_by_owner(user["email"])
     if not org:
         raise HTTPException(404, "No organization found")
+    org.pop("logo_file_path", None)
+    org.pop("_id", None)
     members = await svc.list_members(user["email"])
     return {
         "org": org,

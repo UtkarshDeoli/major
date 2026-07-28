@@ -22,6 +22,10 @@ class _FakeColl:
                 return dict(d)
         return None
 
+    async def find(self, q):
+        return [dict(d) for d in self.docs.values()
+                if all(d.get(k) == v for k, v in q.items())]
+
     async def insert_one(self, doc):
         self._i += 1
         self.docs[str(self._i)] = dict(doc)
@@ -84,6 +88,24 @@ def test_upload_and_fetch_logo(setup):
     img = c.get(f"/orgs/{org_id}/logo")
     assert img.status_code == 200
     assert img.headers["content-type"].startswith("image/")
+
+
+def test_get_orgs_me_hides_logo_file_path(setup):
+    c = setup["client"]
+    c.post("/orgs", json={"name": "Acme", "tier": "pro", "seats_total": 5, "billing_cycle": "monthly"})
+
+    r = c.post(
+        "/orgs/logo",
+        files={"file": ("logo.png", b"\x89PNG\r\n\x1a\n fake", "image/png")},
+    )
+    assert r.status_code == 200, r.text
+
+    _set_auth("subadmin", "owner@x.com")
+    r = c.get("/orgs/me")
+    assert r.status_code == 200, r.text
+    assert "logo_file_path" not in r.json()["org"]
+    assert "_id" not in r.json()["org"]
+    assert r.json()["org"]["logo_url"]
 
 
 def test_logo_404_when_none(setup):
