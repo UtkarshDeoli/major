@@ -28,6 +28,7 @@ export interface User {
   name?: string;
   role: UserRole;
   institute?: string;
+  curriculum?: string;
   preferred_language: string;
   onboarding_completed: boolean;
   active_exam_id?: string;
@@ -67,6 +68,7 @@ export interface SignupPayload {
   email: string;
   password: string;
   name?: string;
+  curriculum?: string;
 }
 
 // ─── Context ────────────────────────────────────────────────────────────────
