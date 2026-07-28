@@ -1,6 +1,8 @@
+import os
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Path, HTTPException, status
+from fastapi import APIRouter, Depends, File, Path, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from src.core.security import require_role, get_current_user_with_role
@@ -49,6 +51,19 @@ async def get_branding(org_id: str = Path(...), user=Depends(get_current_user_wi
     if not org:
         raise HTTPException(404, "Organization not found")
     return svc.public_branding(org)
+
+
+@router.post("/logo")
+async def upload_logo(file: UploadFile = File(...), user=Depends(require_role("subadmin"))):
+    return await svc.upload_logo(user["email"], file)
+
+
+@router.get("/{org_id}/logo")
+async def get_logo(org_id: str = Path(...)):
+    path = await svc.get_logo_path(org_id)
+    if not path or not os.path.exists(path):
+        raise HTTPException(404, "No logo on file")
+    return FileResponse(path, media_type="image/*")
 
 
 @router.get("/me")

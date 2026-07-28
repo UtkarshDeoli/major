@@ -1,15 +1,16 @@
 """Organization (coaching/school) + seat license logic."""
+import os
 import secrets
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 
 from src.core.data_store import (
     users_collection, organizations_collection, org_invites_collection,
 )
 from src.services import billing_service
-from src.core.config import RAZORPAY_KEY_ID
+from src.core.config import RAZORPAY_KEY_ID, UPLOADS_DIR
 from src.core.plans import PLAN_PRICES
 
 
@@ -174,3 +175,36 @@ def public_branding(org: dict) -> dict:
         "logo_url": org.get("logo_url"),
         "tagline": org.get("tagline"),
     }
+
+
+async def upload_logo(owner_id: str, file: UploadFile, uploads_dir: Optional[str] = None) -> dict:
+    if organizations_collection is None:
+        raise HTTPException(503, "Database connection not available")
+    org = await get_org_by_owner(owner_id)
+    if not org:
+        raise HTTPException(404, "No organization found for your account")
+    content = await file.read()
+    uploads_dir = uploads_dir or UPLOADS_DIR
+    org_dir = os.path.join(uploads_dir, "orgs", org["org_id"])
+    os.makedirs(org_dir, exist_ok=True)
+    ext = os.path.splitext(file.filename or "logo.png")[1] or ".png"
+    filename = f"logo{ext}"
+    path = os.path.join(org_dir, filename)
+    with open(path, "wb") as f:
+        f.write(content)
+    logo_url = f"/orgs/{org['org_id']}/logo"
+    await organizations_collection.update_one(
+        {"org_id": org["org_id"]},
+        {"$set": {"logo_url": logo_url, "logo_file_path": path,
+                  "updated_at": datetime.now(timezone.utc)}},
+    )
+    return {"logo_url": logo_url}
+
+
+async def get_logo_path(org_id: str) -> Optional[str]:
+    if organizations_collection is None:
+        return None
+    org = await organizations_collection.find_one({"org_id": org_id})
+    if not org:
+        return None
+    return org.get("logo_file_path")

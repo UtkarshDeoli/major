@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     # ChromaDB settings
     CHROMA_DB_PATH: str = "./chroma_db"
+    UPLOADS_DIR: str = "./uploads"
     GEMINI_API_KEY: str
 
     # Google OAuth settings
@@ -51,6 +52,7 @@ SECRET_KEY = settings.SECRET_KEY
 ALGORITHM = settings.ALGORITHM
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.ACCESS_TOKEN_EXPIRE_MINUTES
 CHROMA_DB_PATH = settings.CHROMA_DB_PATH
+UPLOADS_DIR = settings.UPLOADS_DIR
 GEMINI_API_KEY = settings.GEMINI_API_KEY
 GOOGLE_CLIENT_ID = settings.GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET = settings.GOOGLE_CLIENT_SECRET
