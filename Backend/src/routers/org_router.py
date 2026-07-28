@@ -12,9 +12,15 @@ router = APIRouter(prefix="/orgs", tags=["Organizations"])
 class OrgCreateRequest(BaseModel):
     name: str
     brand_name: Optional[str] = None
+    tagline: Optional[str] = None
     tier: Literal["pro", "premium"]
     seats_total: int = 1
     billing_cycle: Literal["monthly", "yearly"] = "monthly"
+
+
+class OrgUpdateRequest(BaseModel):
+    brand_name: Optional[str] = None
+    tagline: Optional[str] = None
 
 
 class InviteRequest(BaseModel):
@@ -29,7 +35,20 @@ class SeatsRequest(BaseModel):
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_org(req: OrgCreateRequest, user=Depends(require_role("subadmin", "admin"))):
     return await svc.create_org(user["email"], req.name, req.brand_name,
-                                req.tier, req.seats_total, req.billing_cycle)
+                                req.tier, req.seats_total, req.billing_cycle, req.tagline)
+
+
+@router.patch("/")
+async def update_org(req: OrgUpdateRequest, user=Depends(require_role("subadmin"))):
+    return await svc.update_org(user["email"], req.brand_name, req.tagline)
+
+
+@router.get("/{org_id}/branding")
+async def get_branding(org_id: str = Path(...), user=Depends(get_current_user_with_role)):
+    org = await svc.get_org_by_org_id(org_id)
+    if not org:
+        raise HTTPException(404, "Organization not found")
+    return svc.public_branding(org)
 
 
 @router.get("/me")

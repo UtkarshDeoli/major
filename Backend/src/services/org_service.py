@@ -18,7 +18,8 @@ def _gen_code() -> str:
 
 
 async def create_org(owner_id: str, name: str, brand_name: Optional[str],
-                     tier: str, seats_total: int, billing_cycle: str) -> dict:
+                     tier: str, seats_total: int, billing_cycle: str,
+                     tagline: Optional[str] = None) -> dict:
     if organizations_collection is None or users_collection is None:
         raise HTTPException(503, "Database connection not available")
     existing = await organizations_collection.find_one({"owner_user_id": owner_id})
@@ -28,6 +29,7 @@ async def create_org(owner_id: str, name: str, brand_name: Optional[str],
     org_id = secrets.token_urlsafe(8)
     doc = {
         "org_id": org_id, "name": name, "brand_name": brand_name,
+        "tagline": tagline, "logo_url": None, "logo_file_path": None,
         "owner_user_id": owner_id, "tier": tier, "seats_total": seats_total,
         "seats_used": 0, "status": "active", "billing_cycle": billing_cycle,
         "created_at": now, "updated_at": now,
@@ -139,4 +141,36 @@ async def add_seats(owner_id: str, add_seats: int) -> dict:
             "razorpay_order_id": order["id"], "key_id": RAZORPAY_KEY_ID,
             "amount": amount, "currency": "INR",
         }
+    }
+
+
+async def get_org_by_org_id(org_id: str) -> Optional[dict]:
+    if organizations_collection is None:
+        return None
+    return await organizations_collection.find_one({"org_id": org_id})
+
+
+async def update_org(owner_id: str, brand_name: Optional[str], tagline: Optional[str]) -> dict:
+    if organizations_collection is None:
+        raise HTTPException(503, "Database connection not available")
+    org = await get_org_by_owner(owner_id)
+    if not org:
+        raise HTTPException(404, "No organization found")
+    update: dict = {"updated_at": datetime.now(timezone.utc)}
+    if brand_name is not None:
+        update["brand_name"] = brand_name
+    if tagline is not None:
+        update["tagline"] = tagline
+    await organizations_collection.update_one(
+        {"org_id": org["org_id"]}, {"$set": update})
+    return {"updated": True}
+
+
+def public_branding(org: dict) -> dict:
+    return {
+        "org_id": org.get("org_id"),
+        "name": org.get("name"),
+        "brand_name": org.get("brand_name"),
+        "logo_url": org.get("logo_url"),
+        "tagline": org.get("tagline"),
     }
