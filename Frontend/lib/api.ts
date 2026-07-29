@@ -702,9 +702,7 @@ export const classMaterialAPI = {
   async upload(classId: string, subjectId: string, file: File): Promise<any> {
     const form = new FormData();
     form.append("file", file);
-    const res = await api.post(`/classes/${classId}/subjects/${subjectId}/materials`, form, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    const res = await api.post(`/classes/${classId}/subjects/${subjectId}/materials`, form);
     return res.data;
   },
   async list(classId: string, subjectId: string): Promise<{ materials: any[] }> {
@@ -814,9 +812,7 @@ export const orgAPI = {
   async uploadLogo(file: File): Promise<{ logo_url: string }> {
     const form = new FormData();
     form.append("file", file);
-    const res = await api.post("/orgs/logo", form, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    const res = await api.post("/orgs/logo", form);
     return res.data;
   },
 
