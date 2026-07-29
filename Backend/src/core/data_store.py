@@ -602,6 +602,35 @@ async def add_student_to_class(class_id: str, student_email: str, teacher_id: st
     return object_id_to_str(result) if result else None
 
 
+# --- Class subject helpers --------------------------------------------------
+async def store_class_subject(subject_data: Dict[str, Any]) -> str:
+    if class_subjects_collection is None:
+        raise Exception("Database connection not available")
+    result = await class_subjects_collection.insert_one(subject_data)
+    return str(result.inserted_id)
+
+
+async def get_class_subject_by_id(subject_id: str) -> Optional[Dict[str, Any]]:
+    if class_subjects_collection is None:
+        raise Exception("Database connection not available")
+    sub = await class_subjects_collection.find_one({"_id": ObjectId(subject_id)})
+    return object_id_to_str(sub) if sub else None
+
+
+async def list_class_subjects(class_id: str) -> List[Dict[str, Any]]:
+    if class_subjects_collection is None:
+        raise Exception("Database connection not available")
+    cursor = class_subjects_collection.find({"class_id": class_id}).sort("created_at", 1)
+    subs = await cursor.to_list(length=None)
+    return [object_id_to_str(s) for s in subs]
+
+
+async def delete_class_subject(subject_id: str):
+    if class_subjects_collection is None:
+        raise Exception("Database connection not available")
+    await class_subjects_collection.delete_one({"_id": ObjectId(subject_id)})
+
+
 async def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
     if users_collection is None:
         raise Exception("Database connection not available")
