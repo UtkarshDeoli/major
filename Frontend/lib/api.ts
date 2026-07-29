@@ -675,6 +675,54 @@ export const classAPI = {
     const res = await api.delete(`/classes/${classId}/students/${encodeURIComponent(studentEmail)}`);
     return res.data;
   },
+  async addTeacher(classId: string, teacherEmail: string): Promise<any> {
+    const res = await api.post(`/classes/${classId}/teachers`, { teacher_email: teacherEmail });
+    return res.data;
+  },
+};
+
+// ─── Class subjects ──────────────────────────────────────────────────────────
+export const classSubjectAPI = {
+  async create(classId: string, req: { name: string; icon?: string }): Promise<{ id: string; class_id: string; name: string; icon?: string; created_by: string }> {
+    const res = await api.post(`/classes/${classId}/subjects`, req);
+    return res.data;
+  },
+  async list(classId: string): Promise<{ subjects: any[] }> {
+    const res = await api.get(`/classes/${classId}/subjects`);
+    return res.data;
+  },
+  async delete(classId: string, subjectId: string): Promise<any> {
+    const res = await api.delete(`/classes/${classId}/subjects/${subjectId}`);
+    return res.data;
+  },
+};
+
+// ─── Class materials ─────────────────────────────────────────────────────────
+export const classMaterialAPI = {
+  async upload(classId: string, subjectId: string, file: File): Promise<any> {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await api.post(`/classes/${classId}/subjects/${subjectId}/materials`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return res.data;
+  },
+  async list(classId: string, subjectId: string): Promise<{ materials: any[] }> {
+    const res = await api.get(`/classes/${classId}/subjects/${subjectId}/materials`);
+    return res.data;
+  },
+  async delete(classId: string, materialId: string): Promise<any> {
+    const res = await api.delete(`/classes/${classId}/materials/${materialId}`);
+    return res.data;
+  },
+  async generateFlashcards(classId: string, materialId: string): Promise<{ deck_id: string; card_count: number }> {
+    const res = await api.post(`/classes/${classId}/materials/${materialId}/generate-flashcards`);
+    return res.data;
+  },
+  async generateMockTest(classId: string, materialId: string): Promise<any> {
+    const res = await api.post(`/classes/${classId}/materials/${materialId}/generate-mock-test`);
+    return res.data;
+  },
 };
 
 // ─── Subscriptions / Billing ────────────────────────────────────────────────
