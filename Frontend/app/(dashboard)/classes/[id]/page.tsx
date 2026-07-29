@@ -51,11 +51,11 @@ export default function ClassDetailPage() {
       const res = await classSubjectAPI.list(id)
       const list = (res.subjects || []) as Subject[]
       setSubjects(list)
-      if (list.length > 0 && !activeSubject) setActiveSubject(list[0].id)
+      setActiveSubject((prev) => (list.some((s) => s.id === prev) ? prev : list[0]?.id ?? null))
     } catch (e) {
       toast({ title: "Couldn't load subjects", description: getErrorMessage(e), variant: "destructive" })
     }
-  }, [id, activeSubject, toast])
+  }, [id, toast])
 
   const loadMaterials = useCallback(async () => {
     if (!activeSubject) return
@@ -85,7 +85,6 @@ export default function ClassDetailPage() {
   const handleDeleteSubject = async (subjectId: string) => {
     try {
       await classSubjectAPI.delete(id, subjectId)
-      if (activeSubject === subjectId) setActiveSubject(null)
       loadSubjects()
       toast({ title: "Subject deleted" })
     } catch (e) {
@@ -153,14 +152,29 @@ export default function ClassDetailPage() {
                 </div>
                 <div className="space-y-1">
                   {subjects.map((s) => (
-                    <button
+                    <div
                       key={s.id}
-                      onClick={() => setActiveSubject(s.id)}
-                      className={`w-full group flex items-center justify-between rounded-md px-3 py-2 text-sm ${activeSubject === s.id ? "bg-secondary text-foreground" : "hover:bg-muted/50 text-muted-foreground"}`}
+                      className={`group flex items-center justify-between rounded-md px-3 py-2 text-sm ${activeSubject === s.id ? "bg-secondary text-foreground" : "hover:bg-muted/50 text-muted-foreground"}`}
                     >
-                      <span>{s.name}</span>
-                      <Trash2 className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); handleDeleteSubject(s.id) }} />
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSubject(s.id)}
+                        className="flex-1 text-left"
+                      >
+                        {s.name}
+                      </button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        aria-label="Delete subject"
+                        title="Delete subject"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                        onClick={() => handleDeleteSubject(s.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   ))}
                   {subjects.length === 0 && <p className="text-xs text-muted-foreground px-1">No subjects yet.</p>}
                 </div>
