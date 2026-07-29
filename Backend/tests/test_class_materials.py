@@ -1,7 +1,8 @@
 import io
-import uuid
 import pytest
 from bson import ObjectId
+
+import src.services.document_processor as dp
 
 import src.core.data_store as ds
 import src.core.plan_enforcement as pe
@@ -56,6 +57,22 @@ class _FakeColl:
         class R:
             inserted_id = oid
         return R()
+
+    async def insert_many(self, docs):
+        inserted_ids = []
+        for doc in docs:
+            self._i += 1
+            d = dict(doc)
+            oid = str(ObjectId())
+            d["_id"] = oid
+            self.docs[str(self._i)] = d
+            inserted_ids.append(oid)
+
+        class R:
+            pass
+        result = R()
+        result.inserted_ids = inserted_ids
+        return result
 
     async def update_one(self, q, op, upsert=False):
         for d in self.docs.values():
@@ -146,13 +163,27 @@ def setup(monkeypatch, tmp_path):
     from src.services.vector_store import VectorStore
     monkeypatch.setattr(VectorStore, "get_embedding_model", lambda self=None: _FakeEncoder())
 
+    # Stub PDF extraction + chunking so RAG path succeeds in tests
+    monkeypatch.setattr(dp, "extract_text_from_pdf", lambda content: ("some text", 1))
+    monkeypatch.setattr(dp, "chunk_document", lambda text, doc_type: [{"chunk_index": 0, "content": "chunk", "page": 1, "section": "s"}])
+    monkeypatch.setattr(cms, "extract_text_from_pdf", lambda content: ("some text", 1))
+    monkeypatch.setattr(cms, "chunk_document", lambda text, doc_type: [{"chunk_index": 0, "content": "chunk", "page": 1, "section": "s"}])
+
     yield dict(users=users, classes=classes, materials=materials, pdfs=pdfs, chunks=chunks, client=c, class_id=cid, subject_id=sid)
     app.dependency_overrides.pop(get_current_user_with_role, None)
 
 
+class _FakeEmbedding:
+    def __init__(self, values):
+        self._values = values
+
+    def tolist(self):
+        return self._values
+
+
 class _FakeEncoder:
     def encode(self, text):
-        return [0.0] * 384
+        return _FakeEmbedding([0.0] * 384)
 
 
 def test_upload_class_material(setup):
@@ -167,6 +198,9 @@ def test_upload_class_material(setup):
     assert data["name"] == "notes.pdf"
     assert data["class_subject_id"] == setup["subject_id"]
     assert data["doc_id"] is not None
+    assert data["rag_indexed"] is True
+    stored = next(d for d in setup["materials"].docs.values() if d["_id"] == data["id"])
+    assert stored["chunk_count"] == 1
 
 
 def test_list_and_delete_class_material(setup):
