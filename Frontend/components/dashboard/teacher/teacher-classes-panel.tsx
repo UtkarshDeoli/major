@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -146,7 +147,9 @@ export function TeacherClassesPanel() {
               <div className="flex items-center gap-2">
                 <code className="rounded bg-secondary px-2 py-1 text-[12px] tracking-wider font-mono">{c.enroll_code}</code>
                 <Button variant="ghost" size="icon" className="h-6 w-6" title="Copy enroll code" onClick={() => copyCode(c.enroll_code)}><Copy className="h-3 w-3" /></Button>
-                <Button variant="outline" size="sm" className="ml-auto h-7 text-[12px]" onClick={() => openClassDetail(c.id)}>Roster</Button>
+                <Button variant="outline" size="sm" className="ml-auto h-7 text-[12px]" asChild>
+                  <Link href={`/classes/${c.id}`}>Open</Link>
+                </Button>
               </div>
             </div>
           ))}

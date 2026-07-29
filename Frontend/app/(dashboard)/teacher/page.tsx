@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
   BookOpen, Users, TrendingUp, Target, Activity, X,
@@ -460,6 +461,11 @@ function TeacherDashboardContent() {
       >
         <TeacherClassesPanel />
       </motion.div>
+
+      <div className="flex items-center justify-between mt-4">
+        <p className="text-sm text-muted-foreground">View all classes, subjects, materials, and tests.</p>
+        <Button asChild variant="outline" size="sm"><Link href="/classes">Manage classes →</Link></Button>
+      </div>
 
       {/* Assign Existing Test */}
       {!isLoadingTests && teacherTests.length > 0 && (
