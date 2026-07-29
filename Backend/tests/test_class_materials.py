@@ -101,6 +101,11 @@ class _FakeColl:
                 del self.docs[k]
                 return
 
+    async def delete_many(self, q):
+        for k, d in list(self.docs.items()):
+            if all(self._match(d.get(kk), v, kk) for kk, v in q.items()):
+                del self.docs[k]
+
 
 def _set_auth(role, email):
     def _auth():
@@ -160,6 +165,7 @@ def setup(monkeypatch, tmp_path):
 
     # Stub out real ChromaDB + embedding to avoid loading models in tests
     monkeypatch.setattr(cms.vector_store, "add_chunks", lambda user_id, chunks: None)
+    monkeypatch.setattr(cms.vector_store, "delete_document_chunks", lambda user_id, doc_id: None)
     from src.services.vector_store import VectorStore
     monkeypatch.setattr(VectorStore, "get_embedding_model", lambda self=None: _FakeEncoder())
 

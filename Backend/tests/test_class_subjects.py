@@ -81,6 +81,11 @@ class _FakeColl:
                 del self.docs[k]
                 return
 
+    async def delete_many(self, q):
+        for k, d in list(self.docs.items()):
+            if all(self._match(d.get(kk), v, kk) for kk, v in q.items()):
+                del self.docs[k]
+
 
 def _set_auth(role, email):
     def _auth():
@@ -93,14 +98,30 @@ def setup(monkeypatch):
     users = _FakeColl()
     classes = _FakeColl()
     subjects = _FakeColl()
+    materials = _FakeColl()
+    pdfs = _FakeColl()
+    chunks = _FakeColl()
 
-    monkeypatch.setattr(ds, "users_collection", users)
-    monkeypatch.setattr(ds, "classes_collection", classes)
-    monkeypatch.setattr(ds, "class_subjects_collection", subjects)
+    coll_map = {
+        "users_collection": users,
+        "classes_collection": classes,
+        "class_subjects_collection": subjects,
+        "class_materials_collection": materials,
+        "pdfs_collection": pdfs,
+        "document_chunks_collection": chunks,
+    }
+    for name, coll in coll_map.items():
+        monkeypatch.setattr(ds, name, coll)
 
     svc = __import__("importlib").import_module("src.services.class_subject_service")
-    monkeypatch.setattr(svc, "classes_collection", classes)
-    monkeypatch.setattr(svc, "class_subjects_collection", subjects)
+    for name, coll in coll_map.items():
+        if hasattr(svc, name):
+            monkeypatch.setattr(svc, name, coll)
+    cms = __import__("importlib").import_module("src.services.class_material_service")
+    for name, coll in coll_map.items():
+        if hasattr(cms, name):
+            monkeypatch.setattr(cms, name, coll)
+    monkeypatch.setattr(cms.vector_store, "delete_document_chunks", lambda user_id, doc_id: None)
 
     _set_auth("teacher", "t1@x.com")
     c = TestClient(app)

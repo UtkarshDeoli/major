@@ -47,10 +47,12 @@ class GenerateMockTestFromMaterialResponse(MockTestResponse):
     pass
 
 
-async def _get_doc_content(doc_id: str, teacher_email: str) -> str:
+async def _get_doc_content(doc_id: str, class_id: str, teacher_email: str) -> str:
+    cls = await svc._require_class_teacher(class_id, teacher_email)
     from src.core.data_store import get_pdf_metadata
     pdf = await get_pdf_metadata(doc_id)
-    if not pdf or pdf.get("user_id") != teacher_email:
+    authorized = set(cls.get("teacher_ids", [cls.get("teacher_id")]))
+    if not pdf or pdf.get("user_id") not in authorized:
         raise HTTPException(status_code=404, detail="Source document not found")
     file_path = pdf.get("file_path")
     if not file_path:
@@ -108,7 +110,7 @@ async def generate_flashcards_from_material(
     if not mat or not mat.get("doc_id"):
         raise HTTPException(status_code=400, detail="Material is not indexed for AI generation")
 
-    content = await _get_doc_content(mat["doc_id"], teacher["email"])
+    content = await _get_doc_content(mat["doc_id"], class_id, teacher["email"])
     cards_data = await generate_flashcards(content, num_cards=15, subject=mat.get("name"))
     if not cards_data:
         raise HTTPException(status_code=502, detail="Failed to generate flashcards")
@@ -156,6 +158,8 @@ async def generate_mock_test_from_material(
     if not mat or not mat.get("doc_id"):
         raise HTTPException(status_code=400, detail="Material is not indexed for AI generation")
 
+    cls = await svc._require_class_teacher(class_id, teacher["email"])
+    authorized_user_ids = list(cls.get("teacher_ids", [cls.get("teacher_id")]))
     mock_test = await generate_mock_test_from_docs_service(
         doc_ids=[mat["doc_id"]],
         num_mcq=10,
@@ -167,5 +171,6 @@ async def generate_mock_test_from_material(
         class_id=class_id,
         class_subject_id=mat["class_subject_id"],
         created_by=teacher["email"],
+        authorized_user_ids=authorized_user_ids,
     )
     return mock_test

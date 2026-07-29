@@ -13,6 +13,7 @@ from src.core.data_store import (
     get_class_subject_by_id,
     delete_class_subject,
 )
+from src.services.class_material_service import remove_class_subject_materials
 
 
 async def _require_class_teacher(class_id: str, teacher_email: str):
@@ -63,6 +64,7 @@ async def remove_class_subject(class_id: str, subject_id: str, teacher_email: st
     if not subject or subject.get("class_id") != class_id:
         raise HTTPException(status_code=404, detail="Subject not found in this class")
 
+    await remove_class_subject_materials(class_id, subject_id, teacher_email)
     await delete_class_subject(subject_id)
     await classes_collection.update_one(
         {"_id": __import__("bson").ObjectId(class_id)},

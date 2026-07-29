@@ -143,6 +143,7 @@ def setup(monkeypatch):
     _set_auth("teacher", "t1@x.com")
 
     monkeypatch.setattr(cms.vector_store, "add_chunks", lambda user_id, chunks: None)
+    monkeypatch.setattr(cms.vector_store, "delete_document_chunks", lambda user_id, doc_id: None)
     from src.services.vector_store import VectorStore
     monkeypatch.setattr(VectorStore, "get_embedding_model", lambda self=None: _FakeEncoder())
 
@@ -165,7 +166,7 @@ def setup(monkeypatch):
         return [{"front": "Q?", "back": "A."}] * 2
     monkeypatch.setattr(cmr, "generate_flashcards", fake_generate_flashcards)
 
-    async def fake_generate(doc_ids, num_mcq, num_text, total_marks, difficulty_level, user_id, subject=None, class_id=None, class_subject_id=None, created_by=None, grading_mode="auto"):
+    async def fake_generate(doc_ids, num_mcq, num_text, total_marks, difficulty_level, user_id, subject=None, class_id=None, class_subject_id=None, created_by=None, grading_mode="auto", authorized_user_ids=None):
         from datetime import datetime, timezone
         from src.core.models import MockTestResponse, MockTestQuestion
         return MockTestResponse(

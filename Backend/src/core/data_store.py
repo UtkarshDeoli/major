@@ -186,13 +186,21 @@ async def get_pdf_metadata(pdf_id: str):
     """Get metadata for a specific PDF"""
     if pdfs_collection is None:
         raise Exception("Database connection not available")
-    
+
     pdf = await pdfs_collection.find_one({"_id": ObjectId(pdf_id)})
     if pdf:
         pdf["id"] = str(pdf["_id"])
         del pdf["_id"]
         return pdf
     return None
+
+
+async def delete_pdf_metadata(pdf_id: str):
+    """Remove PDF metadata from MongoDB."""
+    if pdfs_collection is None:
+        raise Exception("Database connection not available")
+    await pdfs_collection.delete_one({"_id": ObjectId(pdf_id)})
+
 
 # Chat history operations
 async def create_chat_session(user_id: str, title: str, pdf_id: Optional[str] = None, doc_ids: Optional[List[str]] = None):
@@ -585,7 +593,7 @@ async def get_class_by_enroll_code(code: str) -> Optional[Dict[str, Any]]:
 async def get_teacher_classes(teacher_id: str) -> List[Dict[str, Any]]:
     if classes_collection is None:
         raise Exception("Database connection not available")
-    cursor = classes_collection.find({"teacher_id": teacher_id}).sort("created_at", -1)
+    cursor = classes_collection.find({"$or": [{"teacher_id": teacher_id}, {"teacher_ids": teacher_id}]}).sort("created_at", -1)
     classes = await cursor.to_list(length=None)
     return [object_id_to_str(c) for c in classes]
 

@@ -13,12 +13,15 @@ from src.core.data_store import (
     get_class_by_id,
     get_class_subject_by_id,
     get_class_material_by_id,
+    get_pdf_metadata,
     list_class_materials,
     store_class_material,
     delete_class_material,
     store_pdf_metadata,
     update_pdf_metadata,
+    delete_pdf_metadata,
     store_document_chunks,
+    delete_document_chunks,
 )
 from src.services.vector_store import VectorStore
 from src.services.document_processor import detect_doc_type, extract_text_from_pdf, chunk_document
@@ -171,6 +174,37 @@ async def list_materials(class_id: str, class_subject_id: Optional[str], teacher
     return mats
 
 
+async def _delete_material_cascade(mat: dict) -> None:
+    """Remove a class material and all associated PDF/file/vector data."""
+    doc_id = mat.get("doc_id")
+    if doc_id:
+        pdf = await get_pdf_metadata(doc_id)
+        if pdf:
+            file_path = pdf.get("file_path")
+            if file_path and os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except OSError:
+                    pass
+            vector_store.delete_document_chunks(pdf.get("user_id"), doc_id)
+            await delete_document_chunks(doc_id)
+            await delete_pdf_metadata(doc_id)
+    await delete_class_material(mat["id"])
+
+
+async def remove_class_subject_materials(class_id: str, class_subject_id: str, teacher_email: str) -> int:
+    """Delete all materials for a subject and their associated PDF/file/vector data."""
+    await _require_class_teacher(class_id, teacher_email)
+    mats = await list_class_materials(class_id, class_subject_id)
+    deleted = 0
+    for m in mats:
+        if "_id" in m and "id" not in m:
+            m["id"] = str(m.pop("_id"))
+        await _delete_material_cascade(m)
+        deleted += 1
+    return deleted
+
+
 async def remove_class_material(class_id: str, material_id: str, teacher_email: str) -> dict:
     if class_materials_collection is None:
         raise HTTPException(status_code=503, detail="Database connection not available")
@@ -178,7 +212,9 @@ async def remove_class_material(class_id: str, material_id: str, teacher_email: 
     mat = await get_class_material_by_id(material_id)
     if not mat or mat.get("class_id") != class_id:
         raise HTTPException(status_code=404, detail="Material not found in this class")
-    await delete_class_material(material_id)
+    if "_id" in mat and "id" not in mat:
+        mat["id"] = str(mat.pop("_id"))
+    await _delete_material_cascade(mat)
     return {"material_id": material_id, "deleted": True}
 
 

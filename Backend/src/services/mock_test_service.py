@@ -146,6 +146,7 @@ async def generate_mock_test_from_docs_service(
     class_id: Optional[str] = None,
     class_subject_id: Optional[str] = None,
     created_by: Optional[str] = None,
+    authorized_user_ids: Optional[List[str]] = None,
 ) -> MockTestResponse:
     """Generate a practice mock test directly from uploaded document(s)."""
 
@@ -160,7 +161,8 @@ async def generate_mock_test_from_docs_service(
         parts: List[str] = []
         for doc_id in doc_ids:
             pdf = await get_pdf_metadata(doc_id)
-            if not pdf or pdf.get("user_id") != user_id:
+            owners = set(authorized_user_ids) if authorized_user_ids else {user_id}
+            if not pdf or pdf.get("user_id") not in owners:
                 raise HTTPException(
                     status_code=404,
                     detail=f"Document {doc_id} not found or access denied"
