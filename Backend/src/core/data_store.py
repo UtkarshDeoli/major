@@ -639,3 +639,35 @@ async def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
         user["id"] = str(user["_id"])
         del user["_id"]
     return user
+
+
+# --- Class material helpers -------------------------------------------------
+async def store_class_material(material_data: Dict[str, Any]) -> str:
+    if class_materials_collection is None:
+        raise Exception("Database connection not available")
+    result = await class_materials_collection.insert_one(material_data)
+    return str(result.inserted_id)
+
+
+async def get_class_material_by_id(material_id: str) -> Optional[Dict[str, Any]]:
+    if class_materials_collection is None:
+        raise Exception("Database connection not available")
+    mat = await class_materials_collection.find_one({"_id": ObjectId(material_id)})
+    return object_id_to_str(mat) if mat else None
+
+
+async def list_class_materials(class_id: str, class_subject_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    if class_materials_collection is None:
+        raise Exception("Database connection not available")
+    q: Dict[str, Any] = {"class_id": class_id}
+    if class_subject_id:
+        q["class_subject_id"] = class_subject_id
+    cursor = class_materials_collection.find(q).sort("created_at", -1)
+    mats = await cursor.to_list(length=None)
+    return [object_id_to_str(m) for m in mats]
+
+
+async def delete_class_material(material_id: str):
+    if class_materials_collection is None:
+        raise Exception("Database connection not available")
+    await class_materials_collection.delete_one({"_id": ObjectId(material_id)})
