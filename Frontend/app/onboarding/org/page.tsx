@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,19 @@ export default function OrgOnboardingPage() {
   const [tier, setTier] = useState<"pro" | "premium">("pro");
   const [seats, setSeats] = useState(5);
   const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly");
+  const [tagline, setTagline] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+
+  const logoPreviewUrl = useMemo(
+    () => (logoFile ? URL.createObjectURL(logoFile) : null),
+    [logoFile],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (logoPreviewUrl) URL.revokeObjectURL(logoPreviewUrl);
+    };
+  }, [logoPreviewUrl]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -46,10 +59,18 @@ export default function OrgOnboardingPage() {
       await orgAPI.create({
         name,
         brand_name: brandName || undefined,
+        tagline: tagline || undefined,
         tier,
         seats_total: seats,
         billing_cycle: billingCycle,
       });
+      if (logoFile) {
+        try {
+          await orgAPI.uploadLogo(logoFile);
+        } catch (e) {
+          // non-fatal: org is created; logo can be added later from /org
+        }
+      }
       toast({ title: "Organization created", description: "You can now manage seats and invites from /org." });
       await refreshUser();
       router.push("/admin");
@@ -143,6 +164,22 @@ export default function OrgOnboardingPage() {
                   <SelectItem value="yearly">Yearly (save ~17%)</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <label htmlFor="tagline" className="text-sm font-medium">Tagline (optional)</label>
+              <input id="tagline" value={tagline} onChange={(e) => setTagline(e.target.value)}
+                className="border rounded-md px-3 py-2" placeholder="e.g. Dream. Prepare. Achieve." />
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="logo" className="text-sm font-medium">Coaching logo (optional)</label>
+              <input id="logo" type="file" accept="image/*"
+                onChange={(e) => setLogoFile(e.target.files?.[0] || null)}
+                className="border rounded-md px-3 py-2" />
+              {logoPreviewUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoPreviewUrl} alt="logo preview" className="h-12 w-12 object-contain" />
+              )}
             </div>
 
             <Button type="submit" className="w-full" disabled={isSubmitting}>

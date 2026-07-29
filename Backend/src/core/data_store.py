@@ -48,6 +48,9 @@ try:
     flashcards_collection = db.flashcards
     ai_materials_collection = db.ai_materials
     classes_collection = db.classes
+    class_subjects_collection = db.class_subjects
+    class_materials_collection = db.class_materials
+    class_invites_collection = db.class_invites
     # Billing / multi-tenant collections
     subscriptions_collection = db.subscriptions
     payments_collection = db.payments
@@ -80,6 +83,9 @@ except (ConnectionFailure, ServerSelectionTimeoutError) as e:
     flashcards_collection = None
     ai_materials_collection = None
     classes_collection = None
+    class_subjects_collection = None
+    class_materials_collection = None
+    class_invites_collection = None
     # Billing / multi-tenant collections
     subscriptions_collection = None
     payments_collection = None
@@ -443,6 +449,13 @@ async def ensure_indexes():
     if classes_collection is not None:
         await classes_collection.create_index("enroll_code", unique=True)
         await classes_collection.create_index("teacher_id")
+    if class_subjects_collection is not None:
+        await class_subjects_collection.create_index([("class_id", 1), ("name", 1)])
+    if class_materials_collection is not None:
+        await class_materials_collection.create_index([("class_id", 1), ("class_subject_id", 1)])
+    if class_invites_collection is not None:
+        await class_invites_collection.create_index([("class_id", 1), ("email", 1)])
+        await class_invites_collection.create_index("token", unique=True)
     if flashcard_decks_collection is not None:
         await flashcard_decks_collection.create_index([("user_id", 1), ("created_at", -1)])
     if ai_materials_collection is not None:

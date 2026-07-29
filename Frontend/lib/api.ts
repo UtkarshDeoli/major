@@ -1,13 +1,12 @@
 import axios from 'axios';
 
-// API base URL
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
-
 // Create axios instance with default config
 // NOTE: Do NOT set a global Content-Type here. Let each request set its own.
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001',
 });
+
+export const API_BASE_URL = (api.defaults.baseURL || "").replace(/\/$/, "");
 
 // Request interceptor to attach Bearer token
 api.interceptors.request.use((config) => {
@@ -720,6 +719,7 @@ export const orgAPI = {
   async create(payload: {
     name: string;
     brand_name?: string;
+    tagline?: string;
     tier: 'pro' | 'premium';
     seats_total?: number;
     billing_cycle?: 'monthly' | 'yearly';
@@ -760,6 +760,27 @@ export const orgAPI = {
 
   async previewEnroll(code: string): Promise<any> {
     const res = await api.get(`/orgs/enroll/${encodeURIComponent(code)}`);
+    return res.data;
+  },
+
+  async uploadLogo(file: File): Promise<{ logo_url: string }> {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await api.post("/orgs/logo", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return res.data;
+  },
+
+  async updateOrg(payload: { brand_name?: string; tagline?: string }): Promise<any> {
+    const res = await api.patch("/orgs/", payload);
+    return res.data;
+  },
+
+  async getBranding(orgId: string): Promise<{
+    org_id: string; name: string; brand_name?: string | null; logo_url?: string | null; tagline?: string | null;
+  }> {
+    const res = await api.get(`/orgs/${encodeURIComponent(orgId)}/branding`);
     return res.data;
   },
 };

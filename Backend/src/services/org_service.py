@@ -1,15 +1,16 @@
 """Organization (coaching/school) + seat license logic."""
+import os
 import secrets
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 
 from src.core.data_store import (
     users_collection, organizations_collection, org_invites_collection,
 )
 from src.services import billing_service
-from src.core.config import RAZORPAY_KEY_ID
+from src.core.config import RAZORPAY_KEY_ID, UPLOADS_DIR
 from src.core.plans import PLAN_PRICES
 
 
@@ -18,7 +19,8 @@ def _gen_code() -> str:
 
 
 async def create_org(owner_id: str, name: str, brand_name: Optional[str],
-                     tier: str, seats_total: int, billing_cycle: str) -> dict:
+                     tier: str, seats_total: int, billing_cycle: str,
+                     tagline: Optional[str] = None) -> dict:
     if organizations_collection is None or users_collection is None:
         raise HTTPException(503, "Database connection not available")
     existing = await organizations_collection.find_one({"owner_user_id": owner_id})
@@ -28,6 +30,7 @@ async def create_org(owner_id: str, name: str, brand_name: Optional[str],
     org_id = secrets.token_urlsafe(8)
     doc = {
         "org_id": org_id, "name": name, "brand_name": brand_name,
+        "tagline": tagline, "logo_url": None, "logo_file_path": None,
         "owner_user_id": owner_id, "tier": tier, "seats_total": seats_total,
         "seats_used": 0, "status": "active", "billing_cycle": billing_cycle,
         "created_at": now, "updated_at": now,
@@ -140,3 +143,68 @@ async def add_seats(owner_id: str, add_seats: int) -> dict:
             "amount": amount, "currency": "INR",
         }
     }
+
+
+async def get_org_by_org_id(org_id: str) -> Optional[dict]:
+    if organizations_collection is None:
+        return None
+    return await organizations_collection.find_one({"org_id": org_id})
+
+
+async def update_org(owner_id: str, brand_name: Optional[str], tagline: Optional[str]) -> dict:
+    if organizations_collection is None:
+        raise HTTPException(503, "Database connection not available")
+    org = await get_org_by_owner(owner_id)
+    if not org:
+        raise HTTPException(404, "No organization found")
+    update: dict = {"updated_at": datetime.now(timezone.utc)}
+    if brand_name is not None:
+        update["brand_name"] = brand_name
+    if tagline is not None:
+        update["tagline"] = tagline
+    await organizations_collection.update_one(
+        {"org_id": org["org_id"]}, {"$set": update})
+    return {"updated": True}
+
+
+def public_branding(org: dict) -> dict:
+    return {
+        "org_id": org.get("org_id"),
+        "name": org.get("name"),
+        "brand_name": org.get("brand_name"),
+        "logo_url": org.get("logo_url"),
+        "tagline": org.get("tagline"),
+    }
+
+
+async def upload_logo(owner_id: str, file: UploadFile, uploads_dir: Optional[str] = None) -> dict:
+    if organizations_collection is None:
+        raise HTTPException(503, "Database connection not available")
+    org = await get_org_by_owner(owner_id)
+    if not org:
+        raise HTTPException(404, "No organization found for your account")
+    content = await file.read()
+    uploads_dir = uploads_dir or UPLOADS_DIR
+    org_dir = os.path.join(uploads_dir, "orgs", org["org_id"])
+    os.makedirs(org_dir, exist_ok=True)
+    ext = os.path.splitext(file.filename or "logo.png")[1] or ".png"
+    filename = f"logo{ext}"
+    path = os.path.join(org_dir, filename)
+    with open(path, "wb") as f:
+        f.write(content)
+    logo_url = f"/orgs/{org['org_id']}/logo"
+    await organizations_collection.update_one(
+        {"org_id": org["org_id"]},
+        {"$set": {"logo_url": logo_url, "logo_file_path": path,
+                  "updated_at": datetime.now(timezone.utc)}},
+    )
+    return {"logo_url": logo_url}
+
+
+async def get_logo_path(org_id: str) -> Optional[str]:
+    if organizations_collection is None:
+        return None
+    org = await organizations_collection.find_one({"org_id": org_id})
+    if not org:
+        return None
+    return org.get("logo_file_path")

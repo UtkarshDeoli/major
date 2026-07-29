@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
+import { PRESET_EXAMS } from "@/lib/constants/exams"
 import { Eye, EyeOff, Mail, Lock, User } from 'lucide-react'
 import Link from 'next/link'
 import { cn } from '@/lib/utils'
@@ -25,6 +26,7 @@ export function AuthForm({ type }: AuthFormProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
+  const [curriculum, setCurriculum] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,6 +40,7 @@ export function AuthForm({ type }: AuthFormProps) {
           email,
           password,
           name: name || undefined,
+          curriculum: curriculum || undefined,
         });
       }
 
@@ -187,9 +190,27 @@ export function AuthForm({ type }: AuthFormProps) {
         </div>
       )}
       
+      {/* Curriculum select for signup */}
+      {type === 'signup' && (
+        <div className="grid gap-2">
+          <label htmlFor="curriculum" className="text-sm font-medium">What are you preparing for? (optional)</label>
+          <select
+            id="curriculum"
+            value={curriculum}
+            onChange={(e) => setCurriculum(e.target.value)}
+            className="border rounded-md px-3 py-2 bg-background"
+          >
+            <option value="">Select an exam / curriculum</option>
+            {PRESET_EXAMS.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Submit Button */}
-      <Button 
-        type="submit" 
+      <Button
+        type="submit"
         className="w-full h-12 rounded-md bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 border-0 shadow-lg shadow-purple-500/25 text-white font-semibold text-lg transition-all duration-300"
         disabled={isLoading}
       >
