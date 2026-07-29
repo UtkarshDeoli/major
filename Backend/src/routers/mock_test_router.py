@@ -153,6 +153,9 @@ async def generate_mock_test_from_doc(
             difficulty_level=req.difficulty_level,
             user_id=user_id,
             subject=req.subject,
+            class_id=req.class_id,
+            class_subject_id=req.class_subject_id,
+            created_by=user_id,
         )
         return mock_test
 

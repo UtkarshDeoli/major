@@ -170,6 +170,8 @@ class MockTestFromDocRequest(BaseModel):
     num_text: int = 3
     total_marks: int = 30
     difficulty_level: Literal["easy", "medium", "hard"] = "medium"
+    class_id: Optional[str] = None
+    class_subject_id: Optional[str] = None
 
 class MockTestResponse(BaseModel):
     test_id: str
@@ -180,6 +182,8 @@ class MockTestResponse(BaseModel):
     created_at: datetime
     user_id: str
     created_by: Optional[str] = None
+    class_id: Optional[str] = None
+    class_subject_id: Optional[str] = None
     assigned_to: Optional[str] = None
     difficulty_level: Optional[str] = "medium"
     subject: Optional[str] = None
@@ -419,6 +423,8 @@ class FlashcardDeck(BaseModel):
     source_material_ids: List[str] = []
     source_type: Optional[str] = None   # "student" | "teacher" | "ai"
     created_by: Optional[str] = None    # teacher email if teacher-created
+    class_id: Optional[str] = None
+    class_subject_id: Optional[str] = None
     card_count: int = 0
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -439,6 +445,8 @@ class GenerateFlashcardsRequest(BaseModel):
     subject: Optional[str] = None
     title: Optional[str] = None
     num_cards: int = 15
+    class_id: Optional[str] = None
+    class_subject_id: Optional[str] = None
 
 
 # AI-generated study material (summaries, notes) — shown in the right sidebar

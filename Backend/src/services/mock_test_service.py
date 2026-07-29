@@ -143,6 +143,9 @@ async def generate_mock_test_from_docs_service(
     user_id: str,
     subject: Optional[str] = None,
     grading_mode: str = "auto",
+    class_id: Optional[str] = None,
+    class_subject_id: Optional[str] = None,
+    created_by: Optional[str] = None,
 ) -> MockTestResponse:
     """Generate a practice mock test directly from uploaded document(s)."""
 
@@ -198,6 +201,9 @@ async def generate_mock_test_from_docs_service(
             created_at=created_at,
             user_id=user_id,
             difficulty_level=difficulty_level,
+            created_by=created_by or user_id,
+            class_id=class_id,
+            class_subject_id=class_subject_id,
             subject=subject,
             grading_mode=grading_mode,  # type: ignore[arg-type]
         )

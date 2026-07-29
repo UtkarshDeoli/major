@@ -148,6 +148,8 @@ async def generate_deck(
         "source_type": "ai",
         "created_by": None,
         "card_count": len(cards_data),
+        "class_id": req.class_id,
+        "class_subject_id": req.class_subject_id,
         "created_at": now,
         "updated_at": now,
     }
