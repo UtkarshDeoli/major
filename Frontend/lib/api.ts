@@ -663,14 +663,6 @@ export const classAPI = {
     const res = await api.get(`/classes/${classId}`);
     return res.data;
   },
-  async previewEnroll(code: string): Promise<any> {
-    const res = await api.get(`/classes/enroll/${encodeURIComponent(code)}`);
-    return res.data;
-  },
-  async enroll(enrollCode: string): Promise<any> {
-    const res = await api.post('/classes/enroll', { enroll_code: enrollCode });
-    return res.data;
-  },
   async removeStudent(classId: string, studentEmail: string): Promise<any> {
     const res = await api.delete(`/classes/${classId}/students/${encodeURIComponent(studentEmail)}`);
     return res.data;

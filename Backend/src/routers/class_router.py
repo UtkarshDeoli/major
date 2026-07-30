@@ -11,16 +11,14 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Path, status
 from pydantic import BaseModel
 
-from src.core.security import get_current_user, require_role
+from src.core.security import require_role
 from src.core.plan_enforcement import enforce_limit
 from src.core.data_store import (
     users_collection,
     mock_test_submissions_collection,
     store_class,
     get_class_by_id,
-    get_class_by_enroll_code,
     get_teacher_classes,
-    add_student_to_class,
 )
 from src.services import class_service
 
@@ -71,18 +69,6 @@ class ClassDetail(BaseModel):
     enroll_code: str
     students: List[StudentInClass] = []
     created_at: datetime
-
-
-class EnrollRequest(BaseModel):
-    enroll_code: str
-
-
-class EnrollPreview(BaseModel):
-    id: str
-    name: str
-    description: Optional[str] = None
-    exam_preset: Optional[str] = None
-    teacher_name: Optional[str] = None
 
 
 def _gen_enroll_code() -> str:
@@ -287,65 +273,6 @@ async def get_class_tests(
     from src.core.data_store import list_mock_tests_by_class
     tests = await list_mock_tests_by_class(class_id)
     return {"tests": tests}
-
-
-@router.get("/enroll/{code}", response_model=EnrollPreview)
-async def preview_enroll(code: str = Path(...), user_id: str = Depends(get_current_user)):
-    """Preview a class before enrolling (used by the student enroll dialog)."""
-    cls = await get_class_by_enroll_code(code.upper())
-    if not cls:
-        raise HTTPException(status_code=404, detail="Invalid enroll code")
-    teacher = None
-    if users_collection is not None:
-        teacher = await users_collection.find_one({"email": cls.get("teacher_id")})
-    return EnrollPreview(
-        id=cls["id"], name=cls["name"], description=cls.get("description"),
-        exam_preset=cls.get("exam_preset"),
-        teacher_name=teacher.get("name") if teacher else cls.get("teacher_id"),
-    )
-
-
-@router.post("/enroll", response_model=ClassSummary)
-async def enroll_in_class(
-    request: EnrollRequest,
-    user_id: str = Depends(get_current_user),
-):
-    """Enroll the current student into a teacher's class via an enroll code."""
-    if users_collection is None:
-        raise HTTPException(status_code=503, detail="Database connection not available")
-
-    student = await users_collection.find_one({"email": user_id})
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
-    if student.get("role") not in (None, "student"):
-        raise HTTPException(status_code=403, detail="Only student accounts can enroll in classes")
-
-    cls = await get_class_by_enroll_code((request.enroll_code or "").upper().strip())
-    if not cls:
-        raise HTTPException(status_code=404, detail="Invalid enroll code")
-    if cls.get("teacher_id") == user_id:
-        raise HTTPException(status_code=400, detail="You cannot enroll in your own class")
-
-    teacher_email = cls["teacher_id"]
-    class_id = cls["id"]
-
-    # Link student <-> teacher (multiple teachers allowed) and student <-> class
-    await users_collection.update_one(
-        {"email": user_id},
-        {"$addToSet": {"teacher_ids": teacher_email, "class_ids": class_id}},
-    )
-    await add_student_to_class(class_id, user_id, teacher_email)
-
-    # Maintain legacy teacher_id for backward compat if unset
-    if not student.get("teacher_id"):
-        await users_collection.update_one({"email": user_id}, {"$set": {"teacher_id": teacher_email}})
-
-    return ClassSummary(
-        id=class_id, name=cls["name"], description=cls.get("description"),
-        exam_preset=cls.get("exam_preset"), enroll_code=cls["enroll_code"],
-        student_count=len(cls.get("student_emails", [])) + 1,
-        created_at=cls["created_at"],
-    )
 
 
 @router.delete("/{class_id}/students/{student_email}", status_code=status.HTTP_200_OK)
