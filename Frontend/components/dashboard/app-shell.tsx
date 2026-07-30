@@ -53,6 +53,7 @@ const studentNav = [
 const teacherNav = [
   { href: "/teacher", label: "Dashboard", icon: LayoutDashboard },
   { href: "/classes", label: "Classes", icon: Users },
+  { href: "/students", label: "Students", icon: Users },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/analysis", label: "Analysis", icon: FileBarChart },
   { href: "/mock-tests", label: "Mock Tests", icon: BookOpen },
