@@ -505,7 +505,8 @@ async def get_user_flashcard_decks(user_id: str) -> List[Dict[str, Any]]:
 async def get_flashcard_deck(deck_id: str) -> Optional[Dict[str, Any]]:
     if flashcard_decks_collection is None:
         raise Exception("Database connection not available")
-    deck = await flashcard_decks_collection.find_one({"_id": ObjectId(deck_id)})
+    # Decks store a UUID in the `id` field; cards and the frontend reference that id.
+    deck = await flashcard_decks_collection.find_one({"id": deck_id})
     return object_id_to_str(deck) if deck else None
 
 
@@ -534,7 +535,7 @@ async def update_flashcard(card_id: str, update_data: Dict[str, Any]):
 async def delete_flashcard_deck(deck_id: str):
     if flashcard_decks_collection is None:
         raise Exception("Database connection not available")
-    await flashcard_decks_collection.delete_one({"_id": ObjectId(deck_id)})
+    await flashcard_decks_collection.delete_one({"id": deck_id})
     if flashcards_collection is not None:
         await flashcards_collection.delete_many({"deck_id": deck_id})
 

@@ -246,21 +246,22 @@ def test_teacher_gets_class_tests(setup, monkeypatch):
 
 
 def test_student_can_access_class_flashcard_deck(setup, monkeypatch):
+    import uuid
     from datetime import datetime, timezone
     c = setup["client"]
     cid = setup["class_id"]
     c.post("/classes/join", json={"enroll_code": "JEE123"})
 
-    deck_id = str(ObjectId())
+    deck_id = str(uuid.uuid4())
     decks = _FakeColl()
     decks.docs["1"] = {
-        "_id": deck_id, "id": deck_id, "class_id": cid, "user_id": "t1@x.com",
+        "_id": ObjectId(), "id": deck_id, "class_id": cid, "user_id": "t1@x.com",
         "created_by": "t1@x.com", "title": "F1", "card_count": 1,
         "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc),
     }
     cards = _FakeColl()
     cards.docs["1"] = {
-        "_id": str(ObjectId()), "id": str(ObjectId()), "deck_id": deck_id,
+        "_id": ObjectId(), "id": str(ObjectId()), "deck_id": deck_id,
         "front": "Q", "back": "A", "ease": 2, "interval_days": 0, "reps": 0,
         "due_at": datetime.now(timezone.utc), "created_at": datetime.now(timezone.utc),
     }
