@@ -408,16 +408,6 @@ export const analyticsAPI = {
 
 // Teacher APIs
 export const teacherAPI = {
-  manageStudent: async (studentEmail: string) => {
-    const response = await api.post('/teachers/students/manage', { student_email: studentEmail });
-    return response.data;
-  },
-
-  unmanageStudent: async (studentEmail: string) => {
-    const response = await api.post('/teachers/students/unmanage', { student_email: studentEmail });
-    return response.data;
-  },
-
   listManagedStudents: async () => {
     const response = await api.get('/teachers/students');
     return response.data.students;
@@ -689,6 +679,18 @@ export const classAPI = {
   },
   async getClassTests(classId: string): Promise<{ tests: any[] }> {
     const res = await api.get(`/classes/${classId}/tests`);
+    return res.data;
+  },
+  async getTeacherStudents(): Promise<{ students: any[] }> {
+    const res = await api.get('/classes/students');
+    return res.data;
+  },
+  async getClassStudentsAnalytics(classId: string): Promise<{ students: any[] }> {
+    const res = await api.get(`/classes/${classId}/students/analytics`);
+    return res.data;
+  },
+  async getStudentAnalytics(email: string): Promise<any> {
+    const res = await api.get(`/students/${encodeURIComponent(email)}/analytics`);
     return res.data;
   },
 };
