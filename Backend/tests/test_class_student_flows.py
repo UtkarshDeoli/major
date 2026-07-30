@@ -36,15 +36,20 @@ class _FakeColl:
             return doc_val in q_val["$in"]
         return False
 
+    def _matches_query(self, doc, q):
+        if "$or" in q:
+            return any(self._matches_query(doc, sub) for sub in q["$or"])
+        return all(self._match(doc.get(k), v, k) for k, v in q.items())
+
     async def find_one(self, q):
         for d in self.docs.values():
-            if all(self._match(d.get(k), v, k) for k, v in q.items()):
+            if self._matches_query(d, q):
                 return dict(d)
         return None
 
     def find(self, q=None):
         q = q or {}
-        results = [dict(d) for d in self.docs.values() if all(self._match(d.get(k), v, k) for k, v in q.items())]
+        results = [dict(d) for d in self.docs.values() if self._matches_query(d, q)]
         return _FakeCursor(results)
 
     async def insert_one(self, doc):
@@ -59,7 +64,7 @@ class _FakeColl:
 
     async def update_one(self, q, op, upsert=False):
         for d in self.docs.values():
-            if all(self._match(d.get(k), v, k) for k, v in q.items()):
+            if self._matches_query(d, q):
                 if "$set" in op:
                     d.update(op["$set"])
                 if "$addToSet" in op:
@@ -80,7 +85,7 @@ class _FakeColl:
 
     async def find_one_and_update(self, q, op, upsert=False, return_document=None):
         for d in self.docs.values():
-            if all(self._match(d.get(k), v, k) for k, v in q.items()):
+            if self._matches_query(d, q):
                 if "$set" in op:
                     d.update(op["$set"])
                 if "$addToSet" in op:
@@ -226,6 +231,23 @@ def test_teacher_gets_class_students(setup):
     assert r.status_code == 200, r.text
     assert len(r.json()["students"]) == 1
     assert r.json()["students"][0]["email"] == "s1@x.com"
+
+
+def test_list_teacher_students_across_classes(setup):
+    c = setup["client"]
+    from bson import ObjectId
+    from datetime import datetime, timezone
+
+    setup["users"].docs["2"] = {"email": "t1@x.com", "role": "teacher", "org_id": "org-9", "member_role": "teacher"}
+    _set_auth("teacher", "t1@x.com")
+    cid = setup["class_id"]
+    setup["classes"].docs["1"]["student_emails"] = ["s1@x.com"]
+
+    r = c.get("/classes/students")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert len(data["students"]) == 1
+    assert data["students"][0]["email"] == "s1@x.com"
 
 
 def test_teacher_gets_class_tests(setup, monkeypatch):

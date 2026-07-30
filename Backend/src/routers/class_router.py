@@ -208,6 +208,67 @@ async def _build_student_in_class(email: str) -> StudentInClass:
     )
 
 
+class ClassStudentAnalyticsResponse(BaseModel):
+    email: str
+    name: Optional[str] = None
+    class_ids: List[str] = []
+    class_names: List[str] = []
+    tests_taken: int = 0
+    average_score: float = 0.0
+    last_active_at: Optional[str] = None
+    strengths: List[str] = []
+    weaknesses: List[str] = []
+
+
+class ClassStudentsAnalyticsResponse(BaseModel):
+    students: List[ClassStudentAnalyticsResponse]
+
+
+async def _build_student_analytics(email: str, classes: List[dict]) -> ClassStudentAnalyticsResponse:
+    student = None
+    if users_collection is not None:
+        student = await users_collection.find_one({"email": email})
+    tests_taken = 0
+    avg = 0.0
+    last_active = None
+    strengths_set: set = set()
+    weaknesses_set: set = set()
+    if mock_test_submissions_collection is not None:
+        cursor = mock_test_submissions_collection.find({"user_id": email}).sort("created_at", -1)
+        subs = await cursor.to_list(length=None)
+        tests_taken = len(subs)
+        pct_sum = 0.0
+        for s in subs:
+            score = float(s.get("total_score", 0))
+            mx = float(s.get("max_score", 1))
+            pct_sum += (score / mx * 100) if mx > 0 else 0
+            ca = s.get("created_at")
+            if ca and last_active is None:
+                last_active = ca.isoformat() if hasattr(ca, "isoformat") else str(ca)
+        avg = round(pct_sum / tests_taken, 2) if tests_taken > 0 else 0.0
+        for s in subs:
+            strengths_set.update(s.get("strengths", []) or [])
+            weaknesses_set.update(s.get("improvements", []) or [])
+    class_ids = [c["id"] for c in classes if email in c.get("student_emails", [])]
+    class_names = [c["name"] for c in classes if email in c.get("student_emails", [])]
+    return ClassStudentAnalyticsResponse(
+        email=email, name=student.get("name") if student else None,
+        class_ids=class_ids, class_names=class_names,
+        tests_taken=tests_taken, average_score=avg,
+        last_active_at=last_active,
+        strengths=list(strengths_set)[:5], weaknesses=list(weaknesses_set)[:5],
+    )
+
+
+@router.get("/students", response_model=ClassStudentsAnalyticsResponse)
+async def list_all_teacher_students(teacher=Depends(require_role("teacher"))):
+    from src.services.class_service import list_teacher_students
+    students = await list_teacher_students(teacher["email"])
+    classes = await get_teacher_classes(teacher["email"])
+    analytics = [await _build_student_analytics(s["email"], classes) for s in students]
+    return ClassStudentsAnalyticsResponse(students=analytics)
+
+
 @router.get("/{class_id}", response_model=ClassDetail)
 async def get_class_detail(
     class_id: str = Path(...),

@@ -81,3 +81,20 @@ async def get_class_study_content(class_id: str, user_email: str) -> dict:
         "decks": decks,
         "tests": tests,
     }
+
+
+async def list_teacher_students(teacher_email: str) -> List[dict]:
+    from src.core.data_store import users_collection, get_teacher_classes, object_id_to_str
+    classes = await get_teacher_classes(teacher_email)
+    emails = {e for c in classes for e in c.get("student_emails", [])}
+    if not emails or users_collection is None:
+        return []
+    cursor = users_collection.find({"email": {"$in": list(emails)}})
+    students = await cursor.to_list(length=None)
+    return [object_id_to_str(s) for s in students]
+
+
+async def is_student_shared_with_teacher(student_email: str, teacher_email: str) -> bool:
+    from src.core.data_store import get_teacher_classes
+    classes = await get_teacher_classes(teacher_email)
+    return any(student_email in c.get("student_emails", []) for c in classes)
