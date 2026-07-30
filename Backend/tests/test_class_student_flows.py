@@ -137,6 +137,9 @@ def setup(monkeypatch):
     svc = __import__("importlib").import_module("src.services.class_service")
     monkeypatch.setattr(svc, "classes_collection", classes)
 
+    auth_svc = __import__("importlib").import_module("src.services.auth_service")
+    monkeypatch.setattr(auth_svc, "users_collection", users)
+
     from datetime import datetime, timezone
     class_id = str(ObjectId())
     classes.docs["1"] = {
@@ -430,3 +433,48 @@ def test_teacher_insights_use_class_roster(setup, monkeypatch):
     r = c.get("/analytics/teacher/insights")
     assert r.status_code == 200, r.text
     assert any(i["student_email"] == "s1@x.com" for i in r.json()["insights"])
+
+
+def test_teacher_can_assign_test_to_class_student(setup, monkeypatch):
+    from datetime import datetime, timezone
+    c = setup["client"]
+    setup["users"].docs["2"] = {"email": "t1@x.com", "role": "teacher", "org_id": "org-9", "member_role": "teacher"}
+    _set_auth("teacher", "t1@x.com")
+    setup["classes"].docs["1"]["student_emails"] = ["s1@x.com"]
+
+    tests = _FakeColl()
+    test_id = str(ObjectId())
+    tests.docs["1"] = {
+        "_id": test_id, "test_id": test_id, "user_id": "t1@x.com", "created_by": "t1@x.com",
+        "title": "T1", "total_marks": 2, "time_limit": 10, "difficulty_level": "medium",
+        "grading_mode": "auto", "status": "ready", "assigned_to": None,
+        "questions": [{"id": "1", "type": "mcq", "question": "Q", "options": ["A) a"], "correctAnswer": "A) a", "marks": 2}],
+        "created_at": datetime.now(timezone.utc),
+    }
+    monkeypatch.setattr(ds, "mock_tests_collection", tests)
+
+    r = c.post(f"/mock-tests/{test_id}/assign?student_email=s1%40x.com")
+    assert r.status_code == 200, r.text
+    assert r.json()["assigned_to"] == "s1@x.com"
+
+
+def test_teacher_cannot_assign_test_to_unshared_student(setup, monkeypatch):
+    from datetime import datetime, timezone
+    c = setup["client"]
+    setup["users"].docs["2"] = {"email": "t1@x.com", "role": "teacher", "org_id": "org-9", "member_role": "teacher"}
+    _set_auth("teacher", "t1@x.com")
+    # s1 not in class
+
+    tests = _FakeColl()
+    test_id = str(ObjectId())
+    tests.docs["1"] = {
+        "_id": test_id, "test_id": test_id, "user_id": "t1@x.com", "created_by": "t1@x.com",
+        "title": "T1", "total_marks": 2, "time_limit": 10, "difficulty_level": "medium",
+        "grading_mode": "auto", "status": "ready", "assigned_to": None,
+        "questions": [{"id": "1", "type": "mcq", "question": "Q", "options": ["A) a"], "correctAnswer": "A) a", "marks": 2}],
+        "created_at": datetime.now(timezone.utc),
+    }
+    monkeypatch.setattr(ds, "mock_tests_collection", tests)
+
+    r = c.post(f"/mock-tests/{test_id}/assign?student_email=s1%40x.com")
+    assert r.status_code == 403

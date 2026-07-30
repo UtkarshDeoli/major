@@ -86,7 +86,9 @@ async def generate_mock_test(
                     status_code=404,
                     detail="Student not found"
                 )
-            if student.get("teacher_id") != user_id:
+        if student.get("teacher_id") != user_id:
+            from src.services.class_service import is_student_shared_with_teacher
+            if not await is_student_shared_with_teacher(req.student_email, user_id):
                 raise HTTPException(
                     status_code=403,
                     detail="Not authorized to assign test to this student"
@@ -346,7 +348,9 @@ async def assign_mock_test(
             raise HTTPException(status_code=404, detail="Student not found")
 
         teacher_ids = student.get("teacher_ids") or ([student["teacher_id"]] if student.get("teacher_id") else [])
-        if user_id not in teacher_ids:
+        from src.services.class_service import is_student_shared_with_teacher
+        shared = await is_student_shared_with_teacher(student_email, user_id)
+        if not shared and user_id not in teacher_ids:
             raise HTTPException(status_code=403, detail="Not authorized to assign test to this student")
 
         updated = await update_mock_test_assignment(test_id, student_email)
