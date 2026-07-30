@@ -12,6 +12,7 @@ export interface RosterStudent {
   tests_taken: number
   last_active_at?: string
   weaknesses?: string[]
+  class_ids?: string[]
   class_names?: string[]
 }
 
