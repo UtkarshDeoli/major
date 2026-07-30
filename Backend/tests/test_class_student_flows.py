@@ -182,3 +182,29 @@ def test_non_member_student_cannot_view_class(setup):
     c = setup["client"]
     r = c.get(f"/classes/{setup['classes'].docs['2']['_id']}")
     assert r.status_code == 403
+
+
+def test_student_gets_class_study_content(setup, monkeypatch):
+    from datetime import datetime, timezone
+    c = setup["client"]
+    cid = setup["class_id"]
+    c.post("/classes/join", json={"enroll_code": "JEE123"})
+
+    # stub class content collections
+    subjects = _FakeColl()
+    subjects.docs["1"] = {"_id": str(ObjectId()), "class_id": cid, "name": "Physics", "created_at": datetime.now(timezone.utc)}
+    decks = _FakeColl()
+    decks.docs["1"] = {"_id": str(ObjectId()), "class_id": cid, "title": "F1", "card_count": 5, "created_at": datetime.now(timezone.utc)}
+    tests = _FakeColl()
+    tests.docs["1"] = {"_id": str(ObjectId()), "class_id": cid, "title": "T1", "total_marks": 30, "created_at": datetime.now(timezone.utc)}
+    monkeypatch.setattr(ds, "class_subjects_collection", subjects)
+    monkeypatch.setattr(ds, "flashcard_decks_collection", decks)
+    monkeypatch.setattr(ds, "mock_tests_collection", tests)
+
+    r = c.get(f"/classes/{cid}/content")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["class_id"] == cid
+    assert len(data["subjects"]) == 1
+    assert len(data["decks"]) == 1
+    assert len(data["tests"]) == 1

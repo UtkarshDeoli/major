@@ -245,6 +245,15 @@ async def get_class_detail(
     )
 
 
+@router.get("/{class_id}/content")
+async def get_class_content(
+    class_id: str = Path(...),
+    user=Depends(require_role()),
+):
+    result = await class_service.get_class_study_content(class_id, user["email"])
+    return result
+
+
 @router.get("/enroll/{code}", response_model=EnrollPreview)
 async def preview_enroll(code: str = Path(...), user_id: str = Depends(get_current_user)):
     """Preview a class before enrolling (used by the student enroll dialog)."""

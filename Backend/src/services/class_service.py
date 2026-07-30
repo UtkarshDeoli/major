@@ -45,3 +45,19 @@ async def get_class_for_user(class_id: str, user_email: str, user_role: str) -> 
     if user_role == "student" and not (is_teacher or is_student):
         return None
     return cls
+
+
+async def get_class_study_content(class_id: str, user_email: str) -> dict:
+    cls = await get_class_for_user(class_id, user_email, "student")
+    if not cls:
+        raise HTTPException(status_code=403, detail="Not authorized to view this class")
+    from src.core.data_store import list_class_subjects, list_decks_by_class, list_mock_tests_by_class
+    subjects = await list_class_subjects(class_id)
+    decks = await list_decks_by_class(class_id)
+    tests = await list_mock_tests_by_class(class_id)
+    return {
+        "class_id": class_id,
+        "subjects": [{"id": s.pop("_id", None), **s} for s in subjects],
+        "decks": decks,
+        "tests": tests,
+    }

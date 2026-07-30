@@ -695,3 +695,19 @@ async def delete_class_material(material_id: str):
     if class_materials_collection is None:
         raise Exception("Database connection not available")
     await class_materials_collection.delete_one({"_id": ObjectId(material_id)})
+
+
+async def list_decks_by_class(class_id: str) -> List[Dict[str, Any]]:
+    if flashcard_decks_collection is None:
+        raise Exception("Database connection not available")
+    cursor = flashcard_decks_collection.find({"class_id": class_id}).sort("created_at", -1)
+    decks = await cursor.to_list(length=None)
+    return [object_id_to_str(d) for d in decks]
+
+
+async def list_mock_tests_by_class(class_id: str) -> List[Dict[str, Any]]:
+    if mock_tests_collection is None:
+        raise Exception("Database connection not available")
+    cursor = mock_tests_collection.find({"class_id": class_id}).sort("created_at", -1)
+    tests = await cursor.to_list(length=None)
+    return [object_id_to_str(t) for t in tests]
