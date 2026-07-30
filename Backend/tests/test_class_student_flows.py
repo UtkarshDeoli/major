@@ -4,7 +4,7 @@ from bson import ObjectId
 
 import src.core.data_store as ds
 cr = importlib.import_module("src.routers.class_router")
-from src.core.security import get_current_user_with_role
+from src.core.security import get_current_user_with_role, get_current_user
 from src.main import app
 from fastapi.testclient import TestClient
 
@@ -105,6 +105,7 @@ def _set_auth(role, email):
     def _auth():
         return {"email": email, "user": {"email": email, "role": role}}
     app.dependency_overrides[get_current_user_with_role] = _auth
+    app.dependency_overrides[get_current_user] = lambda: email
 
 
 @pytest.fixture
@@ -140,6 +141,7 @@ def setup(monkeypatch):
     c = TestClient(app)
     yield dict(users=users, classes=classes, class_id=class_id, client=c)
     app.dependency_overrides.pop(get_current_user_with_role, None)
+    app.dependency_overrides.pop(get_current_user, None)
 
 
 def test_student_joins_class_by_enroll_code(setup):
@@ -241,3 +243,58 @@ def test_teacher_gets_class_tests(setup, monkeypatch):
     assert r.status_code == 200, r.text
     assert len(r.json()["tests"]) == 1
     assert r.json()["tests"][0]["title"] == "T1"
+
+
+def test_student_can_access_class_flashcard_deck(setup, monkeypatch):
+    from datetime import datetime, timezone
+    c = setup["client"]
+    cid = setup["class_id"]
+    c.post("/classes/join", json={"enroll_code": "JEE123"})
+
+    deck_id = str(ObjectId())
+    decks = _FakeColl()
+    decks.docs["1"] = {
+        "_id": deck_id, "id": deck_id, "class_id": cid, "user_id": "t1@x.com",
+        "created_by": "t1@x.com", "title": "F1", "card_count": 1,
+        "created_at": datetime.now(timezone.utc), "updated_at": datetime.now(timezone.utc),
+    }
+    cards = _FakeColl()
+    cards.docs["1"] = {
+        "_id": str(ObjectId()), "id": str(ObjectId()), "deck_id": deck_id,
+        "front": "Q", "back": "A", "ease": 2, "interval_days": 0, "reps": 0,
+        "due_at": datetime.now(timezone.utc), "created_at": datetime.now(timezone.utc),
+    }
+    monkeypatch.setattr(ds, "flashcard_decks_collection", decks)
+    monkeypatch.setattr(ds, "flashcards_collection", cards)
+
+    r = c.get(f"/flashcards/decks/{deck_id}")
+    assert r.status_code == 200, r.text
+    assert r.json()["title"] == "F1"
+
+
+def test_student_can_access_class_mock_test(setup, monkeypatch):
+    from datetime import datetime, timezone
+    from src.core.models import MockTestQuestion
+    c = setup["client"]
+    cid = setup["class_id"]
+    c.post("/classes/join", json={"enroll_code": "JEE123"})
+
+    test_id = str(ObjectId())
+    tests = _FakeColl()
+    tests.docs["1"] = {
+        "_id": test_id, "test_id": test_id, "class_id": cid, "user_id": "t1@x.com",
+        "created_by": "t1@x.com", "title": "T1", "total_marks": 2, "time_limit": 10,
+        "difficulty_level": "medium", "grading_mode": "auto", "status": "ready",
+        "questions": [{
+            "id": "1", "type": "mcq", "question": "Q", "options": ["A) a"],
+            "correctAnswer": "A) a", "marks": 2,
+        }],
+        "created_at": datetime.now(timezone.utc),
+    }
+    monkeypatch.setattr(ds, "mock_tests_collection", tests)
+
+    r = c.get(f"/mock-tests/{test_id}")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["title"] == "T1"
+    assert data["questions"][0]["correctAnswer"] is None

@@ -280,7 +280,7 @@ function TeacherClassDetailPage({ id }: { id: string }) {
                   ) : (
                     <div className="grid gap-2">
                       {tests.map((t) => (
-                        <Link key={t.test_id || t.id} href={`/mock-tests/${t.test_id || t.id}`} className="rounded-md border p-3 hover:bg-muted/50 flex items-center justify-between">
+                        <Link key={t.test_id || t.id} href={`/test/quiz?testId=${t.test_id || t.id}`} className="rounded-md border p-3 hover:bg-muted/50 flex items-center justify-between">
                           <div className="text-sm font-medium">{t.title}</div>
                           <div className="text-xs text-muted-foreground">{t.total_marks} marks</div>
                         </Link>
@@ -388,7 +388,7 @@ function StudentClassDetailPage({ id }: { id: string }) {
                         ) : (
                           <div className="grid gap-2">
                             {decksForSubject(activeSubject).map((d: any) => (
-                              <Link key={d.id} href={`/flashcards/${d.id}`} className="rounded-md border p-3 hover:bg-muted/50">
+                              <Link key={d.id} href={`/flashcards?deck=${d.id}`} className="rounded-md border p-3 hover:bg-muted/50">
                                 <div className="text-sm font-medium">{d.title}</div>
                                 <div className="text-xs text-muted-foreground">{d.card_count} cards</div>
                               </Link>
@@ -403,7 +403,7 @@ function StudentClassDetailPage({ id }: { id: string }) {
                         ) : (
                           <div className="grid gap-2">
                             {testsForSubject(activeSubject).map((t: any) => (
-                              <Link key={t.test_id || t.id} href={`/mock-tests/${t.test_id || t.id}`} className="rounded-md border p-3 hover:bg-muted/50">
+                              <Link key={t.test_id || t.id} href={`/test/quiz?testId=${t.test_id || t.id}`} className="rounded-md border p-3 hover:bg-muted/50">
                                 <div className="text-sm font-medium">{t.title}</div>
                                 <div className="text-xs text-muted-foreground">{t.total_marks} marks</div>
                               </Link>
@@ -423,7 +423,7 @@ function StudentClassDetailPage({ id }: { id: string }) {
                   <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">No flashcards available yet.</div>
                 ) : (
                   content.decks.map((d: any) => (
-                    <Link key={d.id} href={`/flashcards/${d.id}`} className="rounded-md border p-3 hover:bg-muted/50">
+                    <Link key={d.id} href={`/flashcards?deck=${d.id}`} className="rounded-md border p-3 hover:bg-muted/50">
                       <div className="text-sm font-medium">{d.title}</div>
                       <div className="text-xs text-muted-foreground">{d.card_count} cards</div>
                     </Link>
@@ -438,7 +438,7 @@ function StudentClassDetailPage({ id }: { id: string }) {
                   <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">No mock tests available yet.</div>
                 ) : (
                   content.tests.map((t: any) => (
-                    <Link key={t.test_id || t.id} href={`/mock-tests/${t.test_id || t.id}`} className="rounded-md border p-3 hover:bg-muted/50">
+                    <Link key={t.test_id || t.id} href={`/test/quiz?testId=${t.test_id || t.id}`} className="rounded-md border p-3 hover:bg-muted/50">
                       <div className="text-sm font-medium">{t.title}</div>
                       <div className="text-xs text-muted-foreground">{t.total_marks} marks</div>
                     </Link>

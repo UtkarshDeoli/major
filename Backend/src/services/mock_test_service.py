@@ -634,13 +634,17 @@ async def get_mock_test_service(test_id: str, user_id: str) -> Optional[MockTest
         if not test_data:
             return None
         allowed = {test_data.get("user_id"), test_data.get("assigned_to"), test_data.get("created_by")}
-        if user_id not in allowed:
+        is_enrolled_student = False
+        if user_id not in allowed and test_data.get("class_id"):
+            from src.services.class_service import is_student_in_class
+            is_enrolled_student = await is_student_in_class(test_data.get("class_id"), user_id)
+        if user_id not in allowed and not is_enrolled_student:
             return None
 
         questions = [MockTestQuestion(**q) for q in test_data["questions"]]
 
-        # Hide correct answers from the assigned student
-        if test_data.get("assigned_to") == user_id:
+        # Hide correct answers from the assigned student or enrolled class students
+        if test_data.get("assigned_to") == user_id or is_enrolled_student:
             questions = [
                 MockTestQuestion(
                     id=q.id,

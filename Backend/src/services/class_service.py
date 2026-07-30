@@ -46,6 +46,15 @@ async def get_class_for_user(class_id: str, user_email: str, user_role: str) -> 
     return cls
 
 
+async def is_student_in_class(class_id: Optional[str], user_email: str) -> bool:
+    if not class_id:
+        return False
+    cls = await get_class_by_id(class_id)
+    if not cls:
+        return False
+    return user_email in cls.get("student_emails", [])
+
+
 async def get_class_study_content(class_id: str, user_email: str) -> dict:
     cls = await get_class_for_user(class_id, user_email, "student")
     if not cls:
