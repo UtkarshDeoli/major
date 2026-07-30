@@ -18,9 +18,7 @@ from src.core.data_store import (
     mock_test_submissions_collection,
     store_class,
     get_class_by_id,
-    get_class_by_enroll_code,
     get_teacher_classes,
-    add_student_to_class,
 )
 from src.services import class_service
 
