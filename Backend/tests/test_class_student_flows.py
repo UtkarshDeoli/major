@@ -401,3 +401,32 @@ def test_teacher_cannot_view_unshared_student_analytics(setup):
     # s1 is not in any of t1's classes
     r = c.get("/students/s1@x.com/analytics")
     assert r.status_code == 403
+
+
+def test_teacher_alerts_use_class_roster(setup, monkeypatch):
+    c = setup["client"]
+    setup["users"].docs["2"] = {"email": "t1@x.com", "role": "teacher", "org_id": "org-9", "member_role": "teacher"}
+    _set_auth("teacher", "t1@x.com")
+    setup["classes"].docs["1"]["student_emails"] = ["s1@x.com"]
+
+    monkeypatch.setattr(ar, "student_mastery_service", None, raising=False)
+
+    r = c.get("/analytics/teacher/alerts")
+    assert r.status_code == 200, r.text
+    assert any(a["student_email"] == "s1@x.com" for a in r.json()["alerts"])
+
+
+def test_teacher_insights_use_class_roster(setup, monkeypatch):
+    c = setup["client"]
+    setup["users"].docs["2"] = {"email": "t1@x.com", "role": "teacher", "org_id": "org-9", "member_role": "teacher"}
+    _set_auth("teacher", "t1@x.com")
+    setup["classes"].docs["1"]["student_emails"] = ["s1@x.com"]
+
+    async def _empty_mastery(email):
+        return {}
+    mastery_svc = importlib.import_module("src.services.student_mastery_service")
+    monkeypatch.setattr(mastery_svc, "get_mastery_scores", _empty_mastery)
+
+    r = c.get("/analytics/teacher/insights")
+    assert r.status_code == 200, r.text
+    assert any(i["student_email"] == "s1@x.com" for i in r.json()["insights"])

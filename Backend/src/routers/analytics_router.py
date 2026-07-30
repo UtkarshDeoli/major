@@ -304,13 +304,13 @@ async def get_teacher_alerts(user_info: dict = Depends(require_role("teacher")))
     - low_mastery: more than 2 sections with accuracy < 40%
     """
     from src.core.data_store import mock_test_submissions_collection, users_collection
+    from src.services.class_service import list_teacher_students
 
     teacher_email = user_info["email"]
     if users_collection is None or mock_test_submissions_collection is None:
         raise HTTPException(503, "Database connection not available")
 
-    students_cursor = users_collection.find({"teacher_id": teacher_email})
-    students = await students_cursor.to_list(length=None)
+    students = await list_teacher_students(teacher_email)
 
     alerts = []
     now = datetime.now(timezone.utc)
@@ -388,14 +388,14 @@ async def get_teacher_alerts(user_info: dict = Depends(require_role("teacher")))
 async def get_teacher_insights(user_info: dict = Depends(require_role("teacher"))):
     """Return per-student weak topics and recommended next actions."""
     from src.core.data_store import mock_test_submissions_collection, users_collection
+    from src.services.class_service import list_teacher_students
     from src.services.student_mastery_service import get_mastery_scores
 
     teacher_email = user_info["email"]
     if users_collection is None or mock_test_submissions_collection is None:
         raise HTTPException(503, "Database connection not available")
 
-    students_cursor = users_collection.find({"teacher_id": teacher_email})
-    students = await students_cursor.to_list(length=None)
+    students = await list_teacher_students(teacher_email)
 
     insights = []
     for student in students:
