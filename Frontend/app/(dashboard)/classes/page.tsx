@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { getErrorMessage } from "@/lib/errors"
 import { classAPI } from "@/lib/api"
+import { useAuth } from "@/lib/context/auth-context"
 import { Copy, Loader2, Plus, Users } from "lucide-react"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
@@ -24,6 +25,18 @@ interface ClassItem {
 }
 
 export default function ClassesPage() {
+  const { user } = useAuth()
+  if (!user) {
+    return (
+      <div className="max-w-5xl mx-auto p-6">
+        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+      </div>
+    )
+  }
+  return user.role === "teacher" ? <TeacherClassesView /> : <StudentClassesView />
+}
+
+function TeacherClassesView() {
   const { toast } = useToast()
   const [classes, setClasses] = useState<ClassItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -108,7 +121,7 @@ export default function ClassesPage() {
                 {c.description && <p className="text-xs text-muted-foreground">{c.description}</p>}
                 <div className="flex items-center gap-2">
                   <code className="rounded bg-secondary px-2 py-1 text-xs tracking-wider font-mono">{c.enroll_code}</code>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => copyCode(c.enroll_code)}><Copy className="h-3.5 w-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Copy enroll code" onClick={() => copyCode(c.enroll_code)}><Copy className="h-3.5 w-3.5" /></Button>
                 </div>
                 <Button asChild variant="outline" className="w-full">
                   <Link href={`/classes/${c.id}`}>Open class</Link>
@@ -119,5 +132,75 @@ export default function ClassesPage() {
         )}
       </div>
     </RoleGuard>
+  )
+}
+
+function StudentClassesView() {
+  const { toast } = useToast()
+  const [classes, setClasses] = useState<ClassItem[]>([])
+  const [loading, setLoading] = useState(true)
+  const [code, setCode] = useState("")
+  const [joining, setJoining] = useState(false)
+
+  const fetchClasses = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await classAPI.listMyClasses()
+      setClasses((res.classes || []) as ClassItem[])
+    } catch (e) {
+      toast({ title: "Couldn't load classes", description: getErrorMessage(e), variant: "destructive" })
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
+
+  useEffect(() => { fetchClasses() }, [fetchClasses])
+
+  const handleJoin = async () => {
+    if (!code.trim()) return
+    setJoining(true)
+    try {
+      await classAPI.joinClass(code.trim())
+      setCode("")
+      fetchClasses()
+      toast({ title: "Joined class" })
+    } catch (e) {
+      toast({ title: "Couldn't join class", description: getErrorMessage(e), variant: "destructive" })
+    } finally {
+      setJoining(false)
+    }
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto p-6 space-y-6">
+      <div>
+        <h1 className="text-xl font-semibold">My Classes</h1>
+        <p className="text-sm text-muted-foreground">Join a class with an enroll code and view your study content.</p>
+      </div>
+      <div className="flex gap-2 max-w-md">
+        <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter enroll code" />
+        <Button onClick={handleJoin} disabled={!code.trim() || joining}>{joining ? <Loader2 className="h-4 w-4 animate-spin" /> : "Join"}</Button>
+      </div>
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+      ) : classes.length === 0 ? (
+        <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">You haven&apos;t joined any classes yet. Enter an enroll code to get started.</div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {classes.map((c) => (
+            <div key={c.id} className="rounded-lg border bg-card p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium">{c.name}</h3>
+                <span className="text-xs text-muted-foreground flex items-center gap-1"><Users className="h-3 w-3" />{c.student_count}</span>
+              </div>
+              {c.description && <p className="text-xs text-muted-foreground">{c.description}</p>}
+              <Button asChild variant="outline" className="w-full">
+                <Link href={`/classes/${c.id}`}>Open class</Link>
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
