@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,6 +13,7 @@ import { classAPI, classSubjectAPI, classMaterialAPI } from "@/lib/api"
 import { useAuth } from "@/lib/context/auth-context"
 import { Loader2, Plus, Trash2, FileText, Layers, ClipboardList } from "lucide-react"
 import RoleGuard from "@/components/auth/route-protection/role-guard"
+import { StudentRosterList } from "@/components/dashboard/teacher/student-roster-list"
 
 interface Subject {
   id: string
@@ -42,6 +43,7 @@ export default function ClassDetailPage() {
 }
 
 function TeacherClassDetailPage({ id }: { id: string }) {
+  const router = useRouter()
   const { toast } = useToast()
   const [cls, setCls] = useState<any>(null)
   const [subjects, setSubjects] = useState<Subject[]>([])
@@ -86,7 +88,7 @@ function TeacherClassDetailPage({ id }: { id: string }) {
 
   const loadStudents = useCallback(async () => {
     try {
-      const res = await classAPI.getClassStudents(id)
+      const res = await classAPI.getClassStudentsAnalytics(id)
       setStudents(res.students || [])
     } catch (e) {
       toast({ title: "Couldn't load students", description: getErrorMessage(e), variant: "destructive" })
@@ -296,20 +298,11 @@ function TeacherClassDetailPage({ id }: { id: string }) {
                     <h2 className="text-sm font-semibold">Roster</h2>
                     <span className="text-xs text-muted-foreground">{students.length} enrolled</span>
                   </div>
-                  {students.length === 0 ? (
-                    <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">No students enrolled yet. Share the enroll code.</div>
-                  ) : (
-                    <div className="grid gap-2">
-                      {students.map((s) => (
-                        <div key={s.email || s.id} className="rounded-md border p-3 flex items-center justify-between">
-                          <div>
-                            <div className="text-sm font-medium">{s.name || s.email}</div>
-                            <div className="text-xs text-muted-foreground">{s.email}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <StudentRosterList
+                    students={students}
+                    onSelect={(s) => router.push(`/students/${encodeURIComponent(s.email)}`)}
+                    emptyMessage="No students enrolled yet. Share the enroll code."
+                  />
                 </div>
               </TabsContent>
 
