@@ -22,6 +22,7 @@ from src.core.data_store import (
     get_teacher_classes,
     add_student_to_class,
 )
+from src.services import class_service
 
 router = APIRouter(prefix="/classes", tags=["Classes"])
 
@@ -30,6 +31,10 @@ class ClassCreateRequest(BaseModel):
     name: str
     description: Optional[str] = None
     exam_preset: Optional[str] = None
+
+
+class JoinClassRequest(BaseModel):
+    enroll_code: str
 
 
 class AddTeacherRequest(BaseModel):
@@ -174,6 +179,23 @@ async def list_classes(teacher=Depends(require_role("teacher"))):
     ])
 
 
+@router.post("/join", status_code=status.HTTP_200_OK)
+async def join_class(
+    request: JoinClassRequest,
+    student=Depends(require_role("student")),
+):
+    result = await class_service.join_class_by_enroll_code(student["email"], request.enroll_code.upper().strip())
+    return result
+
+
+@router.get("/me", response_model=ClassListResponse)
+async def list_my_classes(
+    student=Depends(require_role("student")),
+):
+    classes = await class_service.list_student_classes(student["email"])
+    return ClassListResponse(classes=[ClassSummary(**c) for c in classes])
+
+
 async def _build_student_in_class(email: str) -> StudentInClass:
     student = None
     if users_collection is not None:
@@ -201,19 +223,70 @@ async def _build_student_in_class(email: str) -> StudentInClass:
 
 
 @router.get("/{class_id}", response_model=ClassDetail)
-async def get_class_detail(class_id: str = Path(...), teacher=Depends(require_role("teacher"))):
-    teacher_email = teacher["email"]
+async def get_class_detail(
+    class_id: str = Path(...),
+    user=Depends(require_role()),  # any authenticated user
+):
     cls = await get_class_by_id(class_id)
     if not cls:
         raise HTTPException(status_code=404, detail="Class not found")
-    if teacher_email not in cls.get("teacher_ids", [cls.get("teacher_id")]):
+    user_email = user["email"]
+    is_teacher = user_email in cls.get("teacher_ids", [cls.get("teacher_id")])
+    is_student = user_email in cls.get("student_emails", [])
+    if not is_teacher and not is_student:
         raise HTTPException(status_code=403, detail="Not authorized to view this class")
-    students = [await _build_student_in_class(e) for e in cls.get("student_emails", [])]
+    students = []
+    if is_teacher:
+        students = [await _build_student_in_class(e) for e in cls.get("student_emails", [])]
     return ClassDetail(
         id=cls["id"], name=cls["name"], description=cls.get("description"),
         exam_preset=cls.get("exam_preset"), enroll_code=cls["enroll_code"],
         students=students, created_at=cls["created_at"],
     )
+
+
+@router.get("/{class_id}/content")
+async def get_class_content(
+    class_id: str = Path(...),
+    user=Depends(require_role()),
+):
+    result = await class_service.get_class_study_content(class_id, user["email"])
+    return result
+
+
+@router.get("/{class_id}/students")
+async def get_class_students(
+    class_id: str = Path(...),
+    teacher=Depends(require_role("teacher")),
+):
+    cls = await get_class_by_id(class_id)
+    if not cls:
+        raise HTTPException(status_code=404, detail="Class not found")
+    if teacher["email"] not in cls.get("teacher_ids", [cls.get("teacher_id")]):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    students = []
+    if users_collection is not None:
+        cursor = users_collection.find({"email": {"$in": cls.get("student_emails", [])}})
+        students = await cursor.to_list(length=None)
+    return {"students": [
+        {"id": str(u.get("_id")), "email": u.get("email"), "name": u.get("name")}
+        for u in students
+    ]}
+
+
+@router.get("/{class_id}/tests")
+async def get_class_tests(
+    class_id: str = Path(...),
+    teacher=Depends(require_role("teacher")),
+):
+    cls = await get_class_by_id(class_id)
+    if not cls:
+        raise HTTPException(status_code=404, detail="Class not found")
+    if teacher["email"] not in cls.get("teacher_ids", [cls.get("teacher_id")]):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    from src.core.data_store import list_mock_tests_by_class
+    tests = await list_mock_tests_by_class(class_id)
+    return {"tests": tests}
 
 
 @router.get("/enroll/{code}", response_model=EnrollPreview)

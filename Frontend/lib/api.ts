@@ -679,6 +679,26 @@ export const classAPI = {
     const res = await api.post(`/classes/${classId}/teachers`, { teacher_email: teacherEmail });
     return res.data;
   },
+  async joinClass(enrollCode: string): Promise<{ class_id: string; enrolled: boolean }> {
+    const res = await api.post("/classes/join", { enroll_code: enrollCode });
+    return res.data;
+  },
+  async listMyClasses(): Promise<{ classes: any[] }> {
+    const res = await api.get("/classes/me");
+    return res.data;
+  },
+  async getClassContent(classId: string): Promise<{ class_id: string; subjects: any[]; decks: any[]; tests: any[] }> {
+    const res = await api.get(`/classes/${classId}/content`);
+    return res.data;
+  },
+  async getClassStudents(classId: string): Promise<{ students: any[] }> {
+    const res = await api.get(`/classes/${classId}/students`);
+    return res.data;
+  },
+  async getClassTests(classId: string): Promise<{ tests: any[] }> {
+    const res = await api.get(`/classes/${classId}/tests`);
+    return res.data;
+  },
 };
 
 // ─── Class subjects ──────────────────────────────────────────────────────────

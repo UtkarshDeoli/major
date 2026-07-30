@@ -191,7 +191,11 @@ async def get_deck(deck_id: str = Path(...), user_id: str = Depends(get_current_
         raise HTTPException(status_code=404, detail="Deck not found")
     # Teacher-created decks: allow the creator too
     allowed = {deck.get("user_id"), deck.get("created_by")}
-    if user_id not in allowed:
+    is_enrolled_student = False
+    if user_id not in allowed and deck.get("class_id"):
+        from src.services.class_service import is_student_in_class
+        is_enrolled_student = await is_student_in_class(deck.get("class_id"), user_id)
+    if user_id not in allowed and not is_enrolled_student:
         raise HTTPException(status_code=403, detail="Not authorized to view this deck")
     cards = await get_flashcards_for_deck(deck_id)
     return FlashcardDeckDetail(

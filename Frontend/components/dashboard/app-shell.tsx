@@ -40,6 +40,7 @@ import { UpgradeBanner } from "@/components/billing/upgrade-banner"
 
 const studentNav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/classes", label: "Classes", icon: Users },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/analysis", label: "Analysis", icon: FileBarChart },
   { href: "/mock-tests", label: "Mock Tests", icon: BookOpen },

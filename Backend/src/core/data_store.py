@@ -505,7 +505,8 @@ async def get_user_flashcard_decks(user_id: str) -> List[Dict[str, Any]]:
 async def get_flashcard_deck(deck_id: str) -> Optional[Dict[str, Any]]:
     if flashcard_decks_collection is None:
         raise Exception("Database connection not available")
-    deck = await flashcard_decks_collection.find_one({"_id": ObjectId(deck_id)})
+    # Decks store a UUID in the `id` field; cards and the frontend reference that id.
+    deck = await flashcard_decks_collection.find_one({"id": deck_id})
     return object_id_to_str(deck) if deck else None
 
 
@@ -534,7 +535,7 @@ async def update_flashcard(card_id: str, update_data: Dict[str, Any]):
 async def delete_flashcard_deck(deck_id: str):
     if flashcard_decks_collection is None:
         raise Exception("Database connection not available")
-    await flashcard_decks_collection.delete_one({"_id": ObjectId(deck_id)})
+    await flashcard_decks_collection.delete_one({"id": deck_id})
     if flashcards_collection is not None:
         await flashcards_collection.delete_many({"deck_id": deck_id})
 
@@ -576,18 +577,26 @@ async def store_class(class_data: Dict[str, Any]) -> str:
     return str(result.inserted_id)
 
 
+def _normalize_class_doc(cls: Dict[str, Any]) -> Dict[str, Any]:
+    cls = dict(cls)
+    if "_id" in cls:
+        cls["id"] = str(cls["_id"])
+        del cls["_id"]
+    return object_id_to_str(cls)
+
+
 async def get_class_by_id(class_id: str) -> Optional[Dict[str, Any]]:
     if classes_collection is None:
         raise Exception("Database connection not available")
     cls = await classes_collection.find_one({"_id": ObjectId(class_id)})
-    return object_id_to_str(cls) if cls else None
+    return _normalize_class_doc(cls) if cls else None
 
 
 async def get_class_by_enroll_code(code: str) -> Optional[Dict[str, Any]]:
     if classes_collection is None:
         raise Exception("Database connection not available")
     cls = await classes_collection.find_one({"enroll_code": code})
-    return object_id_to_str(cls) if cls else None
+    return _normalize_class_doc(cls) if cls else None
 
 
 async def get_teacher_classes(teacher_id: str) -> List[Dict[str, Any]]:
@@ -595,7 +604,15 @@ async def get_teacher_classes(teacher_id: str) -> List[Dict[str, Any]]:
         raise Exception("Database connection not available")
     cursor = classes_collection.find({"$or": [{"teacher_id": teacher_id}, {"teacher_ids": teacher_id}]}).sort("created_at", -1)
     classes = await cursor.to_list(length=None)
-    return [object_id_to_str(c) for c in classes]
+    return [_normalize_class_doc(c) for c in classes]
+
+
+async def get_student_classes(student_email: str) -> List[Dict[str, Any]]:
+    if classes_collection is None:
+        raise Exception("Database connection not available")
+    cursor = classes_collection.find({"student_emails": student_email}).sort("created_at", -1)
+    classes = await cursor.to_list(length=None)
+    return [_normalize_class_doc(c) for c in classes]
 
 
 async def add_student_to_class(class_id: str, student_email: str, teacher_id: str) -> Optional[Dict[str, Any]]:
@@ -607,7 +624,7 @@ async def add_student_to_class(class_id: str, student_email: str, teacher_id: st
         {"$addToSet": {"student_emails": student_email}, "$set": {"updated_at": datetime.now()}},
         return_document=ReturnDocument.AFTER,
     )
-    return object_id_to_str(result) if result else None
+    return _normalize_class_doc(result) if result else None
 
 
 # --- Class subject helpers --------------------------------------------------
@@ -679,3 +696,19 @@ async def delete_class_material(material_id: str):
     if class_materials_collection is None:
         raise Exception("Database connection not available")
     await class_materials_collection.delete_one({"_id": ObjectId(material_id)})
+
+
+async def list_decks_by_class(class_id: str) -> List[Dict[str, Any]]:
+    if flashcard_decks_collection is None:
+        raise Exception("Database connection not available")
+    cursor = flashcard_decks_collection.find({"class_id": class_id}).sort("created_at", -1)
+    decks = await cursor.to_list(length=None)
+    return [object_id_to_str(d) for d in decks]
+
+
+async def list_mock_tests_by_class(class_id: str) -> List[Dict[str, Any]]:
+    if mock_tests_collection is None:
+        raise Exception("Database connection not available")
+    cursor = mock_tests_collection.find({"class_id": class_id}).sort("created_at", -1)
+    tests = await cursor.to_list(length=None)
+    return [object_id_to_str(t) for t in tests]
