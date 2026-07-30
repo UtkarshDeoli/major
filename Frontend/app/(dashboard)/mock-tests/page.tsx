@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter, useSearchParams } from "next/navigation"
-import { mockTestAPI, teacherAPI } from "@/lib/api"
+import { mockTestAPI, classAPI } from "@/lib/api"
 import { useAuth } from "@/lib/context/auth-context"
 import { useDashboard } from "@/lib/context/dashboard-context"
 import { getErrorMessage } from "@/lib/errors"
@@ -67,9 +67,9 @@ export default function MockTestsPage() {
   // Fetch managed students for teachers
   useEffect(() => {
     if (!isTeacher) return
-    teacherAPI
-      .listManagedStudents()
-      .then((students) => setLinkedStudents(students || []))
+    classAPI
+      .getTeacherStudents()
+      .then((res) => setLinkedStudents((res?.students || []).map((s: any) => ({ email: s.email, name: s.name }))))
       .catch((err) => console.error("Failed to load students:", err))
   }, [isTeacher])
 
