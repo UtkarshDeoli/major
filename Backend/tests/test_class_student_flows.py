@@ -4,6 +4,7 @@ from bson import ObjectId
 
 import src.core.data_store as ds
 cr = importlib.import_module("src.routers.class_router")
+ar = importlib.import_module("src.routers.analytics_router")
 from src.core.security import get_current_user_with_role, get_current_user
 from src.main import app
 from fastapi.testclient import TestClient
@@ -105,6 +106,10 @@ class _FakeColl:
                 return dict(d)
         return None
 
+    async def count_documents(self, q=None):
+        q = q or {}
+        return sum(1 for d in self.docs.values() if self._matches_query(d, q))
+
 
 def _set_auth(role, email):
     def _auth():
@@ -123,6 +128,11 @@ def setup(monkeypatch):
     monkeypatch.setattr(ds, "mock_test_submissions_collection", submissions)
     monkeypatch.setattr(cr, "users_collection", users)
     monkeypatch.setattr(cr, "mock_test_submissions_collection", submissions)
+    monkeypatch.setattr(ar, "users_collection", users)
+    monkeypatch.setattr(ar, "mock_test_submissions_collection", submissions)
+    monkeypatch.setattr(ar, "mock_tests_collection", _FakeColl())
+    monkeypatch.setattr(ar, "pdfs_collection", _FakeColl())
+    monkeypatch.setattr(ar, "materials_collection", _FakeColl())
 
     svc = __import__("importlib").import_module("src.services.class_service")
     monkeypatch.setattr(svc, "classes_collection", classes)
@@ -370,3 +380,24 @@ def test_student_can_access_class_mock_test(setup, monkeypatch):
     data = r.json()
     assert data["title"] == "T1"
     assert data["questions"][0]["correctAnswer"] is None
+
+
+def test_student_analytics_for_teacher(setup, monkeypatch):
+    c = setup["client"]
+    setup["users"].docs["2"] = {"email": "t1@x.com", "role": "teacher", "org_id": "org-9", "member_role": "teacher"}
+    _set_auth("teacher", "t1@x.com")
+    cid = setup["class_id"]
+    setup["classes"].docs["1"]["student_emails"] = ["s1@x.com"]
+
+    r = c.get("/students/s1@x.com/analytics")
+    assert r.status_code == 200, r.text
+    assert r.json()["email"] == "s1@x.com"
+
+
+def test_teacher_cannot_view_unshared_student_analytics(setup):
+    c = setup["client"]
+    setup["users"].docs["2"] = {"email": "t1@x.com", "role": "teacher", "org_id": "org-9", "member_role": "teacher"}
+    _set_auth("teacher", "t1@x.com")
+    # s1 is not in any of t1's classes
+    r = c.get("/students/s1@x.com/analytics")
+    assert r.status_code == 403

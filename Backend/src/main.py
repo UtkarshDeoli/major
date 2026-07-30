@@ -29,6 +29,7 @@ from src.routers import (
     flashcard_router,
     ai_material_router,
     class_router,
+    class_students_router,
     class_subject_router,
     class_material_router,
     sample_material_router,
@@ -84,6 +85,7 @@ app.include_router(onboarding_router)
 app.include_router(flashcard_router)
 app.include_router(ai_material_router)
 app.include_router(class_router)
+app.include_router(class_students_router)
 app.include_router(class_subject_router)
 app.include_router(class_material_router)
 app.include_router(sample_material_router)

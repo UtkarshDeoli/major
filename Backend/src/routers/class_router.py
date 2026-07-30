@@ -21,8 +21,10 @@ from src.core.data_store import (
     get_teacher_classes,
 )
 from src.services import class_service
+from src.routers.analytics_router import get_student_analytics, StudentAnalyticsResponse
 
 router = APIRouter(prefix="/classes", tags=["Classes"])
+students_router = APIRouter(prefix="/students", tags=["Students"])
 
 
 class ClassCreateRequest(BaseModel):
@@ -377,3 +379,18 @@ async def remove_student(
             {"$pull": {"teacher_ids": teacher_email, "class_ids": class_id}},
         )
     return {"class_id": class_id, "student_email": student_email, "removed": True}
+
+
+@students_router.get("/{student_email}/analytics", response_model=StudentAnalyticsResponse)
+async def get_student_analytics_for_teacher(
+    student_email: str = Path(...),
+    teacher=Depends(require_role("teacher")),
+):
+    """Teacher-scoped view of a student's whole-history analytics.
+
+    Only authorized if the teacher shares at least one class with the student.
+    """
+    shared = await class_service.is_student_shared_with_teacher(student_email, teacher["email"])
+    if not shared:
+        raise HTTPException(status_code=403, detail="Not authorized to view this student")
+    return await get_student_analytics(user_email=student_email)
