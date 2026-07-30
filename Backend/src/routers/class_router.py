@@ -20,9 +20,7 @@ from src.core.data_store import (
     get_class_by_id,
     get_class_by_enroll_code,
     get_teacher_classes,
-    get_student_classes,
     add_student_to_class,
-    object_id_to_str,
 )
 from src.services import class_service
 
@@ -186,7 +184,7 @@ async def join_class(
     request: JoinClassRequest,
     student=Depends(require_role("student")),
 ):
-    result = await class_service.join_class_by_enroll_code(student["email"], request.enroll_code)
+    result = await class_service.join_class_by_enroll_code(student["email"], request.enroll_code.upper().strip())
     return result
 
 
@@ -233,12 +231,13 @@ async def get_class_detail(
     if not cls:
         raise HTTPException(status_code=404, detail="Class not found")
     user_email = user["email"]
-    user_role = user.get("role")
     is_teacher = user_email in cls.get("teacher_ids", [cls.get("teacher_id")])
     is_student = user_email in cls.get("student_emails", [])
     if not is_teacher and not is_student:
         raise HTTPException(status_code=403, detail="Not authorized to view this class")
-    students = [await _build_student_in_class(e) for e in cls.get("student_emails", [])]
+    students = []
+    if is_teacher:
+        students = [await _build_student_in_class(e) for e in cls.get("student_emails", [])]
     return ClassDetail(
         id=cls["id"], name=cls["name"], description=cls.get("description"),
         exam_preset=cls.get("exam_preset"), enroll_code=cls["enroll_code"],
@@ -269,7 +268,10 @@ async def get_class_students(
     if users_collection is not None:
         cursor = users_collection.find({"email": {"$in": cls.get("student_emails", [])}})
         students = await cursor.to_list(length=None)
-    return {"students": [object_id_to_str(u) for u in students]}
+    return {"students": [
+        {"id": str(u.get("_id")), "email": u.get("email"), "name": u.get("name")}
+        for u in students
+    ]}
 
 
 @router.get("/{class_id}/tests")

@@ -1,5 +1,4 @@
 """Class business logic."""
-from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import HTTPException
 
@@ -54,9 +53,21 @@ async def get_class_study_content(class_id: str, user_email: str) -> dict:
     from src.core.data_store import list_class_subjects, list_decks_by_class, list_mock_tests_by_class
     subjects = await list_class_subjects(class_id)
     decks = await list_decks_by_class(class_id)
-    tests = await list_mock_tests_by_class(class_id)
+    raw_tests = await list_mock_tests_by_class(class_id)
+    tests = [
+        {
+            "id": str(t.get("_id")),
+            "test_id": t.get("test_id") or str(t.get("_id")),
+            "title": t.get("title"),
+            "total_marks": t.get("total_marks"),
+            "class_subject_id": t.get("class_subject_id"),
+            "created_at": t.get("created_at"),
+        }
+        for t in raw_tests
+    ]
     return {
         "class_id": class_id,
+        "class_name": cls.get("name"),
         "subjects": [{"id": s.pop("_id", None), **s} for s in subjects],
         "decks": decks,
         "tests": tests,
