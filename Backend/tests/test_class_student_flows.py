@@ -250,6 +250,21 @@ def test_list_teacher_students_across_classes(setup):
     assert data["students"][0]["email"] == "s1@x.com"
 
 
+def test_class_students_analytics(setup):
+    c = setup["client"]
+    setup["users"].docs["2"] = {"email": "t1@x.com", "role": "teacher", "org_id": "org-9", "member_role": "teacher"}
+    _set_auth("teacher", "t1@x.com")
+    cid = setup["class_id"]
+    setup["classes"].docs["1"]["student_emails"] = ["s1@x.com"]
+
+    r = c.get(f"/classes/{cid}/students/analytics")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert len(data["students"]) == 1
+    assert data["students"][0]["email"] == "s1@x.com"
+    assert data["students"][0]["tests_taken"] == 0
+
+
 def test_teacher_gets_class_tests(setup, monkeypatch):
     from datetime import datetime, timezone
     c = setup["client"]

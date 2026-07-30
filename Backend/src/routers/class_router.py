@@ -321,6 +321,21 @@ async def get_class_students(
     ]}
 
 
+@router.get("/{class_id}/students/analytics", response_model=ClassStudentsAnalyticsResponse)
+async def get_class_students_analytics(
+    class_id: str = Path(...),
+    teacher=Depends(require_role("teacher")),
+):
+    cls = await get_class_by_id(class_id)
+    if not cls:
+        raise HTTPException(status_code=404, detail="Class not found")
+    if teacher["email"] not in cls.get("teacher_ids", [cls.get("teacher_id")]):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    emails = cls.get("student_emails", [])
+    analytics = [await _build_student_analytics(e, [cls]) for e in emails]
+    return ClassStudentsAnalyticsResponse(students=analytics)
+
+
 @router.get("/{class_id}/tests")
 async def get_class_tests(
     class_id: str = Path(...),
