@@ -265,6 +265,40 @@ def test_class_students_analytics(setup):
     assert data["students"][0]["tests_taken"] == 0
 
 
+def test_class_students_analytics_returns_404_for_missing_class(setup):
+    c = setup["client"]
+    setup["users"].docs["2"] = {"email": "t1@x.com", "role": "teacher", "org_id": "org-9", "member_role": "teacher"}
+    _set_auth("teacher", "t1@x.com")
+
+    r = c.get(f"/classes/{ObjectId()}/students/analytics")
+    assert r.status_code == 404
+
+
+def test_class_students_analytics_returns_403_for_unauthorized_teacher(setup):
+    from datetime import datetime, timezone
+    c = setup["client"]
+    setup["users"].docs["2"] = {"email": "t1@x.com", "role": "teacher", "org_id": "org-9", "member_role": "teacher"}
+    setup["users"].docs["3"] = {"email": "t2@x.com", "role": "teacher", "org_id": "org-9", "member_role": "teacher"}
+    _set_auth("teacher", "t1@x.com")
+
+    other_class_id = str(ObjectId())
+    setup["classes"].docs["2"] = {
+        "_id": other_class_id,
+        "name": "NEET",
+        "teacher_id": "t2@x.com",
+        "teacher_ids": ["t2@x.com"],
+        "student_emails": [],
+        "org_id": "org-9",
+        "enroll_code": "NEET99",
+        "subject_ids": [],
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
+    }
+
+    r = c.get(f"/classes/{other_class_id}/students/analytics")
+    assert r.status_code == 403
+
+
 def test_teacher_gets_class_tests(setup, monkeypatch):
     from datetime import datetime, timezone
     c = setup["client"]
