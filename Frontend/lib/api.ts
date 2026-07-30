@@ -691,6 +691,14 @@ export const classAPI = {
     const res = await api.get(`/classes/${classId}/content`);
     return res.data;
   },
+  async getClassStudents(classId: string): Promise<{ students: any[] }> {
+    const res = await api.get(`/classes/${classId}/students`);
+    return res.data;
+  },
+  async getClassTests(classId: string): Promise<{ tests: any[] }> {
+    const res = await api.get(`/classes/${classId}/tests`);
+    return res.data;
+  },
 };
 
 // ─── Class subjects ──────────────────────────────────────────────────────────

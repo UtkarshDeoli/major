@@ -22,6 +22,7 @@ from src.core.data_store import (
     get_teacher_classes,
     get_student_classes,
     add_student_to_class,
+    object_id_to_str,
 )
 from src.services import class_service
 
@@ -252,6 +253,38 @@ async def get_class_content(
 ):
     result = await class_service.get_class_study_content(class_id, user["email"])
     return result
+
+
+@router.get("/{class_id}/students")
+async def get_class_students(
+    class_id: str = Path(...),
+    teacher=Depends(require_role("teacher")),
+):
+    cls = await get_class_by_id(class_id)
+    if not cls:
+        raise HTTPException(status_code=404, detail="Class not found")
+    if teacher["email"] not in cls.get("teacher_ids", [cls.get("teacher_id")]):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    students = []
+    if users_collection is not None:
+        cursor = users_collection.find({"email": {"$in": cls.get("student_emails", [])}})
+        students = await cursor.to_list(length=None)
+    return {"students": [object_id_to_str(u) for u in students]}
+
+
+@router.get("/{class_id}/tests")
+async def get_class_tests(
+    class_id: str = Path(...),
+    teacher=Depends(require_role("teacher")),
+):
+    cls = await get_class_by_id(class_id)
+    if not cls:
+        raise HTTPException(status_code=404, detail="Class not found")
+    if teacher["email"] not in cls.get("teacher_ids", [cls.get("teacher_id")]):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    from src.core.data_store import list_mock_tests_by_class
+    tests = await list_mock_tests_by_class(class_id)
+    return {"tests": tests}
 
 
 @router.get("/enroll/{code}", response_model=EnrollPreview)

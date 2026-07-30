@@ -32,6 +32,8 @@ class _FakeColl:
             return str(doc_val) == str(q_val)
         if key == "student_emails":
             return q_val in (doc_val or [])
+        if isinstance(q_val, dict) and "$in" in q_val:
+            return doc_val in q_val["$in"]
         return False
 
     async def find_one(self, q):
@@ -208,3 +210,34 @@ def test_student_gets_class_study_content(setup, monkeypatch):
     assert len(data["subjects"]) == 1
     assert len(data["decks"]) == 1
     assert len(data["tests"]) == 1
+
+
+def test_teacher_gets_class_students(setup):
+    c = setup["client"]
+    setup["users"].docs["2"] = {"email": "t1@x.com", "role": "teacher", "org_id": "org-9", "member_role": "teacher"}
+    _set_auth("teacher", "t1@x.com")
+    cid = setup["class_id"]
+    setup["classes"].docs["1"]["student_emails"] = ["s1@x.com"]
+    setup["users"].docs["1"]["name"] = "Student One"
+
+    r = c.get(f"/classes/{cid}/students")
+    assert r.status_code == 200, r.text
+    assert len(r.json()["students"]) == 1
+    assert r.json()["students"][0]["email"] == "s1@x.com"
+
+
+def test_teacher_gets_class_tests(setup, monkeypatch):
+    from datetime import datetime, timezone
+    c = setup["client"]
+    setup["users"].docs["2"] = {"email": "t1@x.com", "role": "teacher", "org_id": "org-9", "member_role": "teacher"}
+    _set_auth("teacher", "t1@x.com")
+    cid = setup["class_id"]
+
+    tests = _FakeColl()
+    tests.docs["1"] = {"_id": str(ObjectId()), "class_id": cid, "title": "T1", "total_marks": 30, "created_at": datetime.now(timezone.utc)}
+    monkeypatch.setattr(ds, "mock_tests_collection", tests)
+
+    r = c.get(f"/classes/{cid}/tests")
+    assert r.status_code == 200, r.text
+    assert len(r.json()["tests"]) == 1
+    assert r.json()["tests"][0]["title"] == "T1"

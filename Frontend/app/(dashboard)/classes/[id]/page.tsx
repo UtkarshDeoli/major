@@ -51,6 +51,8 @@ function TeacherClassDetailPage({ id }: { id: string }) {
   const [newSubject, setNewSubject] = useState("")
   const [uploading, setUploading] = useState(false)
   const [generating, setGenerating] = useState<string | null>(null)
+  const [students, setStudents] = useState<any[]>([])
+  const [tests, setTests] = useState<any[]>([])
 
   const loadClass = useCallback(async () => {
     try {
@@ -82,7 +84,25 @@ function TeacherClassDetailPage({ id }: { id: string }) {
     }
   }, [id, activeSubject, toast])
 
-  useEffect(() => { setLoading(true); Promise.all([loadClass(), loadSubjects()]).finally(() => setLoading(false)) }, [loadClass, loadSubjects])
+  const loadStudents = useCallback(async () => {
+    try {
+      const res = await classAPI.getClassStudents(id)
+      setStudents(res.students || [])
+    } catch (e) {
+      toast({ title: "Couldn't load students", description: getErrorMessage(e), variant: "destructive" })
+    }
+  }, [id, toast])
+
+  const loadTests = useCallback(async () => {
+    try {
+      const res = await classAPI.getClassTests(id)
+      setTests(res.tests || [])
+    } catch (e) {
+      toast({ title: "Couldn't load tests", description: getErrorMessage(e), variant: "destructive" })
+    }
+  }, [id, toast])
+
+  useEffect(() => { setLoading(true); Promise.all([loadClass(), loadSubjects(), loadStudents(), loadTests()]).finally(() => setLoading(false)) }, [loadClass, loadSubjects, loadStudents, loadTests])
   useEffect(() => { loadMaterials() }, [loadMaterials])
 
   const handleAddSubject = async () => {
@@ -250,11 +270,47 @@ function TeacherClassDetailPage({ id }: { id: string }) {
               </TabsContent>
 
               <TabsContent value="tests">
-                <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">Tests tab — class mock tests will be listed here.</div>
+                <div className="space-y-3 pt-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold">Class Tests</h2>
+                    <span className="text-xs text-muted-foreground">{tests.length} generated</span>
+                  </div>
+                  {tests.length === 0 ? (
+                    <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">No mock tests yet. Generate one from a material.</div>
+                  ) : (
+                    <div className="grid gap-2">
+                      {tests.map((t) => (
+                        <Link key={t.test_id || t.id} href={`/mock-tests/${t.test_id || t.id}`} className="rounded-md border p-3 hover:bg-muted/50 flex items-center justify-between">
+                          <div className="text-sm font-medium">{t.title}</div>
+                          <div className="text-xs text-muted-foreground">{t.total_marks} marks</div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </TabsContent>
 
               <TabsContent value="students">
-                <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">Students tab — roster and enroll code sharing will appear here.</div>
+                <div className="space-y-3 pt-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold">Roster</h2>
+                    <span className="text-xs text-muted-foreground">{students.length} enrolled</span>
+                  </div>
+                  {students.length === 0 ? (
+                    <div className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">No students enrolled yet. Share the enroll code.</div>
+                  ) : (
+                    <div className="grid gap-2">
+                      {students.map((s) => (
+                        <div key={s.email || s.id} className="rounded-md border p-3 flex items-center justify-between">
+                          <div>
+                            <div className="text-sm font-medium">{s.name || s.email}</div>
+                            <div className="text-xs text-muted-foreground">{s.email}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </TabsContent>
 
               <TabsContent value="analytics">
