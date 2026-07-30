@@ -32,6 +32,10 @@ class ClassCreateRequest(BaseModel):
     exam_preset: Optional[str] = None
 
 
+class AddTeacherRequest(BaseModel):
+    teacher_email: str
+
+
 class ClassSummary(BaseModel):
     id: str
     name: str
@@ -94,6 +98,12 @@ async def create_class(
     teacher_email = teacher["email"]
     now = datetime.now(timezone.utc)
     enroll_code = _gen_enroll_code()
+
+    teacher_user = None
+    if users_collection is not None:
+        teacher_user = await users_collection.find_one({"email": teacher_email})
+    org_id = teacher_user.get("org_id") if teacher_user else None
+
     doc = {
         "teacher_id": teacher_email,
         "name": request.name,
@@ -101,6 +111,9 @@ async def create_class(
         "exam_preset": request.exam_preset,
         "enroll_code": enroll_code,
         "student_emails": [],
+        "org_id": org_id,
+        "teacher_ids": [teacher_email],
+        "subject_ids": [],
         "created_at": now,
         "updated_at": now,
     }
@@ -110,6 +123,41 @@ async def create_class(
         exam_preset=request.exam_preset, enroll_code=enroll_code,
         student_count=0, created_at=now,
     )
+
+
+@router.post("/{class_id}/teachers", status_code=status.HTTP_200_OK)
+async def add_teacher(
+    request: AddTeacherRequest,
+    class_id: str = Path(...),
+    teacher=Depends(require_role("teacher")),
+):
+    """Add a co-teacher to a class. Both teachers must belong to the same org."""
+    teacher_email = teacher["email"]
+    cls = await get_class_by_id(class_id)
+    if not cls:
+        raise HTTPException(status_code=404, detail="Class not found")
+    if teacher_email not in cls.get("teacher_ids", [cls.get("teacher_id")]):
+        raise HTTPException(status_code=403, detail="Not authorized to modify this class")
+
+    if users_collection is None:
+        raise HTTPException(status_code=503, detail="Database connection not available")
+
+    target = await users_collection.find_one({"email": request.teacher_email})
+    if not target:
+        raise HTTPException(status_code=404, detail="Teacher not found")
+    if target.get("role") != "teacher" or target.get("member_role") != "teacher":
+        raise HTTPException(status_code=400, detail="User is not a teacher in an organization")
+    if target.get("org_id") != cls.get("org_id"):
+        raise HTTPException(status_code=403, detail="Teacher must belong to the same organization")
+
+    from src.core.data_store import classes_collection
+    if classes_collection is None:
+        raise HTTPException(status_code=503, detail="Database connection not available")
+    await classes_collection.update_one(
+        {"_id": __import__("bson").ObjectId(class_id)},
+        {"$addToSet": {"teacher_ids": request.teacher_email}, "$set": {"updated_at": datetime.now(timezone.utc)}},
+    )
+    return {"class_id": class_id, "teacher_email": request.teacher_email, "added": True}
 
 
 @router.get("/", response_model=ClassListResponse)
@@ -158,7 +206,7 @@ async def get_class_detail(class_id: str = Path(...), teacher=Depends(require_ro
     cls = await get_class_by_id(class_id)
     if not cls:
         raise HTTPException(status_code=404, detail="Class not found")
-    if cls.get("teacher_id") != teacher_email:
+    if teacher_email not in cls.get("teacher_ids", [cls.get("teacher_id")]):
         raise HTTPException(status_code=403, detail="Not authorized to view this class")
     students = [await _build_student_in_class(e) for e in cls.get("student_emails", [])]
     return ClassDetail(
@@ -237,7 +285,7 @@ async def remove_student(
     cls = await get_class_by_id(class_id)
     if not cls:
         raise HTTPException(status_code=404, detail="Class not found")
-    if cls.get("teacher_id") != teacher_email:
+    if teacher_email not in cls.get("teacher_ids", [cls.get("teacher_id")]):
         raise HTTPException(status_code=403, detail="Not authorized to modify this class")
 
     from src.core.data_store import classes_collection

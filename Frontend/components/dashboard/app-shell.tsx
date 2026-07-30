@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
@@ -22,6 +22,7 @@ import {
   Shield,
   Focus,
   Calendar,
+  Users,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
@@ -37,7 +38,7 @@ import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/context/auth-context"
 import { UpgradeBanner } from "@/components/billing/upgrade-banner"
 
-const baseNav = [
+const studentNav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/analysis", label: "Analysis", icon: FileBarChart },
@@ -46,6 +47,16 @@ const baseNav = [
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/focus", label: "Focus", icon: Focus },
   { href: "/plans", label: "Plans", icon: Calendar },
+]
+
+const teacherNav = [
+  { href: "/teacher", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/classes", label: "Classes", icon: Users },
+  { href: "/chat", label: "Chat", icon: MessageSquare },
+  { href: "/analysis", label: "Analysis", icon: FileBarChart },
+  { href: "/mock-tests", label: "Mock Tests", icon: BookOpen },
+  { href: "/flashcards", label: "Flashcards", icon: Sparkles },
+  { href: "/analytics", label: "Analytics", icon: BarChart3 },
 ]
 
 const bottomNav = [
@@ -69,13 +80,15 @@ export function isNavItemActive(href: string, pathname: string, tab: string | nu
   return itemTab === tab;
 }
 
+type NavItem = { href: string; label: string; icon: React.ComponentType<{ className?: string }> }
+
 function SidebarNavItem({
   item,
   collapsed,
   isMobile,
   setMobileOpen,
 }: {
-  item: typeof baseNav[0]
+  item: NavItem
   collapsed: boolean
   isMobile: boolean
   setMobileOpen: (v: boolean) => void
@@ -143,7 +156,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   // Build the nav list based on the current user's role.
   const allNav = (() => {
-    const list = [...baseNav]
+    const base = user?.role === "teacher" ? teacherNav : studentNav
+    const list = [...base]
     list.push(billingNav)
     if (user?.role === "subadmin") {
       list.push(orgNav)

@@ -1,13 +1,14 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { getErrorMessage } from "@/lib/errors"
 import { classAPI } from "@/lib/api"
-import { Copy, Loader2, Plus, Trash2, Users } from "lucide-react"
+import { Copy, Loader2, Plus, Users } from "lucide-react"
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog"
@@ -21,25 +22,10 @@ interface ClassItem {
   student_count: number
 }
 
-interface ClassStudent {
-  email: string
-  name?: string
-  tests_taken: number
-  average_score: number
-  last_active_at?: string
-}
-
-interface ClassDetail extends ClassItem {
-  students: ClassStudent[]
-}
-
 export function TeacherClassesPanel() {
   const { toast } = useToast()
   const [classes, setClasses] = useState<ClassItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [openDetail, setOpenDetail] = useState<string | null>(null)
-  const [detail, setDetail] = useState<ClassDetail | null>(null)
-  const [loadingDetail, setLoadingDetail] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [newName, setNewName] = useState("")
   const [newDesc, setNewDesc] = useState("")
@@ -60,19 +46,6 @@ export function TeacherClassesPanel() {
 
   useEffect(() => { fetchClasses() }, [fetchClasses])
 
-  const openClassDetail = async (id: string) => {
-    setOpenDetail(id)
-    setLoadingDetail(true)
-    try {
-      const d = await classAPI.getClass(id)
-      setDetail(d as ClassDetail)
-    } catch (e) {
-      toast({ title: "Couldn't load class", description: getErrorMessage(e), variant: "destructive" })
-    } finally {
-      setLoadingDetail(false)
-    }
-  }
-
   const handleCreate = async () => {
     if (!newName.trim()) return
     setIsCreating(true)
@@ -85,16 +58,6 @@ export function TeacherClassesPanel() {
       toast({ title: "Couldn't create class", description: getErrorMessage(e), variant: "destructive" })
     } finally {
       setIsCreating(false)
-    }
-  }
-
-  const handleRemoveStudent = async (classId: string, email: string) => {
-    try {
-      await classAPI.removeStudent(classId, email)
-      setDetail((prev) => prev ? { ...prev, students: prev.students.filter((s) => s.email !== email) } : prev)
-      fetchClasses()
-    } catch (e) {
-      toast({ title: "Couldn't remove student", description: getErrorMessage(e), variant: "destructive" })
     }
   }
 
@@ -146,36 +109,15 @@ export function TeacherClassesPanel() {
               <div className="flex items-center gap-2">
                 <code className="rounded bg-secondary px-2 py-1 text-[12px] tracking-wider font-mono">{c.enroll_code}</code>
                 <Button variant="ghost" size="icon" className="h-6 w-6" title="Copy enroll code" onClick={() => copyCode(c.enroll_code)}><Copy className="h-3 w-3" /></Button>
-                <Button variant="outline" size="sm" className="ml-auto h-7 text-[12px]" onClick={() => openClassDetail(c.id)}>Roster</Button>
+                <Button variant="outline" size="sm" className="ml-auto h-7 text-[12px]" asChild>
+                  <Link href={`/classes/${c.id}`}>Open</Link>
+                </Button>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Roster dialog */}
-      <Dialog open={!!openDetail} onOpenChange={(o) => !o && setOpenDetail(null)}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>{detail?.name ?? "Class"} — Roster</DialogTitle></DialogHeader>
-          {loadingDetail ? (
-            <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-          ) : detail && detail.students.length > 0 ? (
-            <div className="space-y-2">
-              {detail.students.map((s) => (
-                <div key={s.email} className="flex items-center gap-2 rounded-md border p-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{s.name || s.email}</div>
-                    <div className="text-[11px] text-muted-foreground">{s.tests_taken} tests · avg {s.average_score}%</div>
-                  </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveStudent(detail.id, s.email)}><Trash2 className="h-3.5 w-3.5" /></Button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No students enrolled yet. Share the enroll code <code className="font-mono">{detail?.enroll_code}</code>.</p>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
