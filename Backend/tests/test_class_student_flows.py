@@ -1,0 +1,184 @@
+import pytest
+import importlib
+from bson import ObjectId
+
+import src.core.data_store as ds
+cr = importlib.import_module("src.routers.class_router")
+from src.core.security import get_current_user_with_role
+from src.main import app
+from fastapi.testclient import TestClient
+
+
+class _FakeCursor:
+    def __init__(self, docs):
+        self._docs = docs
+
+    def sort(self, *args, **kwargs):
+        return self
+
+    async def to_list(self, length=None):
+        return self._docs[:length] if length is not None else list(self._docs)
+
+
+class _FakeColl:
+    def __init__(self):
+        self.docs = {}
+        self._i = 0
+
+    def _match(self, doc_val, q_val, key):
+        if doc_val == q_val:
+            return True
+        if key == "_id":
+            return str(doc_val) == str(q_val)
+        if key == "student_emails":
+            return q_val in (doc_val or [])
+        return False
+
+    async def find_one(self, q):
+        for d in self.docs.values():
+            if all(self._match(d.get(k), v, k) for k, v in q.items()):
+                return dict(d)
+        return None
+
+    def find(self, q=None):
+        q = q or {}
+        results = [dict(d) for d in self.docs.values() if all(self._match(d.get(k), v, k) for k, v in q.items())]
+        return _FakeCursor(results)
+
+    async def insert_one(self, doc):
+        self._i += 1
+        d = dict(doc)
+        oid = str(ObjectId())
+        d["_id"] = oid
+        self.docs[str(self._i)] = d
+        class R:
+            inserted_id = oid
+        return R()
+
+    async def update_one(self, q, op, upsert=False):
+        for d in self.docs.values():
+            if all(self._match(d.get(k), v, k) for k, v in q.items()):
+                if "$set" in op:
+                    d.update(op["$set"])
+                if "$addToSet" in op:
+                    for k, v in op["$addToSet"].items():
+                        arr = d.setdefault(k, [])
+                        if isinstance(v, dict) and "$each" in v:
+                            for item in v["$each"]:
+                                if item not in arr:
+                                    arr.append(item)
+                        elif v not in arr:
+                            arr.append(v)
+                if "$pull" in op:
+                    for k, v in op["$pull"].items():
+                        arr = d.get(k, [])
+                        if v in arr:
+                            arr.remove(v)
+                return
+
+    async def find_one_and_update(self, q, op, upsert=False, return_document=None):
+        for d in self.docs.values():
+            if all(self._match(d.get(k), v, k) for k, v in q.items()):
+                if "$set" in op:
+                    d.update(op["$set"])
+                if "$addToSet" in op:
+                    for k, v in op["$addToSet"].items():
+                        arr = d.setdefault(k, [])
+                        if isinstance(v, dict) and "$each" in v:
+                            for item in v["$each"]:
+                                if item not in arr:
+                                    arr.append(item)
+                        elif v not in arr:
+                            arr.append(v)
+                if "$pull" in op:
+                    for k, v in op["$pull"].items():
+                        arr = d.get(k, [])
+                        if v in arr:
+                            arr.remove(v)
+                return dict(d)
+        return None
+
+
+def _set_auth(role, email):
+    def _auth():
+        return {"email": email, "user": {"email": email, "role": role}}
+    app.dependency_overrides[get_current_user_with_role] = _auth
+
+
+@pytest.fixture
+def setup(monkeypatch):
+    users = _FakeColl()
+    classes = _FakeColl()
+    submissions = _FakeColl()
+    monkeypatch.setattr(ds, "users_collection", users)
+    monkeypatch.setattr(ds, "classes_collection", classes)
+    monkeypatch.setattr(ds, "mock_test_submissions_collection", submissions)
+    monkeypatch.setattr(cr, "users_collection", users)
+    monkeypatch.setattr(cr, "mock_test_submissions_collection", submissions)
+
+    svc = __import__("importlib").import_module("src.services.class_service")
+    monkeypatch.setattr(svc, "classes_collection", classes)
+
+    from datetime import datetime, timezone
+    class_id = str(ObjectId())
+    classes.docs["1"] = {
+        "_id": class_id,
+        "name": "JEE",
+        "teacher_id": "t1@x.com",
+        "teacher_ids": ["t1@x.com"],
+        "student_emails": [],
+        "org_id": "org-9",
+        "enroll_code": "JEE123",
+        "subject_ids": [],
+        "created_at": datetime.now(timezone.utc),
+        "updated_at": datetime.now(timezone.utc),
+    }
+    users.docs["1"] = {"email": "s1@x.com", "role": "student", "org_id": "org-9", "member_role": "student"}
+    _set_auth("student", "s1@x.com")
+    c = TestClient(app)
+    yield dict(users=users, classes=classes, class_id=class_id, client=c)
+    app.dependency_overrides.pop(get_current_user_with_role, None)
+
+
+def test_student_joins_class_by_enroll_code(setup):
+    c = setup["client"]
+    r = c.post("/classes/join", json={"enroll_code": "JEE123"})
+    assert r.status_code == 200, r.text
+    assert r.json()["enrolled"] is True
+    assert "s1@x.com" in setup["classes"].docs["1"]["student_emails"]
+
+
+def test_student_lists_their_classes(setup):
+    c = setup["client"]
+    c.post("/classes/join", json={"enroll_code": "JEE123"})
+    r = c.get("/classes/me")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert len(data["classes"]) == 1
+    assert data["classes"][0]["enroll_code"] == "JEE123"
+
+
+def test_student_can_view_enrolled_class(setup):
+    c = setup["client"]
+    c.post("/classes/join", json={"enroll_code": "JEE123"})
+    r = c.get(f"/classes/{setup['class_id']}")
+    assert r.status_code == 200, r.text
+    assert r.json()["name"] == "JEE"
+
+
+def test_non_member_student_cannot_view_class(setup):
+    setup["classes"].docs["2"] = {
+        "_id": str(ObjectId()),
+        "name": "NEET",
+        "teacher_id": "t2@x.com",
+        "teacher_ids": ["t2@x.com"],
+        "student_emails": [],
+        "org_id": "org-9",
+        "enroll_code": "NEET99",
+        "subject_ids": [],
+        "created_at": setup["classes"].docs["1"]["created_at"],
+        "updated_at": setup["classes"].docs["1"]["updated_at"],
+    }
+    c = setup["client"]
+    r = c.get(f"/classes/{setup['classes'].docs['2']['_id']}")
+    assert r.status_code == 403

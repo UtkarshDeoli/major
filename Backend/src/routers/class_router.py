@@ -20,8 +20,10 @@ from src.core.data_store import (
     get_class_by_id,
     get_class_by_enroll_code,
     get_teacher_classes,
+    get_student_classes,
     add_student_to_class,
 )
+from src.services import class_service
 
 router = APIRouter(prefix="/classes", tags=["Classes"])
 
@@ -30,6 +32,10 @@ class ClassCreateRequest(BaseModel):
     name: str
     description: Optional[str] = None
     exam_preset: Optional[str] = None
+
+
+class JoinClassRequest(BaseModel):
+    enroll_code: str
 
 
 class AddTeacherRequest(BaseModel):
@@ -174,6 +180,23 @@ async def list_classes(teacher=Depends(require_role("teacher"))):
     ])
 
 
+@router.post("/join", status_code=status.HTTP_200_OK)
+async def join_class(
+    request: JoinClassRequest,
+    student=Depends(require_role("student")),
+):
+    result = await class_service.join_class_by_enroll_code(student["email"], request.enroll_code)
+    return result
+
+
+@router.get("/me", response_model=ClassListResponse)
+async def list_my_classes(
+    student=Depends(require_role("student")),
+):
+    classes = await class_service.list_student_classes(student["email"])
+    return ClassListResponse(classes=[ClassSummary(**c) for c in classes])
+
+
 async def _build_student_in_class(email: str) -> StudentInClass:
     student = None
     if users_collection is not None:
@@ -201,12 +224,18 @@ async def _build_student_in_class(email: str) -> StudentInClass:
 
 
 @router.get("/{class_id}", response_model=ClassDetail)
-async def get_class_detail(class_id: str = Path(...), teacher=Depends(require_role("teacher"))):
-    teacher_email = teacher["email"]
+async def get_class_detail(
+    class_id: str = Path(...),
+    user=Depends(require_role()),  # any authenticated user
+):
     cls = await get_class_by_id(class_id)
     if not cls:
         raise HTTPException(status_code=404, detail="Class not found")
-    if teacher_email not in cls.get("teacher_ids", [cls.get("teacher_id")]):
+    user_email = user["email"]
+    user_role = user.get("role")
+    is_teacher = user_email in cls.get("teacher_ids", [cls.get("teacher_id")])
+    is_student = user_email in cls.get("student_emails", [])
+    if not is_teacher and not is_student:
         raise HTTPException(status_code=403, detail="Not authorized to view this class")
     students = [await _build_student_in_class(e) for e in cls.get("student_emails", [])]
     return ClassDetail(
